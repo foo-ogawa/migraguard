@@ -130,9 +130,10 @@ program
 program
   .command('deps')
   .description('Analyze and display migration dependency graph')
-  .action(() => run(async () => {
+  .option('--html <path>', 'Output as HTML file with GitGraph.js visualization')
+  .action((opts: { html?: string }) => run(async () => {
     const config = await loadConfig();
-    const result = await commandDeps(config);
+    const result = await commandDeps(config, { html: opts.html });
     if (!result.ok) process.exit(1);
   }));
 

@@ -58,6 +58,9 @@ metadata.json は「どのファイルが存在すべきか」を、schema_migra
 | 機能 | 説明 |
 |------|------|
 | `migraguard deps` | マイグレーション間の依存関係をツリー形式で表示。◆=editable（葉ノード）、◇=locked（非葉ノード）のマーク付き |
+| `migraguard deps --html <path>` | GitGraph.js による依存グラフの HTML を生成 |
+
+![Migration Dependency Graph](assets/deps-graph.png)
 
 ## ディレクトリ構成
 

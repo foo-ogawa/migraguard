@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import {
@@ -13,20 +14,30 @@ export interface DepsResult {
   cycles: CycleError[];
 }
 
+export interface DepsOptions {
+  html?: string;
+}
+
 export async function commandDeps(
   config: MigraguardConfig,
+  options: DepsOptions = {},
 ): Promise<DepsResult> {
   const graph = await buildDependencyGraph(config);
   const cycles = detectCycles(graph);
   const ok = cycles.length === 0;
 
-  printTree(graph, cycles);
+  if (options.html) {
+    await generateHtml(graph, cycles, options.html);
+    console.log(chalk.green(`✓ HTML written to: ${options.html}`));
+  } else {
+    printTree(graph, cycles);
+  }
 
   return { ok, graph, cycles };
 }
 
 // ---------------------------------------------------------------------------
-// Tree rendering
+// Tree rendering (shared by text and HTML)
 // ---------------------------------------------------------------------------
 
 interface TreeNode {
@@ -118,6 +129,10 @@ function computeDepths(graph: DependencyGraph): Map<string, number> {
   return depth;
 }
 
+// ---------------------------------------------------------------------------
+// Text tree (terminal)
+// ---------------------------------------------------------------------------
+
 function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
   if (graph.files.length === 0) {
     console.log(chalk.yellow('No migration files found.'));
@@ -166,4 +181,176 @@ function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
   console.log(chalk.gray(
     `${graph.files.length} files, ${graph.edges.length} deps, ${leaves.size} leaves`,
   ));
+}
+
+// ---------------------------------------------------------------------------
+// HTML output (GitGraph.js)
+// ---------------------------------------------------------------------------
+
+const BRANCH_COLORS = [
+  '#4C9AFF', '#F5A623', '#7B68EE', '#FF6B6B', '#2ECC71',
+  '#E67E22', '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB',
+];
+
+function shortName(file: string): string {
+  return file.replace(/\.sql$/, '').replace(/^\d{8}_\d{6}__/, '');
+}
+
+function findTrunk(node: TreeNode): TreeNode[] {
+  if (node.children.length === 0) return [node];
+  let best: TreeNode[] = [];
+  for (const child of node.children) {
+    const path = findTrunk(child);
+    if (path.length > best.length) best = path;
+  }
+  return [node, ...best];
+}
+
+async function generateHtml(
+  graph: DependencyGraph,
+  cycles: CycleError[],
+  outputPath: string,
+): Promise<void> {
+  const trees = buildTree(graph);
+  const leaves = new Set(findLeafNodes(graph));
+  const js: string[] = [];
+  let colorIdx = 0;
+  let varIdx = 0;
+
+  function nextColor(): string {
+    return BRANCH_COLORS[colorIdx++ % BRANCH_COLORS.length];
+  }
+
+  function nextVar(): string {
+    return `b${varIdx++}`;
+  }
+
+  function commitStyle(file: string): string {
+    const isLeaf = leaves.has(file);
+    const dot = isLeaf
+      ? '{ size: 10, color: "#2ECC71", strokeColor: "#27AE60" }'
+      : '{ size: 10 }';
+    const msg = isLeaf
+      ? '{ color: "#2ECC71", font: "normal 13px ui-monospace, monospace" }'
+      : '{ font: "normal 13px ui-monospace, monospace" }';
+    return `{ subject: ${JSON.stringify(file)}, style: { dot: ${dot}, message: ${msg} } }`;
+  }
+
+  function emitSubtree(root: TreeNode, parentVar: string | null): void {
+    const trunk = findTrunk(root);
+    const trunkSet = new Set(trunk.map((n) => n.file));
+
+    const branchVar = nextVar();
+    const color = nextColor();
+    const label = shortName(root.file);
+
+    if (parentVar === null) {
+      js.push(`const ${branchVar} = gitgraph.branch({ name: ${JSON.stringify(label)}, style: { color: "${color}", label: { font: "normal 12px ui-monospace, monospace" } } });`);
+    } else {
+      js.push(`const ${branchVar} = ${parentVar}.branch({ name: ${JSON.stringify(label)}, style: { color: "${color}", label: { font: "normal 12px ui-monospace, monospace" } } });`);
+    }
+
+    for (const trunkNode of trunk) {
+      js.push(`${branchVar}.commit(${commitStyle(trunkNode.file)});`);
+
+      const forks = trunkNode.children.filter((c) => !trunkSet.has(c.file));
+      for (const fork of forks) {
+        emitSubtree(fork, branchVar);
+      }
+    }
+  }
+
+  for (const root of trees) {
+    emitSubtree(root, null);
+  }
+
+  const cycleWarning = cycles.length > 0
+    ? `<div style="margin-top:24px;padding:12px 16px;background:#FFF3CD;border-left:4px solid #E74C3C;border-radius:4px;font-family:monospace;font-size:13px;">
+        <strong>Circular dependencies detected:</strong><br>
+        ${cycles.map((c) => c.cycle.join(' → ')).join('<br>')}
+      </div>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>migraguard — Migration Dependency Graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 32px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  .meta {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 24px;
+  }
+  .meta span { margin-right: 16px; }
+  .legend {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block;
+  }
+  #graph-container {
+    overflow-x: auto;
+    padding: 8px 0;
+  }
+</style>
+</head>
+<body>
+  <h1>migraguard — Migration Dependency Graph</h1>
+  <div class="meta">
+    <span>${graph.files.length} files</span>
+    <span>${graph.edges.length} deps</span>
+    <span>${leaves.size} leaves</span>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#2ECC71;"></span> editable (leaf)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#4C9AFF;"></span> locked (depended on)</div>
+  </div>
+  <div id="graph-container"></div>
+  ${cycleWarning}
+  <script src="https://cdn.jsdelivr.net/npm/@gitgraph/js"></script>
+  <script>
+  const graphContainer = document.getElementById("graph-container");
+  const gitgraph = GitgraphJS.createGitgraph(graphContainer, {
+    template: GitgraphJS.templateExtend("metro", {
+      colors: ${JSON.stringify(BRANCH_COLORS)},
+      branch: {
+        lineWidth: 3,
+        spacing: 46,
+        label: { display: true, font: "normal 12px ui-monospace, monospace" },
+      },
+      commit: {
+        spacing: 52,
+        dot: { size: 8 },
+        message: { displayAuthor: false, displayHash: false, font: "normal 13px ui-monospace, monospace" },
+      },
+    }),
+    orientation: "vertical",
+  });
+  ${js.join('\n  ')}
+  </script>
+</body>
+</html>
+`;
+  await writeFile(outputPath, html, 'utf-8');
 }
