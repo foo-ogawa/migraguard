@@ -1,17 +1,8 @@
 import { readFile } from 'node:fs/promises';
+import libpg from 'libpg-query';
 import type { MigraguardConfig, RawConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
-
-let _parseQuerySync: typeof import('@pg-nano/pg-parser').parseQuerySync | undefined;
-let _walk: typeof import('@pg-nano/pg-parser').walk | undefined;
-
-async function loadParser(): Promise<void> {
-  if (_parseQuerySync) return;
-  const mod = await import('@pg-nano/pg-parser');
-  _parseQuerySync = mod.parseQuerySync;
-  _walk = mod.walk;
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,14 +48,14 @@ function normalizeTableName(name: string | undefined, schema: string | undefined
 }
 
 export async function analyzeSql(sql: string): Promise<{ creates: ObjectRef[]; references: ObjectRef[] }> {
-  await loadParser();
   const creates: ObjectRef[] = [];
   const references: ObjectRef[] = [];
   const createdTableNames = new Set<string>();
 
   let stmts;
   try {
-    stmts = _parseQuerySync!(sql).stmts;
+    const ast = await libpg.parse(sql);
+    stmts = ast.stmts;
   } catch {
     return { creates, references };
   }
@@ -219,20 +210,27 @@ function collectRangeVarsFromNode(
   node: unknown,
   references: ObjectRef[],
 ): void {
-  try {
-    _walk!(node, {
-      RangeVar(path) {
-        const rv = path.node as { relname?: string; schemaname?: string };
-        if (rv.relname) {
-          references.push({
-            type: 'table',
-            name: normalizeTableName(rv.relname, rv.schemaname),
-          });
-        }
-      },
-    });
-  } catch {
-    // walk may fail on certain node structures; skip silently
+  if (node === null || node === undefined || typeof node !== 'object') return;
+
+  const obj = node as Record<string, unknown>;
+  if ('RangeVar' in obj) {
+    const rv = obj.RangeVar as { relname?: string; schemaname?: string };
+    if (rv?.relname) {
+      references.push({
+        type: 'table',
+        name: normalizeTableName(rv.relname, rv.schemaname),
+      });
+    }
+  }
+
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        collectRangeVarsFromNode(item, references);
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      collectRangeVarsFromNode(value, references);
+    }
   }
 }
 

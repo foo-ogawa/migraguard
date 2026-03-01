@@ -51,10 +51,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@pg-nano/pg-parser": "^16.1.5",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "glob": "^10.3.10",
+    "libpg-query": "^17.7.3",
     "pg": "^8.19.0"
   },
   "devDependencies": {
