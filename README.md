@@ -43,6 +43,8 @@ metadata.json は「どのファイルが存在すべきか」を、schema_migra
 |------|------|
 | `migraguard check` | metadata.json とファイル本体のチェックサム比較。最新ファイル以外の変更・追加を検出しエラーとする。DB 接続不要 |
 | `migraguard lint` | Squawk を使用した SQL lint。冪等性・安全性に関するルール違反を検出 |
+| `migraguard verify` | shadow DB を使用して各マイグレーションの冪等性を動的に検証する。既存 DB をダンプして復元し、未適用分を2回適用してエラーなし・スキーマ不変を確認する |
+| `migraguard verify --all` | 空の shadow DB で全マイグレーションを最初から冪等性検証する |
 
 ### スキーマ管理
 

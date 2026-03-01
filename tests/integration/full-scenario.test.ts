@@ -19,6 +19,7 @@ import { commandEditable } from '../../src/commands/editable.js';
 import { commandResolve } from '../../src/commands/resolve.js';
 import { commandDump } from '../../src/commands/dump.js';
 import { commandDiff } from '../../src/commands/diff.js';
+import { commandVerify } from '../../src/commands/verify.js';
 import { resolveFromConfig } from '../../src/config.js';
 import {
   resetTestDb,
@@ -481,5 +482,86 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     // failed-retryable は最新ファイルではないが failed なので表示される
     const failedEntry = result.entries.find(e => e.reason === 'failed-retryable');
     expect(failedEntry?.fileName).toBe('20260401_110000__ed_bad.sql');
+  });
+});
+
+// ─────────────────────────────────────────────
+// verify: 冪等性検証
+// ─────────────────────────────────────────────
+
+describe('verify', () => {
+  let project: TestProject;
+
+  afterAll(async () => {
+    if (project) await cleanupTestProject(project);
+  });
+
+  beforeEach(async () => {
+    if (project) await cleanupTestProject(project);
+    await resetTestDb();
+    project = await createTestProject();
+  });
+
+  it('--all: idempotent migrations pass', async () => {
+    await writeMigration(project, '20260401_100000__create_t1.sql',
+      'CREATE TABLE IF NOT EXISTS t1 (id SERIAL PRIMARY KEY);');
+    await writeMigration(project, '20260401_110000__create_t2.sql',
+      'CREATE TABLE IF NOT EXISTS t2 (id SERIAL PRIMARY KEY, t1_id INT REFERENCES t1(id));');
+    await saveMetadata(project.config, {
+      migrations: [
+        { file: '20260401_100000__create_t1.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t1 (id SERIAL PRIMARY KEY);') },
+        { file: '20260401_110000__create_t2.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t2 (id SERIAL PRIMARY KEY, t1_id INT REFERENCES t1(id));') },
+      ],
+    });
+
+    const r = await commandVerify(project.config, { all: true });
+    expect(r.failed).toBe(0);
+    expect(r.passed).toBe(2);
+  });
+
+  it('--all: non-idempotent migration fails', async () => {
+    await writeMigration(project, '20260401_100000__non_idem.sql',
+      'CREATE TABLE t_noidem (id SERIAL PRIMARY KEY);');
+    await saveMetadata(project.config, {
+      migrations: [
+        { file: '20260401_100000__non_idem.sql', checksum: checksumString('CREATE TABLE t_noidem (id SERIAL PRIMARY KEY);') },
+      ],
+    });
+
+    const r = await commandVerify(project.config, { all: true });
+    expect(r.failed).toBe(1);
+    expect(r.files[0].secondApplyError).toBeDefined();
+  });
+
+  it('incremental: verifies pending migration against current DB', async () => {
+    const sql1 = 'CREATE TABLE IF NOT EXISTS base_v (id SERIAL PRIMARY KEY);';
+    await writeMigration(project, '20260401_100000__base_v.sql', sql1);
+    await saveMetadata(project.config, {
+      migrations: [{ file: '20260401_100000__base_v.sql', checksum: checksumString(sql1) }],
+    });
+    await commandApply(project.config);
+
+    await writeMigration(project, '20260401_110000__add_col.sql',
+      'ALTER TABLE base_v ADD COLUMN IF NOT EXISTS name TEXT;');
+
+    const r = await commandVerify(project.config);
+    expect(r.failed).toBe(0);
+    expect(r.files.some(f => f.fileName === '20260401_110000__add_col.sql' && f.passed)).toBe(true);
+  });
+
+  it('incremental: non-idempotent pending migration fails', async () => {
+    const sql1 = 'CREATE TABLE IF NOT EXISTS base_v2 (id SERIAL PRIMARY KEY);';
+    await writeMigration(project, '20260401_100000__base_v2.sql', sql1);
+    await saveMetadata(project.config, {
+      migrations: [{ file: '20260401_100000__base_v2.sql', checksum: checksumString(sql1) }],
+    });
+    await commandApply(project.config);
+
+    await writeMigration(project, '20260401_110000__bad_alter.sql',
+      'ALTER TABLE base_v2 ADD COLUMN name TEXT;');
+
+    const r = await commandVerify(project.config);
+    expect(r.failed).toBe(1);
+    expect(r.files[0].secondApplyError).toContain('already exists');
   });
 });

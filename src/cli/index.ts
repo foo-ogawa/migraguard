@@ -12,6 +12,7 @@ import { commandStatus } from '../commands/status.js';
 import { commandResolve } from '../commands/resolve.js';
 import { commandDump } from '../commands/dump.js';
 import { commandDiff } from '../commands/diff.js';
+import { commandVerify } from '../commands/verify.js';
 
 async function run(fn: () => Promise<void>): Promise<void> {
   try {
@@ -113,6 +114,16 @@ program
   .action(() => run(async () => {
     const config = await loadConfig();
     await commandEditable(config);
+  }));
+
+program
+  .command('verify')
+  .description('Verify migration idempotency using a shadow DB')
+  .option('--all', 'Verify all migrations from scratch (not just pending)')
+  .action((opts: { all?: boolean }) => run(async () => {
+    const config = await loadConfig();
+    const result = await commandVerify(config, { all: opts.all });
+    if (result.failed > 0) process.exit(1);
   }));
 
 program

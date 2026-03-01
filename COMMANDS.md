@@ -70,6 +70,15 @@ Run Squawk lint on migration files to detect idempotency and safety rule violati
 migraguard lint
 ```
 
+### `migraguard verify`
+
+Verify migration idempotency using a shadow DB. Dumps the current DB schema, restores it to a temporary shadow database, then applies each pending migration twice — checking for errors and schema drift.
+
+```bash
+migraguard verify          # incremental: restore current DB, verify pending only
+migraguard verify --all    # full: empty shadow, verify all migrations from scratch
+```
+
 ## Schema management
 
 ### `migraguard dump`

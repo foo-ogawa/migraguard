@@ -118,6 +118,20 @@
   - [x] apply --verify: drift でブロック
   - [x] apply --verify: 成功後に schema.sql 更新
   - [x] editable DB あり: failed-retryable ファイル表示
+  - [x] verify --all: 冪等な DDL がパス
+  - [x] verify --all: 非冪等な DDL が失敗検出
+  - [x] verify (incremental): 既存 DB 復元 → 未適用分の冪等性検証
+  - [x] verify (incremental): 非冪等な未適用 DDL が失敗検出
+
+## verify コマンド
+
+- [x] `src/commands/verify.ts` — shadow DB 作成・冪等性検証
+  - [x] shadow DB ライフサイクル（CREATE → verify → DROP）
+  - [x] `--all` モード: 空 DB から全ファイルを2回適用
+  - [x] インクリメンタルモード: 既存 DB ダンプ復元 → schema_migrations 参照 → 未適用分のみ検証
+  - [x] CLI 接続
+  - [x] 統合テスト（4 ケース）
+  - [x] lint チェック通過
 
 ## Phase 2: 依存解析（情報表示のみ）
 
