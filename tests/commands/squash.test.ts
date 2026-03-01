@@ -165,7 +165,7 @@ describe('commands/squash', () => {
     expect(files).toHaveLength(1);
   });
 
-  it('DAG: rejects squash when new files are in independent branches', async () => {
+  it('DAG: independent files are left as-is (not squashed)', async () => {
     await setupFiles({
       '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
       '20260302_100000__create_orders.sql': 'CREATE TABLE IF NOT EXISTS orders (id INT PRIMARY KEY);',
@@ -178,6 +178,65 @@ describe('commands/squash', () => {
       migrations: [],
     });
 
-    await expect(commandSquash(config)).rejects.toThrow('independent branches');
+    await commandSquash(config);
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    const files = (await readdir(migDir)).sort();
+    expect(files).toHaveLength(2);
+    expect(files).toContain('20260301_100000__create_users.sql');
+    expect(files).toContain('20260302_100000__create_orders.sql');
+  });
+
+  it('DAG: groups by dependency chain — squash chain, leave independent', async () => {
+    await setupFiles({
+      '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+      '20260302_100000__add_email.sql': 'ALTER TABLE users ADD COLUMN email VARCHAR(256);',
+      '20260303_100000__create_orders.sql': 'CREATE TABLE IF NOT EXISTS orders (id INT PRIMARY KEY);',
+    });
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [],
+    });
+
+    await commandSquash(config);
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    const files = (await readdir(migDir)).sort();
+    expect(files).toHaveLength(2);
+    expect(files.find((f) => f.includes('create_users_and_add_email'))).toBeDefined();
+    expect(files).toContain('20260303_100000__create_orders.sql');
+  });
+
+  it('DAG: squash preserves oldest-to-newest order within group', async () => {
+    await setupFiles({
+      '20260303_100000__add_index.sql': 'CREATE INDEX IF NOT EXISTS idx ON users (email);',
+      '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+      '20260302_100000__add_email.sql': 'ALTER TABLE users ADD COLUMN email VARCHAR(256);',
+    });
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [],
+    });
+
+    await commandSquash(config);
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    const files = await readdir(migDir);
+    expect(files).toHaveLength(1);
+
+    const content = await readFile(join(migDir, files[0]), 'utf-8');
+    const sourceIdx = (name: string) => content.indexOf(`Source: ${name}`);
+    expect(sourceIdx('20260301_100000__create_users.sql')).toBeLessThan(
+      sourceIdx('20260302_100000__add_email.sql'),
+    );
+    expect(sourceIdx('20260302_100000__add_email.sql')).toBeLessThan(
+      sourceIdx('20260303_100000__add_index.sql'),
+    );
   });
 });
