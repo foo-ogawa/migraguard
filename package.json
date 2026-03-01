@@ -20,7 +20,8 @@
   },
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "COMMANDS.md"
   ],
   "scripts": {
     "build": "tsup",
