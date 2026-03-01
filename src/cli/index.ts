@@ -82,6 +82,14 @@ program
   });
 
 program
+  .command('editable')
+  .description('List migration files that are currently editable (leaf nodes or latest file)')
+  .action(() => {
+    console.log('Not yet implemented');
+    process.exit(1);
+  });
+
+program
   .command('deps')
   .description('Analyze and display migration dependency graph')
   .option('--dot', 'Output in DOT format for Graphviz')

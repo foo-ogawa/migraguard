@@ -35,6 +35,7 @@ metadata.json は「どのファイルが存在すべきか」を、schema_migra
 | `migraguard apply` | 未適用マイグレーションを順番に `psql` で実行。対象 DB の `schema_migrations` テーブルで適用済みを判定 |
 | `migraguard resolve <file>` | 失敗したマイグレーションを明示的にスキップ済みとしてマーク。後続の forward migration で修正済みであることを人間が判断した上で実行する |
 | `migraguard status` | 適用済み・未適用・失敗・スキップのマイグレーション一覧を表示 |
+| `migraguard editable` | 現在編集可能なマイグレーションファイルを一覧表示。線形モデルでは末尾ファイル、DAG モデルでは葉ノードが対象。DB 接続時は `schema_migrations` も参照し、failed 状態のリトライ可能ファイルも表示する |
 
 ### 整合性チェック
 
