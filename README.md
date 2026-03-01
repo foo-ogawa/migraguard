@@ -1,8 +1,8 @@
 # migraguard
 
-A SQL migration management toolchain for PostgreSQL.
+An incident-prevention migration tool for PostgreSQL. Enforces safe operational policies via CI gates and DB state tracking, so that common migration accidents — accidental edits to past files, hotfix reversions, unresolved failures, mid-sequence insertions — are structurally impossible.
 
-Manages DDL as plain SQL files executed via `psql`, providing idempotency enforcement, tamper detection, and schema drift checking.
+Execution is deliberately simple: plain SQL files executed via `psql`. migraguard focuses on **what to forbid**, not on providing a rich execution engine.
 
 ## Guarantees
 
@@ -20,9 +20,10 @@ migraguard guarantees the following:
 # Install
 npm install --save-dev migraguard
 
-# Create a new migration → edit SQL → apply to local DB
+# Create a new migration → edit the generated file → apply to local DB
 npx migraguard new create_users_table
-vim db/migrations/20260301_120000__create_users_table.sql
+# → Created: db/migrations/20260301_120000__create_users_table.sql
+# Edit the file shown above, then:
 npx migraguard apply
 
 # Before release: squash → lint + check → update dump
@@ -41,7 +42,11 @@ npx migraguard dump
 - **One release = one file**: Migration files with dependencies are squashed into a single file before release. One file = one release unit, simplifying error recovery and re-application. In DAG mode, independent DDL can be released individually, and `squash` auto-groups by dependency chain
 - **Parallel releases via dependency tree**: DDL dependencies are analyzed to build a DAG, enabling concurrent work and parallel releases for independent changes. Relaxes the constraints of the linear model for large-scale systems
 - **Shift verification left**: Squawk linting, checksum-based tamper detection, and schema dump diffs run in CI (at the PR stage), eliminating risks before reaching production
-- **Minimal footprint**: Managed with `psql` + SQL files + metadata JSON + DB state table. Avoids tool-specific lock-in and black boxes
+- **Minimal footprint**: Avoids tool-specific lock-in and black boxes. The entire runtime depends on four external tools, each with a clear responsibility:
+  - `psql` — executes migration SQL files directly
+  - `pg_dump` — produces normalized schema dumps for drift detection
+  - [Squawk](https://squawkhq.com/) — lints SQL for safety and idempotency (optional)
+  - [libpg-query](https://github.com/pganalyze/libpg-query) — parses DDL into AST for dependency analysis (DAG model)
 
 ## Two-Layer State Management
 
@@ -140,9 +145,9 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 Automatically created on the first run of `migraguard apply`.
 
-**History policy: fully INSERT-only**
+**History policy: fully INSERT-only — why no UPDATE**
 
-The PK is `BIGSERIAL` (auto-increment), so a new record is INSERTed every time, even for the same file and checksum. No UPDATEs are performed.
+The PK is `BIGSERIAL` (auto-increment), so a new record is INSERTed every time, even for the same file and checksum. **No UPDATEs are ever performed.** This is not a simplification; it is a deliberate design choice. UPDATE-based designs lose the history needed for regression detection (matching the current checksum against all past checksums). INSERT-only also provides a complete audit log of every application attempt, including failures.
 
 - Re-application of the same file (e.g., hotfix with changed checksum) → INSERT a new record with the new checksum
 - Re-execution with the same checksum (idempotent re-apply) → INSERT a new record with the same checksum (different `applied_at`)
@@ -363,7 +368,7 @@ After squash:
   20260301_093000__add_user_email_and_email_index.sql  (merged into 1 file)
 ```
 
-`migraguard check` returns an error if there are 2 or more new files (not recorded in metadata.json). This enforces running squash before push.
+`migraguard check` returns an error if there are 2 or more new files (not recorded in metadata.json). This enforces running squash before push. **This constraint applies to the linear model only.** In DAG mode, independent groups (no mutual dependencies) are allowed as separate new files; squash is enforced only within each dependency chain.
 
 ### DAG Model Behavior
 
@@ -467,17 +472,38 @@ npx migraguard resolve 20260301_093000__add_user_email.sql
 - Errors if the file's latest record is not `failed`
 - An explicit operation that requires human confirmation that a subsequent forward migration covers the fix
 
-### Schema Dump Pre-verification (during apply)
+## Verification
 
-When the `--verify` option is specified, the following verification is performed before apply:
+migraguard provides two distinct verification mechanisms. They serve different purposes and should not be confused.
+
+### `apply --verify` — Schema Drift Gate (pre/post apply)
+
+**Purpose**: Ensure the DB has not drifted from the expected schema before applying migrations, and update the recorded schema after successful application.
 
 1. Dump the current DB schema and compare with the saved `schema.sql`
-2. If they match, proceed with apply
-3. After apply completes, generate a new schema dump and update `schema.sql`
+2. If they **differ** → error: schema drift detected, apply is blocked
+3. If they match → proceed with apply
+4. After apply completes, generate a new schema dump and update `schema.sql`
 
 ```bash
 migraguard apply --verify
 ```
+
+Use this in CI pipelines (e.g., on merge to release branches) to catch unauthorized manual DDL changes before applying migrations.
+
+### `verify` — Dynamic Idempotency Proof (shadow DB)
+
+**Purpose**: Prove that migrations are idempotent by actually executing them twice on a disposable shadow DB and confirming no errors and no schema change.
+
+- `verify` (incremental): Dumps and restores the current DB to a shadow, then applies only pending migrations twice
+- `verify --all`: Creates an empty shadow DB and applies all migrations from scratch twice
+
+```bash
+migraguard verify          # incremental: verify pending only
+migraguard verify --all    # full: verify all from scratch
+```
+
+This is stronger than lint rules or conventions — it dynamically proves that every migration can be safely re-executed. Use in CI or before releases as a final safety net.
 
 ## Check Flow (CI-oriented)
 
@@ -489,7 +515,7 @@ migraguard apply --verify
    - Do checksums of files recorded in metadata.json match actual files (except the latest)?
    - Have any files other than the latest been modified?
    - Have new files been inserted mid-sequence (added at a position other than the end in timestamp order)?
-   - **Are there 2 or more new files (not recorded in metadata.json)?**
+   - **Are there 2 or more new files (not recorded in metadata.json)?** (linear model only; DAG mode allows multiple independent groups)
 4. If any violation is found, exit with code 1 and output the diff details
 
 ### Limitations of check and Operational Policy
@@ -698,6 +724,15 @@ git commit -m "add user email column and index"
 
 The linear ordering model has the constraint that "only the tail file can be modified and re-applied." The dependency tree model relaxes this constraint, enabling concurrent work on independent changes.
 
+### When to Use DAG
+
+Start with the linear model. Switch to DAG when any of the following apply:
+
+- **Multiple teams modify independent tables concurrently** and serializing releases creates bottlenecks
+- **Environment deploy lead time is long** (e.g., staging → production takes days), making the "deploy to all environments before next migration" policy impractical
+- **You want to localize failure blast radius** — in linear mode, one failure blocks all subsequent files; in DAG mode, only dependents are blocked
+- **Independent schema changes should be releasable independently** (e.g., a new feature table should not wait for an unrelated index migration)
+
 ### Linear Model vs Dependency Tree Model
 
 ```
@@ -842,12 +877,12 @@ The dependency tree model was introduced incrementally as a superset of the line
 | Phase | Description | Status |
 |-------|-------------|--------|
 | Phase 1 | Implement core features in linear model (new / apply / check / squash / lint / dump / verify) | ✅ Done |
-| Phase 2 | Implement DDL dependency extraction via `@pg-nano/pg-parser` and `migraguard deps` command | ✅ Done |
+| Phase 2 | Implement DDL dependency extraction via `libpg-query` and `migraguard deps` command | ✅ Done |
 | Phase 3 | Extend check / apply / editable / squash for dependency tree support. Leaf node determination, topological sort application, independent branch continuation on partial failure | ✅ Done |
 
 ## Comparison with Existing Tools
 
-migraguard's distinguishing feature is "embedding operational policies into the tool and preventing incidents via CI gates." The following axes compare it with existing tools.
+migraguard's distinguishing feature is "embedding operational policies into the tool and preventing incidents via CI gates."
 
 | Axis | migraguard | [Flyway](https://flywaydb.org/) | [Atlas](https://atlasgo.io/) | [Sqitch](https://sqitch.org/) | [Graphile Migrate](https://github.com/graphile/migrate) |
 |------|-----------|---------|-------|--------|------------------|
@@ -861,7 +896,21 @@ migraguard's distinguishing feature is "embedding operational policies into the 
 | **Offline integrity check** | ✅ check (CI-oriented) | ❌ | ✅ atlas.sum | ❌ | ❌ |
 | **Execution engine** | psql (direct SQL execution) | Java / JDBC | Go / DB driver | psql / sqitch | pg (Node.js) |
 
-migraguard prioritizes preventing common operational incidents (mid-sequence insertion, past-file modification, unintended regression, stalls during staged rollout) via CI gates and policies, over providing execution engines or history tables. This is achieved with a minimal footprint (psql + SQL + JSON + dump).
+### vs Flyway / Liquibase (general-purpose migration runners)
+
+migraguard adds **offline tamper detection in CI** (check without DB), **regression detection** (past checksum match → error), **dynamic idempotency proof** (verify with shadow DB), and **apply mutual exclusion** (advisory lock). The trade-off: migraguard does not aim for a rich execution engine (JDBC, multi-DB, GUI). It relies on `psql` and SQL transparency instead.
+
+### vs Atlas (declarative schema / hash tree)
+
+Atlas drives migration from a "desired state" declaration. migraguard instead focuses on **preventing release-level operational incidents** — mid-sequence insertion, hotfix revert, failure suppression — via explicit CI gates. migraguard also supports **parallel releases via DAG** with AST-based dependency analysis, which Atlas does not. Choose Atlas if you want declarative schema-as-code generation; choose migraguard if your team writes DDL directly and needs incident guardrails.
+
+### vs Sqitch (plan / dependency declaration)
+
+Sqitch supports dependency declarations between migrations, but migraguard packages a **cohesive operational model** on top: leaf-only editability (DAG policy), verify (double-apply proof), regression detection, and failure blocking with explicit resolve. These are not separate features but a unified incident-prevention framework.
+
+### vs Graphile Migrate (current.sql development experience)
+
+Graphile Migrate optimizes for development speed (edit current.sql, auto-apply). migraguard preserves this speed during development (the latest file is freely re-applicable) but adds **"squash before release"** to guarantee one-file-per-release, which **simplifies production hotfix recovery** to: fix the file → re-apply.
 
 ## Mutual Exclusion for apply
 
@@ -911,6 +960,34 @@ metadata.json migration example:
 - Files after `modelSince`: Leaf node determination and topological sort via DAG analysis
 - Boundary: The `modelSince` file implicitly depends on all prior files (inherits the linear model's final state)
 
+## FAQ
+
+### What happens if someone adds a comment to an already-applied migration?
+
+Nothing. Checksums are computed on [normalized SQL](#checksum-normalization) — comments and whitespace are stripped before hashing. Adding comments, adjusting indentation, or inserting blank lines does not change the checksum.
+
+### What happens if two CI pipelines run `apply` concurrently on the same DB?
+
+One acquires the advisory lock and proceeds; the other blocks until the first completes, then runs with the updated `schema_migrations` state. No race condition occurs.
+
+### A migration failed in production. How do I fix it?
+
+If the failed file is the **latest** (or a leaf in DAG mode): fix the file and re-run `apply`. It will retry the failed file with the corrected SQL.
+
+If the failed file is **not the latest**: either `resolve` it (marking it as skipped, confirming a subsequent migration covers the fix) or `squash` the failed file with its successor into a single corrected file.
+
+### Someone accidentally reverted a hotfixed migration via git. Will migraguard catch it?
+
+Yes. `apply` compares the file's current checksum against all past `schema_migrations` records. If it matches a **non-latest** past checksum, it raises a regression error and refuses to proceed.
+
+### When should I switch from linear to DAG model?
+
+See [When to Use DAG](#when-to-use-dag). In short: when multiple teams need to release independent schema changes in parallel, or when environment deploy lead times make the "deploy to all environments first" policy impractical.
+
+### Does `verify` run against my production DB?
+
+No. `verify` creates a temporary **shadow DB**, restores a dump of your current DB into it, applies migrations twice, then drops the shadow. Your production DB is never modified by `verify`.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -919,5 +996,5 @@ metadata.json migration example:
 | DB connection | `psql` CLI (DDL files passed directly) |
 | Schema dump | `pg_dump --schema-only` |
 | SQL lint | [Squawk](https://squawkhq.com/) |
-| SQL parser | [@pg-nano/pg-parser](https://www.npmjs.com/package/@pg-nano/pg-parser) (TypeScript bindings for the PostgreSQL real parser, for DDL dependency analysis) |
+| SQL parser | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build, for DDL dependency analysis) |
 | Package manager | npm |

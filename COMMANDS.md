@@ -4,7 +4,7 @@
 
 ### `migraguard new <name>`
 
-Create a new migration SQL file with a UTC timestamp prefix.
+Create a new migration SQL file with a local-timezone timestamp prefix.
 
 ```bash
 migraguard new add_users_email_index
