@@ -2,3 +2,16 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# Editor
+.vscode/
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Test artifacts
+coverage/

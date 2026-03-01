@@ -1,0 +1,36 @@
+{
+  "migrations": [
+    {
+      "file": "20260301_100000__create_users_table.sql",
+      "checksum": "2e0e15b58df5ef2b939df25add2393921d527e996da6b750d6b2509cfdcb84c5"
+    },
+    {
+      "file": "20260301_110000__create_sessions_table.sql",
+      "checksum": "b9e37c952e4844feb93aae35073bdfe9164c23338c7729f9bdb9fdd115f06576"
+    },
+    {
+      "file": "20260308_100000__create_follows_table.sql",
+      "checksum": "4041d23ccadd8906ba370bb1e8599279d4f7c3ca948192eedc7ce170fdc7d5de"
+    },
+    {
+      "file": "20260308_110000__create_posts_table.sql",
+      "checksum": "9f96c27b74371cade868f383027bbd99710d57d8c6b32107abb413f44869f930"
+    },
+    {
+      "file": "20260315_100000__create_chat_rooms.sql",
+      "checksum": "e270ac2603861c45d3b53cfd0235eed3ab5c50fb3a963c0a6bfd4d278d5b8eda"
+    },
+    {
+      "file": "20260315_110000__create_chat_messages.sql",
+      "checksum": "5f0f95f2aeb9c6b2b0556cb40b9da19509d486855d738083ed0b20f6d4eb8a15"
+    },
+    {
+      "file": "20260322_100000__create_direct_messages.sql",
+      "checksum": "dd75ce8673af45fd53c0462c053adffb66c54978e6070fcde497ad38e58a4779"
+    },
+    {
+      "file": "20260322_110000__create_read_receipts.sql",
+      "checksum": "b48b1e47554299680197bbc646fd6ab706f79ce406b5610893bcb143b08ed126"
+    }
+  ]
+}

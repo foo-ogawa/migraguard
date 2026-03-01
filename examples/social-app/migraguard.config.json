@@ -1,0 +1,26 @@
+{
+  "migrationsDirs": ["db/migrations"],
+  "schemaFile": "db/schema.sql",
+  "metadataFile": "db/.migraguard/metadata.json",
+  "connection": {
+    "host": "localhost",
+    "port": 15432,
+    "database": "migraguard_test",
+    "user": "migraguard_test",
+    "password": "migraguard_test"
+  },
+  "dump": {
+    "normalize": true,
+    "excludeOwners": true,
+    "excludePrivileges": true,
+    "pgDumpCommand": [
+      "docker", "exec",
+      "-e", "PGPASSWORD=migraguard_test",
+      "migraguard-postgres-1",
+      "pg_dump",
+      "-h", "localhost",
+      "-U", "migraguard_test",
+      "-d", "migraguard_test"
+    ]
+  }
+}
