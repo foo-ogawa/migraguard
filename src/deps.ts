@@ -1,8 +1,17 @@
 import { readFile } from 'node:fs/promises';
-import { parseQuerySync, walk } from '@pg-nano/pg-parser';
 import type { MigraguardConfig, RawConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
+
+let _parseQuerySync: typeof import('@pg-nano/pg-parser').parseQuerySync | undefined;
+let _walk: typeof import('@pg-nano/pg-parser').walk | undefined;
+
+async function loadParser(): Promise<void> {
+  if (_parseQuerySync) return;
+  const mod = await import('@pg-nano/pg-parser');
+  _parseQuerySync = mod.parseQuerySync;
+  _walk = mod.walk;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,14 +56,15 @@ function normalizeTableName(name: string | undefined, schema: string | undefined
   return name;
 }
 
-export function analyzeSql(sql: string): { creates: ObjectRef[]; references: ObjectRef[] } {
+export async function analyzeSql(sql: string): Promise<{ creates: ObjectRef[]; references: ObjectRef[] }> {
+  await loadParser();
   const creates: ObjectRef[] = [];
   const references: ObjectRef[] = [];
   const createdTableNames = new Set<string>();
 
   let stmts;
   try {
-    stmts = parseQuerySync(sql).stmts;
+    stmts = _parseQuerySync!(sql).stmts;
   } catch {
     return { creates, references };
   }
@@ -210,7 +220,7 @@ function collectRangeVarsFromNode(
   references: ObjectRef[],
 ): void {
   try {
-    walk(node, {
+    _walk!(node, {
       RangeVar(path) {
         const rv = path.node as { relname?: string; schemaname?: string };
         if (rv.relname) {
@@ -322,7 +332,7 @@ export function parseExplicitDepsFromConfig(
 
 export async function analyzeFile(filePath: string, fileName: string): Promise<FileDeps> {
   const sql = await readFile(filePath, 'utf-8');
-  const { creates, references } = analyzeSql(sql);
+  const { creates, references } = await analyzeSql(sql);
   return { fileName, creates, references };
 }
 

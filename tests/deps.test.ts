@@ -10,109 +10,108 @@ import {
 import type { DependencyGraph } from '../src/deps.js';
 
 describe('deps — analyzeSql', () => {
-  it('extracts table creation from CREATE TABLE', () => {
-    const { creates, references } = analyzeSql('CREATE TABLE users (id INT);');
+  it('extracts table creation from CREATE TABLE', async () => {
+    const { creates, references } = await analyzeSql('CREATE TABLE users (id INT);');
     expect(creates).toEqual([{ type: 'table', name: 'users' }]);
     expect(references).toEqual([]);
   });
 
-  it('extracts table creation from CREATE TABLE IF NOT EXISTS', () => {
-    const { creates } = analyzeSql('CREATE TABLE IF NOT EXISTS users (id INT);');
+  it('extracts table creation from CREATE TABLE IF NOT EXISTS', async () => {
+    const { creates } = await analyzeSql('CREATE TABLE IF NOT EXISTS users (id INT);');
     expect(creates).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('extracts FK references from column-level REFERENCES', () => {
+  it('extracts FK references from column-level REFERENCES', async () => {
     const sql = 'CREATE TABLE posts (id INT, user_id INT REFERENCES users(id));';
-    const { creates, references } = analyzeSql(sql);
+    const { creates, references } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'table', name: 'posts' }]);
     expect(references).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('extracts FK references from table-level FOREIGN KEY', () => {
+  it('extracts FK references from table-level FOREIGN KEY', async () => {
     const sql = `CREATE TABLE post_likes (
       post_id INT NOT NULL,
       user_id INT NOT NULL,
       FOREIGN KEY (post_id) REFERENCES posts(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );`;
-    const { references } = analyzeSql(sql);
+    const { references } = await analyzeSql(sql);
     const refNames = references.map((r) => r.name).sort();
     expect(refNames).toEqual(['posts', 'users']);
   });
 
-  it('does not include self-references in references list', () => {
+  it('does not include self-references in references list', async () => {
     const sql = 'CREATE TABLE nodes (id INT, parent_id INT REFERENCES nodes(id));';
-    const { creates, references } = analyzeSql(sql);
+    const { creates, references } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'table', name: 'nodes' }]);
     expect(references).toEqual([]);
   });
 
-  it('extracts table reference from CREATE INDEX', () => {
+  it('extracts table reference from CREATE INDEX', async () => {
     const sql = 'CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);';
-    const { creates, references } = analyzeSql(sql);
+    const { creates, references } = await analyzeSql(sql);
     expect(creates).toEqual([]);
     expect(references).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('extracts table reference from ALTER TABLE ADD COLUMN', () => {
+  it('extracts table reference from ALTER TABLE ADD COLUMN', async () => {
     const sql = 'ALTER TABLE users ADD COLUMN email VARCHAR(256);';
-    const { references } = analyzeSql(sql);
+    const { references } = await analyzeSql(sql);
     expect(references).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('extracts FK from ALTER TABLE ADD CONSTRAINT', () => {
+  it('extracts FK from ALTER TABLE ADD CONSTRAINT', async () => {
     const sql = 'ALTER TABLE posts ADD CONSTRAINT fk FOREIGN KEY (user_id) REFERENCES users(id);';
-    const { references } = analyzeSql(sql);
+    const { references } = await analyzeSql(sql);
     const refNames = references.map((r) => r.name).sort();
     expect(refNames).toEqual(['posts', 'users']);
   });
 
-  it('extracts view creation and FROM references', () => {
+  it('extracts view creation and FROM references', async () => {
     const sql = 'CREATE VIEW active_users AS SELECT * FROM users WHERE is_active;';
-    const { creates, references } = analyzeSql(sql);
+    const { creates, references } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'view', name: 'active_users' }]);
     expect(references).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('extracts DROP TABLE reference', () => {
+  it('extracts DROP TABLE reference', async () => {
     const sql = 'DROP TABLE IF EXISTS old_users CASCADE;';
-    const { references } = analyzeSql(sql);
+    const { references } = await analyzeSql(sql);
     expect(references).toEqual([{ type: 'table', name: 'old_users' }]);
   });
 
-  it('handles multiple statements', () => {
+  it('handles multiple statements', async () => {
     const sql = `
       CREATE TABLE users (id INT);
       CREATE TABLE posts (id INT, user_id INT REFERENCES users(id));
       CREATE INDEX idx ON posts (user_id);
     `;
-    const { creates, references } = analyzeSql(sql);
+    const { creates, references } = await analyzeSql(sql);
     expect(creates.map((c) => c.name)).toEqual(['users', 'posts']);
-    // refs to tables created in the same file are filtered out (same-file deps)
     expect(references).toEqual([]);
   });
 
-  it('returns empty for unparseable SQL', () => {
-    const { creates, references } = analyzeSql('THIS IS NOT VALID SQL !!!');
+  it('returns empty for unparseable SQL', async () => {
+    const { creates, references } = await analyzeSql('THIS IS NOT VALID SQL !!!');
     expect(creates).toEqual([]);
     expect(references).toEqual([]);
   });
 
-  it('strips public schema prefix', () => {
+  it('strips public schema prefix', async () => {
     const sql = 'CREATE TABLE public.users (id INT);';
-    const { creates } = analyzeSql(sql);
+    const { creates } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'table', name: 'users' }]);
   });
 
-  it('preserves non-public schema prefix', () => {
+  it('preserves non-public schema prefix', async () => {
     const sql = 'CREATE TABLE audit.logs (id INT);';
-    const { creates } = analyzeSql(sql);
+    const { creates } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'table', name: 'audit.logs' }]);
   });
 
-  it('extracts function creation', () => {
+  it('extracts function creation', async () => {
     const sql = "CREATE FUNCTION my_func() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;";
-    const { creates } = analyzeSql(sql);
+    const { creates } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'function', name: 'my_func' }]);
   });
 });
