@@ -1,5 +1,5 @@
--- Sprint 3: チャットシステム
--- チャットルーム・メンバー管理
+-- Sprint 3: Chat system
+-- Chat room and member management
 
 CREATE TABLE IF NOT EXISTS chat_rooms (
     id          BIGSERIAL    PRIMARY KEY,

@@ -1,5 +1,5 @@
--- Sprint 4: DM 機能
--- 既読管理（グループチャット用の既読レシート）
+-- Sprint 4: Direct messaging
+-- Read receipt management (read receipts for group chat)
 
 CREATE TABLE IF NOT EXISTS message_read_receipts (
     message_id BIGINT      NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,

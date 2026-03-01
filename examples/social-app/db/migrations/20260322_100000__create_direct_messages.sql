@@ -1,5 +1,5 @@
--- Sprint 4: DM 機能
--- DM 専用テーブル（chat_rooms の room_type='dm' と連携）
+-- Sprint 4: Direct messaging
+-- DM-specific table (linked with chat_rooms room_type='dm')
 
 CREATE TABLE IF NOT EXISTS direct_messages (
     id           BIGSERIAL   PRIMARY KEY,

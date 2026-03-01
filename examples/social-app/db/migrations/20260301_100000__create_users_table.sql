@@ -1,5 +1,5 @@
--- Sprint 1: ログイン機能・ユーザ管理
--- ユーザアカウントの基盤テーブル
+-- Sprint 1: Login and user management
+-- Base table for user accounts
 
 CREATE TABLE IF NOT EXISTS users (
     id          BIGSERIAL    PRIMARY KEY,

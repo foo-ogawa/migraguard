@@ -1,5 +1,5 @@
--- Sprint 1: ログイン機能・ユーザ管理
--- セッション管理テーブル（トークンベース認証）
+-- Sprint 1: Login and user management
+-- Session management table (token-based authentication)
 
 CREATE TABLE IF NOT EXISTS sessions (
     id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),

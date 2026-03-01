@@ -1,5 +1,5 @@
--- Sprint 2: SNS・ユーザ間リレーション
--- 投稿・いいね・ブックマークテーブル
+-- Sprint 2: SNS and user relationships
+-- Posts, likes, and bookmarks tables
 
 CREATE TABLE IF NOT EXISTS posts (
     id          BIGSERIAL    PRIMARY KEY,

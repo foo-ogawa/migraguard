@@ -1,5 +1,5 @@
--- Sprint 3: チャットシステム
--- メッセージ・リアクション
+-- Sprint 3: Chat system
+-- Messages and reactions
 
 CREATE TABLE IF NOT EXISTS chat_messages (
     id           BIGSERIAL    PRIMARY KEY,

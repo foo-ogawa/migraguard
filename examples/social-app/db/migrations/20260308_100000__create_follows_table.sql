@@ -1,5 +1,5 @@
--- Sprint 2: SNS・ユーザ間リレーション
--- フォロー/フォロワー関係テーブル
+-- Sprint 2: SNS and user relationships
+-- Follow/follower relationship table
 
 CREATE TABLE IF NOT EXISTS follows (
     follower_id BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,

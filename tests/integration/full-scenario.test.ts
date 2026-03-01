@@ -1,8 +1,8 @@
 /**
- * 統合テスト: アジャイル開発フロー + ライフサイクル検証
+ * Integration test: agile development flow + lifecycle verification
  *
- * 単一ファイルで順次実行し、DB 競合を防止する。
- * 各 describe ブロックの beforeEach で DB をリセットする。
+ * Runs sequentially in a single file to prevent DB conflicts.
+ * Each describe block resets the DB in beforeEach.
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -32,7 +32,7 @@ import {
 import type { TestProject } from './helpers.js';
 
 // ─────────────────────────────────────────────
-// アジャイル開発シナリオ
+// Agile development scenarios
 // ─────────────────────────────────────────────
 
 describe('agile scenario', () => {
@@ -48,7 +48,7 @@ describe('agile scenario', () => {
     project = await createTestProject();
   });
 
-  it('Sprint 1: ユーザ管理 — new → squash → check → apply → status', async () => {
+  it('Sprint 1: User management — new → squash → check → apply → status', async () => {
     await writeMigration(project, '20260301_100000__create_users_table.sql', `
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token);
 `);
 
-    // check → squash 強制
+    // check → squash enforced
     const c1 = await commandCheck(project.config);
     expect(c1.ok).toBe(false);
 
@@ -108,8 +108,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token);
     expect(ed.editableFiles).toHaveLength(1);
   });
 
-  it('Sprint 2: SNS フォロー機能', async () => {
-    // Sprint 1 ベース
+  it('Sprint 2: SNS follow feature', async () => {
+    // Sprint 1 base
     const s1 = `
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -161,7 +161,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS website VARCHAR(512);
     expect(st.entries.filter(e => e.status === 'applied')).toHaveLength(2);
   });
 
-  it('Sprint 3: チャットルーム', async () => {
+  it('Sprint 3: Chat rooms', async () => {
     const base = `
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -222,7 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
     expect(names).toContain('chat_messages');
   });
 
-  it('Sprint 4: DM + 既読管理', async () => {
+  it('Sprint 4: DM + read receipts', async () => {
     const base = `
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS message_read_receipts (
     expect(names).toContain('direct_messages');
     expect(names).toContain('message_read_receipts');
 
-    // 再適用 → 冪等
+    // re-apply → idempotent
     const ap2 = await commandApply(project.config);
     expect(ap2.applied).toHaveLength(0);
     expect(ap2.errors).toHaveLength(0);
@@ -297,7 +297,7 @@ CREATE TABLE IF NOT EXISTS message_read_receipts (
 });
 
 // ─────────────────────────────────────────────
-// ライフサイクル検証
+// Lifecycle verification
 // ─────────────────────────────────────────────
 
 describe('lifecycle', () => {
@@ -475,19 +475,19 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
       ],
     });
 
-    // ed_a 適用、ed_bad で失敗
+    // ed_a applied, ed_bad fails
     await commandApply(project.config);
 
     const result = await commandEditable(project.config);
     expect(result.editableFiles).toContain('20260401_120000__ed_c.sql');
-    // failed-retryable は最新ファイルではないが failed なので表示される
+    // failed-retryable is displayed because it's failed even though not the latest file
     const failedEntry = result.entries.find(e => e.reason === 'failed-retryable');
     expect(failedEntry?.fileName).toBe('20260401_110000__ed_bad.sql');
   });
 });
 
 // ─────────────────────────────────────────────
-// verify: 冪等性検証
+// verify: idempotency verification
 // ─────────────────────────────────────────────
 
 describe('verify', () => {
@@ -568,7 +568,7 @@ describe('verify', () => {
 });
 
 // ─────────────────────────────────────────────
-// DAG モデル: 独立ブランチの並行開発
+// DAG model: parallel development with independent branches
 // ─────────────────────────────────────────────
 
 describe('DAG scenario', () => {
@@ -642,13 +642,13 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
     project = await createTestProject();
   });
 
-  it('独立ブランチの並行 apply — follows と chat_rooms を同時に追加', async () => {
+  it('Parallel apply of independent branches — add follows and chat_rooms simultaneously', async () => {
     await setupDagBase();
 
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
 
-    // DAG モードなので multiple new files は OK
+    // multiple new files OK in DAG mode
     const c = await commandCheck(project.config);
     expect(c.ok).toBe(true);
 
@@ -664,7 +664,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
     expect(names).toContain('chat_rooms');
   });
 
-  it('deps ツリーで依存構造を正しく表示', async () => {
+  it('deps tree correctly displays dependency structure', async () => {
     await setupDagBase();
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
@@ -673,11 +673,11 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
     const result = await commandDeps(project.config);
     expect(result.ok).toBe(true);
 
-    // users はルート（他から依存される）
+    // users is root (depended on by others)
     const usersEdges = result.graph.edges.filter(e => e.to.includes('create_users'));
     expect(usersEdges.length).toBeGreaterThanOrEqual(2);
 
-    // follows と chat_messages は葉ノード
+    // follows and chat_messages are leaf nodes
     const leaves = result.graph.files.filter(f => {
       const dependedOn = result.graph.edges.some(e => e.to === f);
       return !dependedOn;
@@ -687,7 +687,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
     expect(leaves).not.toContain('20260301_100000__create_users.sql');
   });
 
-  it('部分失敗 — follows が失敗しても chat_rooms は apply 成功', async () => {
+  it('Partial failure — chat_rooms apply succeeds even when follows fails', async () => {
     await setupDagBase();
 
     const BAD_FOLLOWS = `
@@ -720,7 +720,7 @@ CREATE TABLE follows (
     expect(names).toContain('chat_rooms');
   });
 
-  it('部分失敗の伝播 — chat_rooms が失敗すると chat_messages もブロック、follows は成功', async () => {
+  it('Partial failure propagation — chat_rooms failure blocks chat_messages, follows succeeds', async () => {
     await setupDagBase();
 
     // parseable SQL so the dep graph sees "creates: chat_rooms",
@@ -765,7 +765,7 @@ COMMIT;
     expect(names).not.toContain('chat_messages');
   });
 
-  it('葉ノードの変更 → 再適用が成功', async () => {
+  it('Leaf node modification → re-apply succeeds', async () => {
     await setupDagBase();
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
@@ -780,7 +780,7 @@ COMMIT;
     });
     await commandApply(project.config);
 
-    // follows（葉ノード）にカラム追加して再適用
+    // add column to follows (leaf node) and re-apply
     const FOLLOWS_V2 = FOLLOWS_SQL + `
 ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
 `;
@@ -796,7 +796,7 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     expect(cols.rows).toHaveLength(1);
   });
 
-  it('非葉ノードの改ざん検知', async () => {
+  it('Non-leaf node tamper detection', async () => {
     await setupDagBase();
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
@@ -811,7 +811,7 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     });
     await commandApply(project.config);
 
-    // users（非葉）を書き換え
+    // tamper with users (non-leaf)
     const USERS_TAMPERED = USERS_SQL + '\n-- tampered\n';
     await writeMigration(project, '20260301_100000__create_users.sql', USERS_TAMPERED);
 
@@ -820,7 +820,7 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     expect(ap.errors[0]).toContain('Tampering detected');
   });
 
-  it('editable が葉ノードを正しく返す', async () => {
+  it('editable correctly returns leaf nodes', async () => {
     await setupDagBase();
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
@@ -847,7 +847,7 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     expect(leafEntries).toHaveLength(2);
   });
 
-  it('先祖返り検知は DAG モードでも機能する', async () => {
+  it('Regression detection works in DAG mode', async () => {
     await setupDagBase();
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     await saveMetadata(project.config, {
@@ -860,12 +860,12 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     });
     await commandApply(project.config);
 
-    // v2 に更新して再適用
+    // update to v2 and re-apply
     const FOLLOWS_V2 = FOLLOWS_SQL + '\nALTER TABLE follows ADD COLUMN IF NOT EXISTS v2_flag BOOLEAN;\n';
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_V2);
     await commandApply(project.config);
 
-    // v1 に戻す → 先祖返り
+    // revert to v1 → regression
     await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
     const ap = await commandApply(project.config);
     expect(ap.errors[0]).toContain('Ancestor revert');
