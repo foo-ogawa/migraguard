@@ -1,13 +1,14 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata } from '../metadata.js';
+import { loadMetadata, isDagMode, isPreModelSince } from '../metadata.js';
 import { MigraguardDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
+import { buildDependencyGraph, findLeafNodes } from '../deps.js';
 
 export interface EditableEntry {
   fileName: string;
-  reason: 'latest' | 'new' | 'failed-retryable';
+  reason: 'latest' | 'leaf' | 'new' | 'failed-retryable';
 }
 
 export interface EditableResult {
@@ -31,16 +32,28 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
   }
 
   const metadata = await loadMetadata(config);
+  const dag = isDagMode(metadata);
   const metadataFileSet = new Set(metadata.migrations.map((m) => m.file));
-
   const newFiles = files.filter((f) => !metadataFileSet.has(f.fileName));
-  const latestFile = files[files.length - 1];
 
   const entries: EditableEntry[] = [];
   const editableSet = new Set<string>();
 
-  editableSet.add(latestFile.fileName);
-  entries.push({ fileName: latestFile.fileName, reason: 'latest' });
+  if (dag) {
+    const graph = await buildDependencyGraph(config);
+    const leaves = findLeafNodes(graph);
+    for (const leaf of leaves) {
+      if (isPreModelSince(metadata, leaf)) continue;
+      if (!editableSet.has(leaf)) {
+        editableSet.add(leaf);
+        entries.push({ fileName: leaf, reason: 'leaf' });
+      }
+    }
+  } else {
+    const latestFile = files[files.length - 1];
+    editableSet.add(latestFile.fileName);
+    entries.push({ fileName: latestFile.fileName, reason: 'latest' });
+  }
 
   for (const f of newFiles) {
     if (!editableSet.has(f.fileName)) {
@@ -49,7 +62,6 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
     }
   }
 
-  // DB 接続を試みて failed リトライ可能ファイルを追加
   let dbConnected = false;
   try {
     const db = new MigraguardDb(config);
@@ -72,10 +84,6 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
 
         const fileRecords = recordsByFile.get(file.fileName) ?? [];
         const latestRecord = getLatestRecord(fileRecords);
-        if (latestRecord?.status === 'failed' && file.fileName === latestFile.fileName) {
-          // Already covered by 'latest' entry
-          continue;
-        }
         if (latestRecord?.status === 'failed') {
           editableSet.add(file.fileName);
           entries.push({ fileName: file.fileName, reason: 'failed-retryable' });
@@ -85,7 +93,7 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
       await db.close();
     }
   } catch {
-    // DB 接続失敗 → ファイルベースのみで表示
+    // DB connection failure → file-based only
   }
 
   const editableFiles = files
@@ -94,6 +102,7 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
 
   const reasonLabels: Record<EditableEntry['reason'], string> = {
     'latest': chalk.green(' (latest)'),
+    'leaf': chalk.green(' (leaf)'),
     'new': chalk.cyan(' (new)'),
     'failed-retryable': chalk.red(' (failed — retryable)'),
   };

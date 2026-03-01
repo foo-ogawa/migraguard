@@ -10,6 +10,8 @@ export interface MigrationEntry {
 }
 
 export interface MetadataJson {
+  model?: 'dag';
+  modelSince?: string;
   migrations: MigrationEntry[];
 }
 
@@ -75,10 +77,21 @@ export function updateEntry(metadata: MetadataJson, fileName: string, checksum: 
   };
 }
 
+export function isDagMode(metadata: MetadataJson): boolean {
+  return metadata.model === 'dag';
+}
+
+export function isPreModelSince(metadata: MetadataJson, fileName: string): boolean {
+  if (!metadata.model || !metadata.modelSince) return true;
+  return fileName < metadata.modelSince;
+}
+
 function isMetadataJson(data: unknown): data is MetadataJson {
   if (typeof data !== 'object' || data === null) return false;
   const obj = data as Record<string, unknown>;
   if (!Array.isArray(obj['migrations'])) return false;
+  if ('model' in obj && obj['model'] !== undefined && obj['model'] !== 'dag') return false;
+  if ('modelSince' in obj && obj['modelSince'] !== undefined && typeof obj['modelSince'] !== 'string') return false;
   return obj['migrations'].every(
     (m: unknown) =>
       typeof m === 'object' &&

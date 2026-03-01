@@ -53,12 +53,11 @@ metadata.json は「どのファイルが存在すべきか」を、schema_migra
 | `migraguard dump` | `pg_dump --schema-only` を実行し、正規化したスキーマを出力。diff が取れる形式で保存 |
 | `migraguard diff` | 現在の DB スキーマと保存済みスキーマ dump の差分を表示 |
 
-### 依存関係解析（拡張）
+### 依存関係解析・DAG モデル
 
 | 機能 | 説明 |
 |------|------|
-| `migraguard deps` | マイグレーション間の依存関係グラフを解析・表示 |
-| `migraguard deps --dot` | DOT 形式で出力（Graphviz で可視化可能） |
+| `migraguard deps` | マイグレーション間の依存関係をツリー形式で表示。◆=editable（葉ノード）、◇=locked（非葉ノード）のマーク付き |
 
 ## ディレクトリ構成
 
@@ -692,24 +691,15 @@ SET lock_timeout = '5s';
 | エラーの影響範囲 | 全後続ファイルがブロック | 依存するファイルのみブロック |
 | 複数チームの作業 | 直列化（1 チームずつ） | 独立したテーブルなら並行作業可能 |
 
-### 実装フェーズ
+### 実装状況
 
-依存ツリーモデルは線形モデルの上位互換として段階的に導入する。
+依存ツリーモデルは線形モデルの上位互換として段階的に導入された。
 
-| フェーズ | 内容 |
-|---------|------|
-| Phase 1 | 線形モデルで基本機能（new / apply / check / squash / lint / dump）を実装 |
-| Phase 2 | `libpg_query` による DDL 依存抽出と `migraguard deps` コマンドを実装。情報表示のみで動作は変更しない |
-| Phase 3 | check と apply を依存ツリー対応に拡張。葉ノード判定、トポロジカルソート適用 |
-
-### 依存解析の候補ライブラリ
-
-| ライブラリ | 概要 |
-|-----------|------|
-| [libpg_query](https://www.npmjs.com/package/libpg_query) | PostgreSQL 実パーサの Node.js バインディング。SQL → AST のパースを提供 |
-| [@pg-nano/pg-parser](https://www.npmjs.com/package/@pg-nano/pg-parser) | TypeScript ファーストの PostgreSQL パーサ。型定義と AST ユーティリティ（`walk()`, `select()`）を提供 |
-
-Squawk は単一ファイル内の lint に特化しており、ファイル間の依存抽出機能は持たない。依存解析は上記ライブラリを使って自前で構築する。
+| フェーズ | 内容 | 状態 |
+|---------|------|------|
+| Phase 1 | 線形モデルで基本機能（new / apply / check / squash / lint / dump / verify）を実装 | ✅ 完了 |
+| Phase 2 | `@pg-nano/pg-parser` による DDL 依存抽出と `migraguard deps` コマンドを実装 | ✅ 完了 |
+| Phase 3 | check / apply / editable / squash を依存ツリー対応に拡張。葉ノード判定、トポロジカルソート適用、部分失敗時の独立ブランチ続行 | ✅ 完了 |
 
 ## 既存ツールとの比較
 
@@ -837,5 +827,5 @@ metadata.json の移行例:
 | DB 接続 | `psql` CLI（DDL ファイルを直接渡す） |
 | スキーマ dump | `pg_dump --schema-only` |
 | SQL lint | [Squawk](https://squawkhq.com/) |
-| SQL パーサ | [libpg_query](https://www.npmjs.com/package/libpg_query) / [@pg-nano/pg-parser](https://www.npmjs.com/package/@pg-nano/pg-parser)（依存解析用） |
+| SQL パーサ | [@pg-nano/pg-parser](https://www.npmjs.com/package/@pg-nano/pg-parser)（DDL 依存解析用。PostgreSQL 実パーサの TypeScript バインディング） |
 | パッケージ管理 | npm |

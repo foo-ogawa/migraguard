@@ -13,6 +13,7 @@ import { commandResolve } from '../commands/resolve.js';
 import { commandDump } from '../commands/dump.js';
 import { commandDiff } from '../commands/diff.js';
 import { commandVerify } from '../commands/verify.js';
+import { commandDeps } from '../commands/deps.js';
 
 async function run(fn: () => Promise<void>): Promise<void> {
   try {
@@ -129,10 +130,10 @@ program
 program
   .command('deps')
   .description('Analyze and display migration dependency graph')
-  .option('--dot', 'Output in DOT format for Graphviz')
-  .action(() => {
-    console.log('Not yet implemented');
-    process.exit(1);
-  });
+  .action(() => run(async () => {
+    const config = await loadConfig();
+    const result = await commandDeps(config);
+    if (!result.ok) process.exit(1);
+  }));
 
 program.parse();

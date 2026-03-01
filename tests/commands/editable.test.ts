@@ -109,4 +109,65 @@ describe('commands/editable', () => {
     expect(result.editableFiles).toHaveLength(1);
     expect(result.entries.every(e => e.reason !== 'failed-retryable')).toBe(true);
   });
+
+  // --- DAG mode tests ---
+
+  it('DAG: shows leaf nodes as editable', async () => {
+    const migDir = join(tempDir, 'db', 'migrations');
+    await mkdir(migDir, { recursive: true });
+    await writeFile(
+      join(migDir, '20260301_100000__create_users.sql'),
+      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+    );
+    await writeFile(
+      join(migDir, '20260302_100000__create_posts.sql'),
+      'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));',
+    );
+    await writeFile(
+      join(migDir, '20260302_110000__create_orders.sql'),
+      'CREATE TABLE IF NOT EXISTS orders (id INT);',
+    );
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: 'aaa' },
+        { file: '20260302_100000__create_posts.sql', checksum: 'bbb' },
+        { file: '20260302_110000__create_orders.sql', checksum: 'ccc' },
+      ],
+    });
+
+    const result = await commandEditable(config);
+    expect(result.editableFiles).toContain('20260302_100000__create_posts.sql');
+    expect(result.editableFiles).toContain('20260302_110000__create_orders.sql');
+    expect(result.editableFiles).not.toContain('20260301_100000__create_users.sql');
+    expect(result.entries.some(e => e.reason === 'leaf')).toBe(true);
+  });
+
+  it('DAG: new files are also marked editable', async () => {
+    const migDir = join(tempDir, 'db', 'migrations');
+    await mkdir(migDir, { recursive: true });
+    await writeFile(
+      join(migDir, '20260301_100000__create_users.sql'),
+      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+    );
+    await writeFile(
+      join(migDir, '20260303_100000__new_file.sql'),
+      'CREATE TABLE IF NOT EXISTS new_tbl (id INT);',
+    );
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: 'aaa' },
+      ],
+    });
+
+    const result = await commandEditable(config);
+    expect(result.editableFiles).toContain('20260303_100000__new_file.sql');
+  });
 });

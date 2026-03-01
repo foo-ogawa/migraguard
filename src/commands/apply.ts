@@ -9,11 +9,20 @@ import { MigraguardDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 import { executePsqlFile } from '../psql.js';
 import { dumpSchema } from '../dumper.js';
+import { loadMetadata, isDagMode } from '../metadata.js';
+import {
+  buildDependencyGraph,
+  findLeafNodes,
+  topologicalSort,
+  findTransitiveDependents,
+} from '../deps.js';
+import type { DependencyGraph } from '../deps.js';
 
 export interface ApplyResult {
   applied: string[];
   skipped: string[];
   failed: string | null;
+  blocked: string[];
   errors: string[];
 }
 
@@ -39,7 +48,7 @@ export interface ApplyOptions {
 }
 
 export async function commandApply(config: MigraguardConfig, options?: ApplyOptions): Promise<ApplyResult> {
-  const result: ApplyResult = { applied: [], skipped: [], failed: null, errors: [] };
+  const result: ApplyResult = { applied: [], skipped: [], failed: null, blocked: [], errors: [] };
   const verify = options?.verify ?? false;
 
   if (verify) {
@@ -57,6 +66,17 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     }
   }
 
+  const metadata = await loadMetadata(config);
+  const dag = isDagMode(metadata);
+
+  let graph: DependencyGraph | null = null;
+  let leafSet: Set<string> | null = null;
+
+  if (dag) {
+    graph = await buildDependencyGraph(config);
+    leafSet = new Set(findLeafNodes(graph));
+  }
+
   const db = new MigraguardDb(config);
 
   try {
@@ -71,8 +91,6 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     }
 
     const allRecords = await db.getAllRecords();
-    const latestFileName = files[files.length - 1].fileName;
-
     const recordsByFile = new Map<string, MigrationRecord[]>();
     for (const r of allRecords) {
       const list = recordsByFile.get(r.fileName) ?? [];
@@ -80,108 +98,48 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
       recordsByFile.set(r.fileName, list);
     }
 
-    for (const file of files) {
+    let orderedFileNames: string[];
+    if (dag && graph) {
+      const sorted = topologicalSort(graph);
+      orderedFileNames = sorted ?? files.map((f) => f.fileName);
+    } else {
+      orderedFileNames = files.map((f) => f.fileName);
+    }
+
+    const fileMap = new Map(files.map((f) => [f.fileName, f]));
+    const latestFileName = files[files.length - 1].fileName;
+    const blockedSet = new Set<string>();
+
+    for (const fileName of orderedFileNames) {
+      const file = fileMap.get(fileName);
+      if (!file) continue;
+
+      if (blockedSet.has(fileName)) {
+        result.blocked.push(fileName);
+        console.log(chalk.gray(`  ⊘ blocked: ${fileName}`));
+        continue;
+      }
+
       const fileRecords = recordsByFile.get(file.fileName) ?? [];
       const latestRecord = getLatestRecord(fileRecords);
       const currentChecksum = await checksumFile(file.filePath);
-      const isLatestFile = file.fileName === latestFileName;
+      const isEditable = dag && leafSet
+        ? leafSet.has(file.fileName)
+        : file.fileName === latestFileName;
 
-      if (!latestRecord) {
-        // No records: new file → apply
-        const psqlResult = await executePsqlFile(config, file.filePath);
-        if (psqlResult.success) {
-          await db.insertRecord(file.fileName, currentChecksum, 'applied');
-          result.applied.push(file.fileName);
-          console.log(chalk.green(`  ✓ applied: ${file.fileName}`));
+      const applyResult = await processFile(
+        config, db, file.filePath, file.fileName,
+        fileRecords, latestRecord, currentChecksum, isEditable,
+        result,
+      );
+
+      if (applyResult === 'error') {
+        if (dag && graph) {
+          const dependents = findTransitiveDependents(graph, file.fileName);
+          for (const dep of dependents) blockedSet.add(dep);
         } else {
-          await db.insertRecord(file.fileName, currentChecksum, 'failed');
-          result.failed = file.fileName;
-          result.errors.push(`Failed to apply ${file.fileName}: ${psqlResult.stderr}`);
-          console.error(chalk.red(`  ✗ failed: ${file.fileName}`));
-          if (psqlResult.stderr) console.error(chalk.red(`    ${psqlResult.stderr.trim()}`));
           break;
         }
-        continue;
-      }
-
-      // Has records: check status of latest record
-      if (latestRecord.status === 'skipped') {
-        result.skipped.push(file.fileName);
-        console.log(chalk.gray(`  − skipped (resolved): ${file.fileName}`));
-        continue;
-      }
-
-      if (latestRecord.status === 'failed') {
-        if (isLatestFile) {
-          // Latest file with failed status → retry
-          console.log(chalk.yellow(`  ↻ retrying failed: ${file.fileName}`));
-          const psqlResult = await executePsqlFile(config, file.filePath);
-          if (psqlResult.success) {
-            await db.insertRecord(file.fileName, currentChecksum, 'applied');
-            result.applied.push(file.fileName);
-            console.log(chalk.green(`  ✓ applied (retry): ${file.fileName}`));
-          } else {
-            await db.insertRecord(file.fileName, currentChecksum, 'failed');
-            result.failed = file.fileName;
-            result.errors.push(`Retry failed for ${file.fileName}: ${psqlResult.stderr}`);
-            console.error(chalk.red(`  ✗ retry failed: ${file.fileName}`));
-            break;
-          }
-        } else {
-          // Non-latest with failed → error stop
-          result.failed = file.fileName;
-          result.errors.push(
-            `Unresolved failed migration: "${file.fileName}". ` +
-            `Use "migraguard resolve ${file.fileName}" or squash to fix.`,
-          );
-          console.error(chalk.red(`  ✗ unresolved: ${file.fileName}`));
-          break;
-        }
-        continue;
-      }
-
-      // status === 'applied'
-      if (latestRecord.checksum === currentChecksum) {
-        result.skipped.push(file.fileName);
-        continue;
-      }
-
-      // Checksum mismatch
-      const pastChecksums = getPastChecksums(fileRecords, latestRecord);
-      if (pastChecksums.has(currentChecksum)) {
-        result.failed = file.fileName;
-        result.errors.push(
-          `Ancestor revert detected for "${file.fileName}": ` +
-          `current checksum matches a past version, not the latest.`,
-        );
-        console.error(chalk.red(`  ✗ ancestor revert: ${file.fileName}`));
-        break;
-      }
-
-      if (isLatestFile) {
-        // Latest file with changed checksum → re-apply (idempotent)
-        console.log(chalk.yellow(`  ↻ re-applying (changed): ${file.fileName}`));
-        const psqlResult = await executePsqlFile(config, file.filePath);
-        if (psqlResult.success) {
-          await db.insertRecord(file.fileName, currentChecksum, 'applied');
-          result.applied.push(file.fileName);
-          console.log(chalk.green(`  ✓ applied (re-apply): ${file.fileName}`));
-        } else {
-          await db.insertRecord(file.fileName, currentChecksum, 'failed');
-          result.failed = file.fileName;
-          result.errors.push(`Re-apply failed for ${file.fileName}: ${psqlResult.stderr}`);
-          console.error(chalk.red(`  ✗ re-apply failed: ${file.fileName}`));
-          break;
-        }
-      } else {
-        // Non-latest file tampered
-        result.failed = file.fileName;
-        result.errors.push(
-          `Tampering detected: "${file.fileName}" has been modified ` +
-          `but is not the latest migration file.`,
-        );
-        console.error(chalk.red(`  ✗ tampered: ${file.fileName}`));
-        break;
       }
     }
   } finally {
@@ -207,4 +165,110 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
   }
 
   return result;
+}
+
+type FileAction = 'ok' | 'error';
+
+async function processFile(
+  config: MigraguardConfig,
+  db: MigraguardDb,
+  filePath: string,
+  fileName: string,
+  fileRecords: MigrationRecord[],
+  latestRecord: MigrationRecord | undefined,
+  currentChecksum: string,
+  isEditable: boolean,
+  result: ApplyResult,
+): Promise<FileAction> {
+  if (!latestRecord) {
+    const psqlResult = await executePsqlFile(config, filePath);
+    if (psqlResult.success) {
+      await db.insertRecord(fileName, currentChecksum, 'applied');
+      result.applied.push(fileName);
+      console.log(chalk.green(`  ✓ applied: ${fileName}`));
+      return 'ok';
+    } else {
+      await db.insertRecord(fileName, currentChecksum, 'failed');
+      result.failed = result.failed ?? fileName;
+      result.errors.push(`Failed to apply ${fileName}: ${psqlResult.stderr}`);
+      console.error(chalk.red(`  ✗ failed: ${fileName}`));
+      if (psqlResult.stderr) console.error(chalk.red(`    ${psqlResult.stderr.trim()}`));
+      return 'error';
+    }
+  }
+
+  if (latestRecord.status === 'skipped') {
+    result.skipped.push(fileName);
+    console.log(chalk.gray(`  − skipped (resolved): ${fileName}`));
+    return 'ok';
+  }
+
+  if (latestRecord.status === 'failed') {
+    if (isEditable) {
+      console.log(chalk.yellow(`  ↻ retrying failed: ${fileName}`));
+      const psqlResult = await executePsqlFile(config, filePath);
+      if (psqlResult.success) {
+        await db.insertRecord(fileName, currentChecksum, 'applied');
+        result.applied.push(fileName);
+        console.log(chalk.green(`  ✓ applied (retry): ${fileName}`));
+        return 'ok';
+      } else {
+        await db.insertRecord(fileName, currentChecksum, 'failed');
+        result.failed = result.failed ?? fileName;
+        result.errors.push(`Retry failed for ${fileName}: ${psqlResult.stderr}`);
+        console.error(chalk.red(`  ✗ retry failed: ${fileName}`));
+        return 'error';
+      }
+    } else {
+      result.failed = result.failed ?? fileName;
+      result.errors.push(
+        `Unresolved failed migration: "${fileName}". ` +
+        `Use "migraguard resolve ${fileName}" or squash to fix.`,
+      );
+      console.error(chalk.red(`  ✗ unresolved: ${fileName}`));
+      return 'error';
+    }
+  }
+
+  // status === 'applied'
+  if (latestRecord.checksum === currentChecksum) {
+    result.skipped.push(fileName);
+    return 'ok';
+  }
+
+  const pastChecksums = getPastChecksums(fileRecords, latestRecord);
+  if (pastChecksums.has(currentChecksum)) {
+    result.failed = result.failed ?? fileName;
+    result.errors.push(
+      `Ancestor revert detected for "${fileName}": ` +
+      `current checksum matches a past version, not the latest.`,
+    );
+    console.error(chalk.red(`  ✗ ancestor revert: ${fileName}`));
+    return 'error';
+  }
+
+  if (isEditable) {
+    console.log(chalk.yellow(`  ↻ re-applying (changed): ${fileName}`));
+    const psqlResult = await executePsqlFile(config, filePath);
+    if (psqlResult.success) {
+      await db.insertRecord(fileName, currentChecksum, 'applied');
+      result.applied.push(fileName);
+      console.log(chalk.green(`  ✓ applied (re-apply): ${fileName}`));
+      return 'ok';
+    } else {
+      await db.insertRecord(fileName, currentChecksum, 'failed');
+      result.failed = result.failed ?? fileName;
+      result.errors.push(`Re-apply failed for ${fileName}: ${psqlResult.stderr}`);
+      console.error(chalk.red(`  ✗ re-apply failed: ${fileName}`));
+      return 'error';
+    }
+  } else {
+    result.failed = result.failed ?? fileName;
+    result.errors.push(
+      `Tampering detected: "${fileName}" has been modified ` +
+      `but is not an editable migration file.`,
+    );
+    console.error(chalk.red(`  ✗ tampered: ${fileName}`));
+    return 'error';
+  }
 }

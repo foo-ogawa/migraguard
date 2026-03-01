@@ -155,4 +155,67 @@ describe('commands/check', () => {
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes('missing from disk'))).toBe(true);
   });
+
+  // --- DAG mode tests ---
+
+  it('DAG: allows multiple new files (no squash enforcement)', async () => {
+    await setupMigration('20260301_120000__file_a.sql', 'CREATE TABLE a (id INT);');
+    await setupMigration('20260302_120000__file_b.sql', 'CREATE TABLE b (id INT);');
+    await setupMetadata({ model: 'dag', modelSince: '20260301_120000__file_a.sql', migrations: [] });
+
+    const config = makeConfig();
+    const result = await commandCheck(config);
+    expect(result.ok).toBe(true);
+  });
+
+  it('DAG: allows leaf node to have checksum change', async () => {
+    const usersContent = 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);';
+    const usersChecksum = checksumString(usersContent);
+    await setupMigration('20260301_100000__create_users.sql', usersContent);
+
+    // posts is a leaf (depends on users) — change its checksum
+    await setupMigration(
+      '20260302_100000__create_posts.sql',
+      'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id)); -- modified',
+    );
+
+    await setupMetadata({
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: usersChecksum },
+        { file: '20260302_100000__create_posts.sql', checksum: 'old_checksum' },
+      ],
+    });
+
+    const config = makeConfig();
+    const result = await commandCheck(config);
+    expect(result.ok).toBe(true);
+  });
+
+  it('DAG: fails when non-leaf node has checksum change', async () => {
+    // users is non-leaf (posts depends on it) — modify content but keep valid SQL
+    await setupMigration(
+      '20260301_100000__create_users.sql',
+      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, extra INT);',
+    );
+
+    const postsContent = 'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));';
+    const postsChecksum = checksumString(postsContent);
+    await setupMigration('20260302_100000__create_posts.sql', postsContent);
+
+    await setupMetadata({
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: 'original_checksum' },
+        { file: '20260302_100000__create_posts.sql', checksum: postsChecksum },
+      ],
+    });
+
+    const config = makeConfig();
+    const result = await commandCheck(config);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('Checksum mismatch'))).toBe(true);
+  });
 });

@@ -3,9 +3,10 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata, saveMetadata, addEntry } from '../metadata.js';
+import { loadMetadata, saveMetadata, addEntry, isDagMode } from '../metadata.js';
 import { checksumString } from '../checksum.js';
 import type { MigrationFile } from '../scanner.js';
+import { buildDependencyGraph } from '../deps.js';
 
 function buildSquashedFileName(newFiles: MigrationFile[]): string {
   const latestTimestamp = newFiles[newFiles.length - 1].parsed.timestamp;
@@ -37,6 +38,10 @@ export async function commandSquash(config: MigraguardConfig): Promise<void> {
     return;
   }
 
+  if (isDagMode(metadata)) {
+    await validateDagSquash(config, newFiles);
+  }
+
   const contents: string[] = [];
   for (const f of newFiles) {
     const content = await readFile(f.filePath, 'utf-8');
@@ -62,5 +67,45 @@ export async function commandSquash(config: MigraguardConfig): Promise<void> {
   console.log(chalk.green(`Squashed ${newFiles.length} files into: ${primaryDir}/${squashedName}`));
   for (const f of newFiles) {
     console.log(chalk.gray(`  removed: ${f.fileName}`));
+  }
+}
+
+async function validateDagSquash(
+  config: MigraguardConfig,
+  newFiles: MigrationFile[],
+): Promise<void> {
+  const graph = await buildDependencyGraph(config);
+  const newFileSet = new Set(newFiles.map((f) => f.fileName));
+
+  const neighbors = new Map<string, Set<string>>();
+  for (const f of newFiles) {
+    neighbors.set(f.fileName, new Set());
+  }
+  for (const edge of graph.edges) {
+    if (newFileSet.has(edge.from) && newFileSet.has(edge.to)) {
+      neighbors.get(edge.from)!.add(edge.to);
+      neighbors.get(edge.to)!.add(edge.from);
+    }
+  }
+
+  const visited = new Set<string>();
+  function walk(file: string): void {
+    if (visited.has(file)) return;
+    visited.add(file);
+    for (const neighbor of neighbors.get(file) ?? []) {
+      walk(neighbor);
+    }
+  }
+
+  walk(newFiles[0].fileName);
+
+  const unreachable = newFiles.filter((f) => !visited.has(f.fileName));
+  if (unreachable.length > 0) {
+    const names = unreachable.map((f) => f.fileName);
+    throw new Error(
+      `Cannot squash: new files are in independent branches.\n` +
+      `  Unreachable from "${newFiles[0].fileName}": ${names.join(', ')}\n` +
+      `  In DAG mode, only files within the same dependency chain can be squashed.`,
+    );
   }
 }

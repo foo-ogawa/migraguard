@@ -141,4 +141,43 @@ describe('commands/squash', () => {
     expect(content).toContain('STEP 2;');
     expect(content).toContain('STEP 3;');
   });
+
+  // --- DAG mode tests ---
+
+  it('DAG: allows squash when new files are in same dependency chain', async () => {
+    await setupFiles({
+      '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+      '20260302_100000__add_email.sql': 'ALTER TABLE users ADD COLUMN email VARCHAR(256);',
+      '20260303_100000__add_index.sql': 'CREATE INDEX IF NOT EXISTS idx ON users (email);',
+    });
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [],
+    });
+
+    await commandSquash(config);
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    const files = await readdir(migDir);
+    expect(files).toHaveLength(1);
+  });
+
+  it('DAG: rejects squash when new files are in independent branches', async () => {
+    await setupFiles({
+      '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+      '20260302_100000__create_orders.sql': 'CREATE TABLE IF NOT EXISTS orders (id INT PRIMARY KEY);',
+    });
+
+    const config = makeConfig();
+    await saveMetadata(config, {
+      model: 'dag',
+      modelSince: '20260301_100000__create_users.sql',
+      migrations: [],
+    });
+
+    await expect(commandSquash(config)).rejects.toThrow('independent branches');
+  });
 });

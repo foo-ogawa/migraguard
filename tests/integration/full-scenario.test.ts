@@ -20,6 +20,7 @@ import { commandResolve } from '../../src/commands/resolve.js';
 import { commandDump } from '../../src/commands/dump.js';
 import { commandDiff } from '../../src/commands/diff.js';
 import { commandVerify } from '../../src/commands/verify.js';
+import { commandDeps } from '../../src/commands/deps.js';
 import { resolveFromConfig } from '../../src/config.js';
 import {
   resetTestDb,
@@ -563,5 +564,310 @@ describe('verify', () => {
     const r = await commandVerify(project.config);
     expect(r.failed).toBe(1);
     expect(r.files[0].secondApplyError).toContain('already exists');
+  });
+});
+
+// ─────────────────────────────────────────────
+// DAG モデル: 独立ブランチの並行開発
+// ─────────────────────────────────────────────
+
+describe('DAG scenario', () => {
+  let project: TestProject;
+
+  const USERS_SQL = `
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(256) NOT NULL UNIQUE,
+    password_hash VARCHAR(256) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+`;
+
+  const FOLLOWS_SQL = `
+CREATE TABLE IF NOT EXISTS follows (
+    follower_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follower_id, followee_id),
+    CHECK (follower_id <> followee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows (follower_id);
+CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows (followee_id);
+`;
+
+  const CHAT_ROOMS_SQL = `
+CREATE TABLE IF NOT EXISTS chat_rooms (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    room_type VARCHAR(20) NOT NULL DEFAULT 'group',
+    created_by BIGINT NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_chat_rooms_created_by ON chat_rooms (created_by);
+`;
+
+  const CHAT_MESSAGES_SQL = `
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id BIGSERIAL PRIMARY KEY,
+    room_id BIGINT NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    sender_id BIGINT NOT NULL REFERENCES users(id),
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, created_at DESC);
+`;
+
+  async function setupDagBase() {
+    await writeMigration(project, '20260301_100000__create_users.sql', USERS_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+      ],
+    });
+    await commandApply(project.config);
+  }
+
+  afterAll(async () => {
+    if (project) await cleanupTestProject(project);
+  });
+
+  beforeEach(async () => {
+    if (project) await cleanupTestProject(project);
+    await resetTestDb();
+    project = await createTestProject();
+  });
+
+  it('独立ブランチの並行 apply — follows と chat_rooms を同時に追加', async () => {
+    await setupDagBase();
+
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+
+    // DAG モードなので multiple new files は OK
+    const c = await commandCheck(project.config);
+    expect(c.ok).toBe(true);
+
+    const ap = await commandApply(project.config);
+    expect(ap.errors).toHaveLength(0);
+    expect(ap.applied).toHaveLength(2);
+
+    const tables = await queryTestDb(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
+    );
+    const names = tables.rows.map((r: Record<string, unknown>) => r['tablename']);
+    expect(names).toContain('follows');
+    expect(names).toContain('chat_rooms');
+  });
+
+  it('deps ツリーで依存構造を正しく表示', async () => {
+    await setupDagBase();
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+    await writeMigration(project, '20260315_100000__create_chat_messages.sql', CHAT_MESSAGES_SQL);
+
+    const result = await commandDeps(project.config);
+    expect(result.ok).toBe(true);
+
+    // users はルート（他から依存される）
+    const usersEdges = result.graph.edges.filter(e => e.to.includes('create_users'));
+    expect(usersEdges.length).toBeGreaterThanOrEqual(2);
+
+    // follows と chat_messages は葉ノード
+    const leaves = result.graph.files.filter(f => {
+      const dependedOn = result.graph.edges.some(e => e.to === f);
+      return !dependedOn;
+    });
+    expect(leaves).toContain('20260308_100000__create_follows.sql');
+    expect(leaves).toContain('20260315_100000__create_chat_messages.sql');
+    expect(leaves).not.toContain('20260301_100000__create_users.sql');
+  });
+
+  it('部分失敗 — follows が失敗しても chat_rooms は apply 成功', async () => {
+    await setupDagBase();
+
+    const BAD_FOLLOWS = `
+CREATE TABLE follows (
+    follower_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (follower_id, followee_id)
+;`;  // syntax error: missing closing paren
+    await writeMigration(project, '20260308_100000__create_follows.sql', BAD_FOLLOWS);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(BAD_FOLLOWS) },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+      ],
+    });
+
+    const ap = await commandApply(project.config);
+    expect(ap.failed).toBe('20260308_100000__create_follows.sql');
+    expect(ap.applied).toContain('20260308_110000__create_chat_rooms.sql');
+
+    const tables = await queryTestDb(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
+    );
+    const names = tables.rows.map((r: Record<string, unknown>) => r['tablename']);
+    expect(names).not.toContain('follows');
+    expect(names).toContain('chat_rooms');
+  });
+
+  it('部分失敗の伝播 — chat_rooms が失敗すると chat_messages もブロック、follows は成功', async () => {
+    await setupDagBase();
+
+    // parseable SQL so the dep graph sees "creates: chat_rooms",
+    // but wrapped in a transaction with a deliberate runtime error
+    const BAD_CHAT = `
+BEGIN;
+CREATE TABLE IF NOT EXISTS chat_rooms (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_by BIGINT NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+SELECT 1/0;
+COMMIT;
+`;
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', BAD_CHAT);
+    await writeMigration(project, '20260315_100000__create_chat_messages.sql', CHAT_MESSAGES_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(BAD_CHAT) },
+        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL) },
+      ],
+    });
+
+    const ap = await commandApply(project.config);
+
+    expect(ap.applied).toContain('20260308_100000__create_follows.sql');
+    expect(ap.failed).toBe('20260308_110000__create_chat_rooms.sql');
+    expect(ap.blocked).toContain('20260315_100000__create_chat_messages.sql');
+
+    const tables = await queryTestDb(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
+    );
+    const names = tables.rows.map((r: Record<string, unknown>) => r['tablename']);
+    expect(names).toContain('follows');
+    expect(names).not.toContain('chat_rooms');
+    expect(names).not.toContain('chat_messages');
+  });
+
+  it('葉ノードの変更 → 再適用が成功', async () => {
+    await setupDagBase();
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+      ],
+    });
+    await commandApply(project.config);
+
+    // follows（葉ノード）にカラム追加して再適用
+    const FOLLOWS_V2 = FOLLOWS_SQL + `
+ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
+`;
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_V2);
+
+    const ap = await commandApply(project.config);
+    expect(ap.applied).toContain('20260308_100000__create_follows.sql');
+    expect(ap.errors).toHaveLength(0);
+
+    const cols = await queryTestDb(
+      "SELECT column_name FROM information_schema.columns WHERE table_name='follows' AND column_name='note'",
+    );
+    expect(cols.rows).toHaveLength(1);
+  });
+
+  it('非葉ノードの改ざん検知', async () => {
+    await setupDagBase();
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+      ],
+    });
+    await commandApply(project.config);
+
+    // users（非葉）を書き換え
+    const USERS_TAMPERED = USERS_SQL + '\n-- tampered\n';
+    await writeMigration(project, '20260301_100000__create_users.sql', USERS_TAMPERED);
+
+    const ap = await commandApply(project.config);
+    expect(ap.errors.length).toBeGreaterThan(0);
+    expect(ap.errors[0]).toContain('Tampering detected');
+  });
+
+  it('editable が葉ノードを正しく返す', async () => {
+    await setupDagBase();
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await writeMigration(project, '20260308_110000__create_chat_rooms.sql', CHAT_ROOMS_SQL);
+    await writeMigration(project, '20260315_100000__create_chat_messages.sql', CHAT_MESSAGES_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL) },
+      ],
+    });
+
+    const result = await commandEditable(project.config);
+
+    expect(result.editableFiles).toContain('20260308_100000__create_follows.sql');
+    expect(result.editableFiles).toContain('20260315_100000__create_chat_messages.sql');
+    expect(result.editableFiles).not.toContain('20260301_100000__create_users.sql');
+    expect(result.editableFiles).not.toContain('20260308_110000__create_chat_rooms.sql');
+
+    const leafEntries = result.entries.filter(e => e.reason === 'leaf');
+    expect(leafEntries).toHaveLength(2);
+  });
+
+  it('先祖返り検知は DAG モードでも機能する', async () => {
+    await setupDagBase();
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    await saveMetadata(project.config, {
+      model: 'dag',
+      modelSince: '20260308_100000__create_follows.sql',
+      migrations: [
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+      ],
+    });
+    await commandApply(project.config);
+
+    // v2 に更新して再適用
+    const FOLLOWS_V2 = FOLLOWS_SQL + '\nALTER TABLE follows ADD COLUMN IF NOT EXISTS v2_flag BOOLEAN;\n';
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_V2);
+    await commandApply(project.config);
+
+    // v1 に戻す → 先祖返り
+    await writeMigration(project, '20260308_100000__create_follows.sql', FOLLOWS_SQL);
+    const ap = await commandApply(project.config);
+    expect(ap.errors[0]).toContain('Ancestor revert');
   });
 });
