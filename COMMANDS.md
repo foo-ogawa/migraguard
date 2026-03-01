@@ -56,7 +56,7 @@ migraguard editable
 
 ### `migraguard check`
 
-Verify file integrity against metadata.json. No DB connection required. Detects: checksum mismatches on non-latest files, mid-sequence insertions, and multiple new files (enforces squash).
+Verify file integrity against metadata.json. No DB connection required. Checksums are computed on normalized SQL (comments stripped, whitespace collapsed), so comment-only or formatting changes do not trigger mismatches. Detects: checksum mismatches on non-latest files, mid-sequence insertions, and multiple new files (enforces squash).
 
 ```bash
 migraguard check
@@ -105,5 +105,5 @@ Analyze and display the dependency graph between migration files.
 
 ```bash
 migraguard deps
-migraguard deps --dot   # output in DOT format for Graphviz
+migraguard deps --html deps.html   # output as HTML with GitGraph.js visualization
 ```

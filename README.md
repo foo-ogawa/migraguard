@@ -54,6 +54,16 @@ migraguard separates file integrity and application state.
 
 metadata.json represents "which files should exist"; schema_migrations represents "what has been applied to which environment". This separation enables correct staged rollout from a single repository to multiple environments (staging, production).
 
+### Checksum Normalization
+
+Checksums are computed on **normalized SQL**, not on the raw file content. Before hashing (SHA-256), the following normalization is applied:
+
+- SQL comments are stripped (`-- ...` line comments and `/* ... */` block comments, including nested)
+- Whitespace is collapsed (multiple spaces, tabs, newlines → single space) and trimmed
+- String literals are preserved as-is (`'...'`, `"..."`, `$$...$$`, `$tag$...$tag$`, `E'...'`)
+
+This means that adding or modifying comments, adjusting indentation, or changing blank lines does not change the checksum. Only changes to the actual SQL statements are detected. `-- migraguard:depends-on` directives are also comments and do not affect the checksum; dependency analysis reads the raw file independently.
+
 ## Commands
 
 ### Migration Management
@@ -71,7 +81,7 @@ metadata.json represents "which files should exist"; schema_migrations represent
 
 | Command | Description |
 |---------|-------------|
-| `migraguard check` | Compare checksums between metadata.json and actual files. Errors on changes to any file except the latest. No DB connection required |
+| `migraguard check` | Compare checksums (computed on normalized SQL) between metadata.json and actual files. Errors on changes to any file except the latest. No DB connection required |
 | `migraguard lint` | SQL lint using Squawk. Detects rule violations related to idempotency and safety |
 | `migraguard verify` | Dynamically verify idempotency of each migration using a shadow DB. Dumps and restores the existing DB, applies pending migrations twice, and confirms no errors and schema invariance |
 | `migraguard verify --all` | Verify idempotency of all migrations from scratch on an empty shadow DB |
