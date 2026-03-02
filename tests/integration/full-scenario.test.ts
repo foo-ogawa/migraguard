@@ -424,7 +424,7 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     expect(diffResult2.identical).toBe(false);
   });
 
-  it('apply --verify blocks on schema drift', async () => {
+  it('apply --with-drift-check blocks on schema drift', async () => {
     await writeMigration(project, '20260401_100000__vfy.sql',
       'CREATE TABLE IF NOT EXISTS vfy_t (id SERIAL PRIMARY KEY);');
     await commandApply(project.config);
@@ -438,19 +438,19 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     await writeMigration(project, '20260401_110000__next.sql',
       'CREATE TABLE IF NOT EXISTS next_t (id SERIAL PRIMARY KEY);');
 
-    const r = await commandApply(project.config, { verify: true });
+    const r = await commandApply(project.config, { withDriftCheck: true });
     expect(r.errors[0]).toContain('Schema drift');
     expect(r.applied).toHaveLength(0);
   });
 
-  it('apply --verify updates schema after successful apply', async () => {
+  it('apply --with-drift-check updates schema after successful apply', async () => {
     await writeMigration(project, '20260401_100000__vfy2.sql',
       'CREATE TABLE IF NOT EXISTS vfy2_t (id SERIAL PRIMARY KEY);');
 
     const schemaDir = join(project.tempDir, 'db');
     if (!existsSync(schemaDir)) await mkdir(schemaDir, { recursive: true });
 
-    const r = await commandApply(project.config, { verify: true });
+    const r = await commandApply(project.config, { withDriftCheck: true });
     expect(r.applied).toHaveLength(1);
     expect(r.errors).toHaveLength(0);
 

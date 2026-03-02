@@ -25,7 +25,7 @@ Apply pending migrations to the target DB via `psql`. Checks `schema_migrations`
 
 ```bash
 migraguard apply
-migraguard apply --verify   # verify schema dump before and after
+migraguard apply --with-drift-check   # check schema drift before apply, update dump after
 ```
 
 ### `migraguard resolve <file>`

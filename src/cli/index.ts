@@ -43,10 +43,10 @@ program
 program
   .command('apply')
   .description('Apply pending migrations via psql')
-  .option('--verify', 'Verify schema dump before and after apply')
-  .action((opts: { verify?: boolean }) => run(async () => {
+  .option('--with-drift-check', 'Check schema drift before apply and update dump after')
+  .action((opts: { withDriftCheck?: boolean }) => run(async () => {
     const config = await loadConfig();
-    const result = await commandApply(config, { verify: opts.verify });
+    const result = await commandApply(config, { withDriftCheck: opts.withDriftCheck });
     if (result.errors.length > 0) process.exit(1);
   }));
 

@@ -44,17 +44,17 @@ function getPastChecksums(records: MigrationRecord[], latestRecord: MigrationRec
 }
 
 export interface ApplyOptions {
-  verify?: boolean;
+  withDriftCheck?: boolean;
 }
 
 export async function commandApply(config: MigraguardConfig, options?: ApplyOptions): Promise<ApplyResult> {
   const result: ApplyResult = { applied: [], skipped: [], failed: null, blocked: [], errors: [] };
-  const verify = options?.verify ?? false;
+  const driftCheck = options?.withDriftCheck ?? false;
 
-  if (verify) {
+  if (driftCheck) {
     const schemaPath = resolveFromConfig(config, config.schemaFile);
     if (existsSync(schemaPath)) {
-      console.log(chalk.blue('Verifying schema before apply...'));
+      console.log(chalk.blue('Drift check: comparing DB schema with saved schema...'));
       const savedSchema = await readFile(schemaPath, 'utf-8');
       const currentSchema = await dumpSchema(config);
       if (savedSchema !== currentSchema) {
@@ -153,7 +153,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
       console.log(chalk.green('\n✓ All migrations are up to date.'));
     }
 
-    if (verify && result.applied.length > 0) {
+    if (driftCheck && result.applied.length > 0) {
       console.log(chalk.blue('Updating schema dump after apply...'));
       const newSchema = await dumpSchema(config);
       const schemaPath = resolveFromConfig(config, config.schemaFile);
