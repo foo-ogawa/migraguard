@@ -88,6 +88,7 @@ const DEFAULT_LINT: LintConfig = {
     'ban-bare-analyze': 'error',
     'require-if-not-exists-materialized-view': 'error',
     'ban-refresh-materialized-view-in-migration': 'error',
+    'ban-select-star-in-view': 'error',
   },
 };
 

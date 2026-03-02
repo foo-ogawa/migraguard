@@ -337,6 +337,7 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `ban-bare-analyze` | ANALYZE without table name |
 | `adding-not-nullable-field` | NOT NULL column without DEFAULT |
 | `constraint-missing-not-valid` | ADD CONSTRAINT (FK/CHECK) without NOT VALID |
+| `ban-select-star-in-view` | SELECT * in VIEW / MATERIALIZED VIEW definitions |
 | `require-if-not-exists-materialized-view` | CREATE MATERIALIZED VIEW without IF NOT EXISTS |
 | `ban-refresh-materialized-view-in-migration` | REFRESH MATERIALIZED VIEW in migration files |
 

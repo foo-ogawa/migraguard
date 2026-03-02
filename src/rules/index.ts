@@ -23,6 +23,7 @@ import { banValidateConstraintSameFile } from './ban-validate-constraint-same-fi
 import { banBareAnalyze } from './ban-bare-analyze.js';
 import { requireIfNotExistsMaterializedView } from './require-if-not-exists-materialized-view.js';
 import { banRefreshMaterializedViewInMigration } from './ban-refresh-materialized-view-in-migration.js';
+import { banSelectStarInView } from './ban-select-star-in-view.js';
 import type { LintRule } from './engine.js';
 
 export const ALL_RULES: LintRule[] = [
@@ -48,4 +49,5 @@ export const ALL_RULES: LintRule[] = [
   banBareAnalyze,
   requireIfNotExistsMaterializedView,
   banRefreshMaterializedViewInMigration,
+  banSelectStarInView,
 ];

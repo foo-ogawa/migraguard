@@ -105,7 +105,9 @@ CREATE VIEW active_users AS SELECT * FROM users WHERE active;
 CREATE OR REPLACE VIEW active_users AS SELECT * FROM users WHERE active;
 ```
 
-**Rule**: `require-create-or-replace-view` — errors on CREATE VIEW without OR REPLACE.
+**Rules**:
+- `require-create-or-replace-view` — errors on CREATE VIEW without OR REPLACE
+- `ban-select-star-in-view` — errors on SELECT * in VIEW or MATERIALIZED VIEW definitions. List columns explicitly — `SELECT *` breaks `CREATE OR REPLACE VIEW` when base table columns change
 
 Avoid `DROP VIEW ... CASCADE` — it silently drops all dependent objects, making impact hard to track.
 
