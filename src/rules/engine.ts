@@ -2,15 +2,27 @@ import libpg from 'libpg-query';
 
 export interface LintViolation {
   rule: string;
+  severity: 'error' | 'warn';
+  message: string;
+  hint: string;
+}
+
+export interface RuleReport {
   message: string;
   hint: string;
 }
 
 export interface RuleContext {
-  report(violation: Omit<LintViolation, 'rule'>): void;
+  report(violation: RuleReport): void;
   createdTables: ReadonlySet<string>;
   lockTimeoutSet: boolean;
   inTransaction: boolean;
+}
+
+export interface RawViolation {
+  rule: string;
+  message: string;
+  hint: string;
 }
 
 type NodeHandler = (node: Record<string, unknown>, ctx: RuleContext) => void;
@@ -23,11 +35,28 @@ export interface LintRule {
   create(): NodeVisitors;
 }
 
+const ALLOW_DIRECTIVE_RE = /^--\s*migraguard:allow\s+(.+)$/gm;
+
+export function parseAllowDirectives(sql: string): Set<string> {
+  const allowed = new Set<string>();
+  let match;
+  while ((match = ALLOW_DIRECTIVE_RE.exec(sql)) !== null) {
+    for (const id of match[1].split(/[,\s]+/).filter(Boolean)) {
+      allowed.add(id);
+    }
+  }
+  return allowed;
+}
+
 export async function runRules(
   sql: string,
   rules: LintRule[],
-): Promise<LintViolation[]> {
-  const violations: LintViolation[] = [];
+): Promise<RawViolation[]> {
+  const violations: RawViolation[] = [];
+
+  const allowed = parseAllowDirectives(sql);
+  const activeRules = rules.filter((r) => !allowed.has(r.id));
+  if (activeRules.length === 0) return violations;
 
   let stmts;
   try {
@@ -38,7 +67,7 @@ export async function runRules(
   }
 
   const visitors: Array<{ ruleId: string; handlers: NodeVisitors }> = [];
-  for (const rule of rules) {
+  for (const rule of activeRules) {
     visitors.push({ ruleId: rule.id, handlers: rule.create() });
   }
 
@@ -81,6 +110,19 @@ export async function runRules(
         handler(node, ctx);
       }
     }
+  }
+
+  const endCtx: RuleContext = {
+    report: null as unknown as RuleContext['report'],
+    createdTables,
+    lockTimeoutSet,
+    inTransaction,
+  };
+  for (const { ruleId, handlers } of visitors) {
+    const endHandler = handlers['_End'];
+    if (!endHandler) continue;
+    endCtx.report = (v) => violations.push({ rule: ruleId, ...v });
+    endHandler({}, endCtx);
   }
 
   return violations;

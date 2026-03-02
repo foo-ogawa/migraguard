@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import chalk from 'chalk';
-import type { MigraguardConfig } from '../config.js';
+import type { MigraguardConfig, RuleSeverity } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { ALL_RULES, runRules } from '../rules/index.js';
@@ -11,7 +11,8 @@ import type { LintRule, LintViolation } from '../rules/index.js';
 export interface LintResult {
   ok: boolean;
   filesLinted: number;
-  violations: number;
+  errors: number;
+  warnings: number;
 }
 
 async function loadCustomRules(config: MigraguardConfig): Promise<LintRule[]> {
@@ -43,46 +44,76 @@ async function loadCustomRules(config: MigraguardConfig): Promise<LintRule[]> {
   return rules;
 }
 
+function getSeverity(config: MigraguardConfig, ruleId: string): RuleSeverity {
+  return config.lint.rules[ruleId] ?? 'error';
+}
+
 export async function commandLint(config: MigraguardConfig): Promise<LintResult> {
   const files = await scanMigrations(config);
   if (files.length === 0) {
     console.log(chalk.yellow('No migration files to lint.'));
-    return { ok: true, filesLinted: 0, violations: 0 };
+    return { ok: true, filesLinted: 0, errors: 0, warnings: 0 };
   }
 
   const customRules = await loadCustomRules(config);
   const allRules = [...ALL_RULES, ...customRules];
-  const enabledRules = allRules.filter((r) => config.lint.rules[r.id] !== false);
+  const activeRules = allRules.filter((r) => getSeverity(config, r.id) !== 'off');
 
-  if (enabledRules.length === 0) {
+  if (activeRules.length === 0) {
     console.log(chalk.yellow('All lint rules are disabled.'));
-    return { ok: true, filesLinted: files.length, violations: 0 };
+    return { ok: true, filesLinted: files.length, errors: 0, warnings: 0 };
   }
 
-  let totalViolations = 0;
+  let totalErrors = 0;
+  let totalWarnings = 0;
 
   for (const f of files) {
     const sql = await readFile(f.filePath, 'utf-8');
-    const violations = await runRules(sql, enabledRules);
-    if (violations.length > 0) {
-      totalViolations += violations.length;
-      printViolations(f.fileName, violations);
-    }
+    const raw = await runRules(sql, activeRules);
+    if (raw.length === 0) continue;
+
+    const violations: LintViolation[] = raw.map((v) => ({
+      ...v,
+      severity: getSeverity(config, v.rule) === 'warn' ? 'warn' : 'error',
+    }));
+
+    const fileErrors = violations.filter((v) => v.severity === 'error').length;
+    const fileWarnings = violations.filter((v) => v.severity === 'warn').length;
+    totalErrors += fileErrors;
+    totalWarnings += fileWarnings;
+
+    printViolations(f.fileName, violations);
   }
 
-  if (totalViolations > 0) {
-    console.error(chalk.red(`\nLint failed: ${totalViolations} violation(s).`));
+  if (totalErrors > 0 || totalWarnings > 0) {
+    const parts: string[] = [];
+    if (totalErrors > 0) parts.push(`${totalErrors} error(s)`);
+    if (totalWarnings > 0) parts.push(`${totalWarnings} warning(s)`);
+    const summary = parts.join(', ');
+    if (totalErrors > 0) {
+      console.error(chalk.red(`\nLint failed: ${summary}.`));
+    } else {
+      console.log(chalk.yellow(`\nLint: ${summary}.`));
+    }
   } else {
     console.log(chalk.green(`✓ ${files.length} file(s) passed lint.`));
   }
 
-  return { ok: totalViolations === 0, filesLinted: files.length, violations: totalViolations };
+  return {
+    ok: totalErrors === 0,
+    filesLinted: files.length,
+    errors: totalErrors,
+    warnings: totalWarnings,
+  };
 }
 
 function printViolations(fileName: string, violations: LintViolation[]): void {
   console.error(chalk.red(`\n✗ ${fileName}:`));
   for (const v of violations) {
-    console.error(chalk.red(`  [${v.rule}] ${v.message}`));
-    console.error(chalk.gray(`    hint: ${v.hint}`));
+    const tag = v.severity === 'warn'
+      ? chalk.yellow('  warn ')
+      : chalk.red('  error');
+    console.error(`${tag}  [${v.rule}] ${v.message}`);
+    console.error(chalk.gray(`         hint: ${v.hint}`));
   }
 }

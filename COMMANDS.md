@@ -66,23 +66,27 @@ migraguard check
 
 Run built-in safety rules on all migration files. Rules use libpg-query AST analysis — no external tools required.
 
-Rules (all enabled by default):
-- `require-if-not-exists` — CREATE/DROP must use IF NOT EXISTS / IF EXISTS
-- `require-concurrent-index` — CREATE INDEX must use CONCURRENTLY (skipped for tables created in the same file)
-- `require-lock-timeout` — SET lock_timeout must appear before DDL statements
-- `ban-concurrent-index-in-transaction` — CONCURRENTLY cannot be inside BEGIN...COMMIT
-- `adding-not-nullable-field` — NOT NULL column must have a DEFAULT value
-- `constraint-missing-not-valid` — ADD CONSTRAINT must use NOT VALID
+19 rules (all enabled by default). See README for the full table. Key categories:
 
-Disable specific rules or add custom rules via config:
+**Idempotency**: `require-if-not-exists`, `require-create-or-replace-view`
+**Concurrency safety**: `require-concurrent-index`, `require-drop-index-concurrently`, `ban-concurrent-index-in-transaction`
+**Timeout discipline**: `require-lock-timeout`, `require-statement-timeout`, `require-reset-timeouts`
+**Constraint safety**: `constraint-missing-not-valid`, `require-unique-via-concurrent-index`, `ban-validate-constraint-same-file`, `adding-not-nullable-field`
+**Destructive DDL**: `ban-drop-column`, `ban-alter-column-type`, `ban-drop-cascade`, `ban-truncate`
+**DML safety**: `ban-update-without-where`, `ban-delete-without-where`
+**Statistics**: `require-analyze-after-index`
+
+Configure severity per rule (`"error"` / `"warn"` / `"off"`) or add custom rules:
 ```json
 {
   "lint": {
-    "rules": { "require-lock-timeout": false },
+    "rules": { "ban-drop-column": "warn", "ban-alter-column-type": "off" },
     "customRulesDir": "lint-rules"
   }
 }
 ```
+
+Per-file exceptions via SQL comment: `-- migraguard:allow ban-drop-column`
 
 Custom rule files (`.js` / `.mjs`) in the specified directory are loaded automatically. Each file must default-export a `LintRule` object. See README for an example.
 

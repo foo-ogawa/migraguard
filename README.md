@@ -241,12 +241,11 @@ jobs:
   },
   "lint": {
     "rules": {
-      "require-concurrent-index": true,
-      "require-if-not-exists": true,
-      "require-lock-timeout": true,
-      "ban-concurrent-index-in-transaction": true,
-      "adding-not-nullable-field": true,
-      "constraint-missing-not-valid": true
+      "require-concurrent-index": "error",
+      "require-if-not-exists": "error",
+      "require-lock-timeout": "error",
+      "ban-drop-column": "warn",
+      "ban-alter-column-type": "off"
     }
   }
 }
@@ -320,12 +319,31 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 |------|---------|
 | `require-if-not-exists` | CREATE/DROP without IF NOT EXISTS / IF EXISTS |
 | `require-concurrent-index` | CREATE INDEX without CONCURRENTLY on existing tables |
+| `require-drop-index-concurrently` | DROP INDEX without CONCURRENTLY |
 | `require-lock-timeout` | DDL without prior SET lock_timeout |
+| `require-statement-timeout` | DDL without prior SET statement_timeout |
+| `require-reset-timeouts` | SET lock/statement_timeout without RESET at end |
+| `require-analyze-after-index` | CREATE INDEX without subsequent ANALYZE \<table\> |
+| `require-create-or-replace-view` | CREATE VIEW without OR REPLACE |
+| `require-unique-via-concurrent-index` | UNIQUE constraint added directly (not via USING INDEX) |
 | `ban-concurrent-index-in-transaction` | CONCURRENTLY inside BEGIN...COMMIT |
+| `ban-drop-cascade` | DROP ... CASCADE |
+| `ban-truncate` | TRUNCATE |
+| `ban-update-without-where` | UPDATE without WHERE |
+| `ban-delete-without-where` | DELETE without WHERE |
+| `ban-drop-column` | ALTER TABLE ... DROP COLUMN |
+| `ban-alter-column-type` | ALTER TABLE ... ALTER COLUMN TYPE |
+| `ban-validate-constraint-same-file` | VALIDATE CONSTRAINT in same file as NOT VALID |
+| `ban-bare-analyze` | ANALYZE without table name |
 | `adding-not-nullable-field` | NOT NULL column without DEFAULT |
-| `constraint-missing-not-valid` | ADD CONSTRAINT without NOT VALID |
+| `constraint-missing-not-valid` | ADD CONSTRAINT (FK/CHECK) without NOT VALID |
 
-Rules are enabled by default and can be disabled per-rule in `migraguard.config.json` under `lint.rules`.
+Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Per-file exceptions use a comment directive:
+
+```sql
+-- migraguard:allow ban-drop-column, ban-alter-column-type
+ALTER TABLE users DROP COLUMN legacy_field;
+```
 
 Project-specific rules can be added via `lint.customRulesDir`. See [docs/safe-ddl.md](docs/safe-ddl.md) for built-in rule details and custom rule examples.
 

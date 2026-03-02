@@ -2,7 +2,7 @@
 
 Since migraguard assumes plain SQL executed via `psql`, understanding safe DDL patterns is essential for production migrations. `migraguard lint` enforces these patterns via built-in rules using libpg-query AST analysis — no external tools required.
 
-## Setting Lock Timeout
+## Timeout Discipline
 
 ```sql
 SET lock_timeout = '5s';
@@ -14,9 +14,9 @@ RESET lock_timeout;
 RESET statement_timeout;
 ```
 
-Without `lock_timeout`, `ALTER TABLE` can block for extended periods waiting for a table lock, stalling subsequent queries. Always set this in production.
+Without `lock_timeout`, DDL can block for extended periods waiting for a table lock. Without `statement_timeout`, a heavy VALIDATE or backfill can run indefinitely. Both must be RESET at the end of the file to avoid leaking into subsequent operations.
 
-**Rule**: `require-lock-timeout` — errors if DDL statements appear without prior `SET lock_timeout`.
+**Rules**: `require-lock-timeout`, `require-statement-timeout`, `require-reset-timeouts`.
 
 ## CREATE INDEX CONCURRENTLY
 
@@ -81,6 +81,99 @@ WHERE status IS NULL
 Large-row UPDATEs are problematic for both lock duration and WAL write volume. Either batch in the application layer or segment ranges within the migration.
 
 **Rule**: None. AST analysis cannot detect unbounded backfills. This must be enforced by code review.
+
+## ANALYZE After CREATE INDEX
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
+ANALYZE users;
+```
+
+After creating an index, the query planner needs updated statistics to make optimal use of the new index. Always specify the target table — bare `ANALYZE;` (no table) analyzes the entire database and is dangerous in production.
+
+**Rules**:
+- `require-analyze-after-index` — errors if CREATE INDEX is not followed by `ANALYZE <table>` on the affected table. DROP INDEX is not checked (the affected table cannot be determined from the index name alone via AST).
+- `ban-bare-analyze` — errors on `ANALYZE;` without table name. Bare ANALYZE scans the entire database and is dangerous in production.
+
+## Views
+
+```sql
+-- Bad: fails on re-execution if view exists
+CREATE VIEW active_users AS SELECT * FROM users WHERE active;
+
+-- Good: idempotent
+CREATE OR REPLACE VIEW active_users AS SELECT * FROM users WHERE active;
+```
+
+**Rule**: `require-create-or-replace-view` — errors on CREATE VIEW without OR REPLACE.
+
+Avoid `DROP VIEW ... CASCADE` — it silently drops all dependent objects, making impact hard to track.
+
+**Rule**: `ban-drop-cascade` — errors on any DROP with CASCADE.
+
+## Destructive DDL
+
+```sql
+-- DROP COLUMN is irreversible and may break views/functions
+ALTER TABLE users DROP COLUMN email;
+
+-- ALTER COLUMN TYPE may rewrite the entire table
+ALTER TABLE users ALTER COLUMN email TYPE TEXT;
+```
+
+Both are flagged by default. The safe alternative for type changes is: add new column → backfill → swap → drop old column (across multiple migrations).
+
+**Rules**: `ban-drop-column`, `ban-alter-column-type`. Allow per-file with `-- migraguard:allow ban-drop-column` or disable globally in `lint.rules` config.
+
+## DML in Migrations
+
+```sql
+-- Bad: affects all rows, no bound
+UPDATE users SET status = 'active';
+DELETE FROM users;
+
+-- Good: bounded
+UPDATE users SET status = 'active' WHERE status IS NULL AND id BETWEEN 1 AND 100000;
+```
+
+**Rules**: `ban-update-without-where`, `ban-delete-without-where`, `ban-truncate`.
+
+## UNIQUE Constraints
+
+```sql
+-- Bad: acquires ACCESS EXCLUSIVE lock for index build
+ALTER TABLE users ADD CONSTRAINT u_email UNIQUE (email);
+
+-- Good: build index concurrently first, then attach
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
+ALTER TABLE users ADD CONSTRAINT u_email UNIQUE USING INDEX idx_users_email;
+```
+
+**Rule**: `require-unique-via-concurrent-index` — errors on direct UNIQUE constraint addition without USING INDEX.
+
+## NOT VALID + VALIDATE Separation
+
+```sql
+-- File 1: add constraint without scanning (fast, no lock)
+ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) NOT VALID;
+
+-- File 2 (separate migration): validate at a quiet time
+ALTER TABLE orders VALIDATE CONSTRAINT fk_user;
+```
+
+**Rule**: `ban-validate-constraint-same-file` — errors if VALIDATE CONSTRAINT appears in the same file as the NOT VALID addition. Separating them gives control over timing.
+
+## DROP INDEX
+
+```sql
+-- Bad: acquires ACCESS EXCLUSIVE lock
+DROP INDEX IF EXISTS idx_users_email;
+
+-- Good: non-blocking
+DROP INDEX CONCURRENTLY IF EXISTS idx_users_email;
+```
+
+**Rule**: `require-drop-index-concurrently` — errors on DROP INDEX without CONCURRENTLY.
 
 ## Custom Lint Rules
 

@@ -4,6 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConfig } from '../src/config.js';
 import { commandLint } from '../src/commands/lint.js';
+import { ALL_RULES } from '../src/rules/index.js';
+
+const DISABLE_ALL_BUILTIN: Record<string, string> = Object.fromEntries(
+  ALL_RULES.map((r) => [r.id, 'off']),
+);
 
 const CUSTOM_RULE_JS = `
 export default {
@@ -58,83 +63,48 @@ describe('custom lint rules', () => {
       migrationsDir: 'db/migrations',
       lint: {
         customRulesDir: 'custom-rules',
-        rules: {
-          'require-lock-timeout': false,
-          'require-if-not-exists': false,
-          'require-concurrent-index': false,
-          'ban-concurrent-index-in-transaction': false,
-          'adding-not-nullable-field': false,
-          'constraint-missing-not-valid': false,
-        },
+        rules: DISABLE_ALL_BUILTIN,
       },
     }, tempDir);
   }
 
   it('flags FK column not ending with _id', async () => {
-    const sql = `
-      CREATE TABLE IF NOT EXISTS orders (
-        user_ref INT REFERENCES users(id)
-      );
-    `;
-    const config = await setup(sql);
+    const config = await setup('CREATE TABLE IF NOT EXISTS orders (user_ref INT REFERENCES users(id));');
     const result = await commandLint(config);
     expect(result.ok).toBe(false);
-    expect(result.violations).toBe(1);
+    expect(result.errors).toBe(1);
   });
 
   it('passes FK column ending with _id', async () => {
-    const sql = `
-      CREATE TABLE IF NOT EXISTS orders (
-        user_id INT REFERENCES users(id)
-      );
-    `;
-    const config = await setup(sql);
+    const config = await setup('CREATE TABLE IF NOT EXISTS orders (user_id INT REFERENCES users(id));');
     const result = await commandLint(config);
     expect(result.ok).toBe(true);
-    expect(result.violations).toBe(0);
+    expect(result.errors).toBe(0);
   });
 
   it('ignores non-FK columns', async () => {
-    const sql = `
-      CREATE TABLE IF NOT EXISTS orders (
-        name VARCHAR(256)
-      );
-    `;
-    const config = await setup(sql);
+    const config = await setup('CREATE TABLE IF NOT EXISTS orders (name VARCHAR(256));');
     const result = await commandLint(config);
     expect(result.ok).toBe(true);
-    expect(result.violations).toBe(0);
+    expect(result.errors).toBe(0);
   });
 
   it('custom rules can be disabled via config', async () => {
-    const sql = `
-      CREATE TABLE IF NOT EXISTS orders (
-        user_ref INT REFERENCES users(id)
-      );
-    `;
     const migDir = join(tempDir, 'db', 'migrations');
     const rulesDir = join(tempDir, 'custom-rules');
     await mkdir(migDir, { recursive: true });
     await mkdir(rulesDir, { recursive: true });
-    await writeFile(join(migDir, '20260301_120000__test.sql'), sql);
+    await writeFile(join(migDir, '20260301_120000__test.sql'), 'CREATE TABLE IF NOT EXISTS orders (user_ref INT REFERENCES users(id));');
     await writeFile(join(rulesDir, 'require-fk-column-suffix.mjs'), CUSTOM_RULE_JS);
     const config = buildConfig({
       migrationsDir: 'db/migrations',
       lint: {
         customRulesDir: 'custom-rules',
-        rules: {
-          'require-fk-column-suffix': false,
-          'require-lock-timeout': false,
-          'require-if-not-exists': false,
-          'require-concurrent-index': false,
-          'ban-concurrent-index-in-transaction': false,
-          'adding-not-nullable-field': false,
-          'constraint-missing-not-valid': false,
-        },
+        rules: { ...DISABLE_ALL_BUILTIN, 'require-fk-column-suffix': 'off' },
       },
     }, tempDir);
     const result = await commandLint(config);
     expect(result.ok).toBe(true);
-    expect(result.violations).toBe(0);
+    expect(result.errors).toBe(0);
   });
 });

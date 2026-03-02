@@ -26,8 +26,10 @@ export interface DumpConfig {
   pgDumpCommand?: string[];
 }
 
+export type RuleSeverity = 'error' | 'warn' | 'off';
+
 export interface LintConfig {
-  rules: Record<string, boolean>;
+  rules: Record<string, RuleSeverity>;
   customRulesDir?: string;
 }
 
@@ -64,12 +66,26 @@ const DEFAULT_DUMP: DumpConfig = {
 
 const DEFAULT_LINT: LintConfig = {
   rules: {
-    'require-concurrent-index': true,
-    'require-if-not-exists': true,
-    'require-lock-timeout': true,
-    'ban-concurrent-index-in-transaction': true,
-    'adding-not-nullable-field': true,
-    'constraint-missing-not-valid': true,
+    'require-concurrent-index': 'error',
+    'require-if-not-exists': 'error',
+    'require-lock-timeout': 'error',
+    'ban-concurrent-index-in-transaction': 'error',
+    'adding-not-nullable-field': 'error',
+    'constraint-missing-not-valid': 'error',
+    'require-analyze-after-index': 'error',
+    'require-create-or-replace-view': 'error',
+    'ban-drop-cascade': 'error',
+    'require-statement-timeout': 'error',
+    'require-reset-timeouts': 'error',
+    'ban-truncate': 'error',
+    'ban-update-without-where': 'error',
+    'ban-delete-without-where': 'error',
+    'ban-drop-column': 'error',
+    'ban-alter-column-type': 'error',
+    'require-drop-index-concurrently': 'error',
+    'require-unique-via-concurrent-index': 'error',
+    'ban-validate-constraint-same-file': 'error',
+    'ban-bare-analyze': 'error',
   },
 };
 
