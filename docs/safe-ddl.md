@@ -246,6 +246,31 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_users_email;
 
 **Rule**: `require-drop-index-concurrently` — errors on DROP INDEX without CONCURRENTLY.
 
+## Dangerous Operational Commands
+
+Several PostgreSQL commands acquire heavy locks or modify cluster-wide settings. These belong in operational runbooks, not in migration files.
+
+`VACUUM FULL` rewrites the entire table under an ACCESS EXCLUSIVE lock — reads and writes are blocked for the duration. Normal `VACUUM` (without FULL) is non-blocking and is the correct choice for routine maintenance.
+
+`CLUSTER` physically reorders a table's rows according to an index, also requiring an ACCESS EXCLUSIVE lock and a full table rewrite.
+
+`REINDEX` rebuilds indexes. Without `CONCURRENTLY` it acquires an ACCESS EXCLUSIVE lock; even with `CONCURRENTLY` it takes a SHARE lock. Either way it should be managed as an operational task, not embedded in migrations.
+
+`ALTER SYSTEM` writes to `postgresql.auto.conf` and affects the entire database cluster. Server configuration must be managed via configuration management tools, not migrations.
+
+`SET session_replication_role` disables triggers and foreign key enforcement for the session. This can silently corrupt data integrity and should never appear in migrations.
+
+```sql
+-- All flagged by default
+VACUUM FULL users;
+CLUSTER users USING idx_users_email;
+REINDEX TABLE users;
+ALTER SYSTEM SET work_mem = '256MB';
+SET session_replication_role = 'replica';
+```
+
+**Rules**: `ban-vacuum-full`, `ban-cluster`, `ban-reindex`, `ban-alter-system`, `ban-set-session-replication-role`.
+
 ## Custom Lint Rules
 
 Project-specific rules can be added as `.js` / `.mjs` files. Set `lint.customRulesDir` in `migraguard.config.json`:
@@ -314,6 +339,9 @@ Any PostgreSQL AST node type can be used as a visitor key. Common examples:
 | `TruncateStmt` | TRUNCATE |
 | `RenameStmt` | ALTER ... RENAME |
 | `AlterEnumStmt` | ALTER TYPE ... ADD VALUE |
+| `ClusterStmt` | CLUSTER |
+| `ReindexStmt` | REINDEX |
+| `AlterSystemStmt` | ALTER SYSTEM |
 
 This is not a closed list. Any node type in the [libpg-query AST](https://github.com/pganalyze/libpg-query) can be used as a visitor key.
 

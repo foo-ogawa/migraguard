@@ -30,6 +30,11 @@ import { banDropTable } from './ban-drop-table.js';
 import { requirePkViaConcurrentIndex } from './require-pk-via-concurrent-index.js';
 import { banSetNotNull } from './ban-set-not-null.js';
 import { banAlterEnumInTransaction } from './ban-alter-enum-in-transaction.js';
+import { banVacuumFull } from './ban-vacuum-full.js';
+import { banCluster } from './ban-cluster.js';
+import { banReindex } from './ban-reindex.js';
+import { banAlterSystem } from './ban-alter-system.js';
+import { banSetSessionReplicationRole } from './ban-set-session-replication-role.js';
 import type { LintRule } from './engine.js';
 
 export const ALL_RULES: LintRule[] = [
@@ -62,4 +67,9 @@ export const ALL_RULES: LintRule[] = [
   requirePkViaConcurrentIndex,
   banSetNotNull,
   banAlterEnumInTransaction,
+  banVacuumFull,
+  banCluster,
+  banReindex,
+  banAlterSystem,
+  banSetSessionReplicationRole,
 ];

@@ -95,6 +95,11 @@ const DEFAULT_LINT: LintConfig = {
     'require-pk-via-concurrent-index': 'error',
     'ban-set-not-null': 'error',
     'ban-alter-enum-in-transaction': 'error',
+    'ban-vacuum-full': 'error',
+    'ban-cluster': 'error',
+    'ban-reindex': 'error',
+    'ban-alter-system': 'error',
+    'ban-set-session-replication-role': 'error',
   },
 };
 

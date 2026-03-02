@@ -346,6 +346,11 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `require-pk-via-concurrent-index` | PRIMARY KEY added directly (not via USING INDEX) |
 | `ban-set-not-null` | ALTER COLUMN ... SET NOT NULL (use CHECK NOT VALID pattern) |
 | `ban-alter-enum-in-transaction` | ALTER TYPE ... ADD VALUE inside BEGIN...COMMIT |
+| `ban-vacuum-full` | VACUUM FULL (table rewrite + ACCESS EXCLUSIVE lock) |
+| `ban-cluster` | CLUSTER (table rewrite + ACCESS EXCLUSIVE lock) |
+| `ban-reindex` | REINDEX (heavy locks — run as operational job) |
+| `ban-alter-system` | ALTER SYSTEM (cluster-wide config change) |
+| `ban-set-session-replication-role` | SET session_replication_role (disables triggers/FK) |
 
 Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Per-file exceptions use a comment directive:
 
