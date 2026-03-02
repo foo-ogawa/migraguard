@@ -65,6 +65,23 @@ migraguard separates file integrity and application state into two layers.
 
 metadata.json represents "which files should exist"; schema_migrations represents "what has been applied." This separation enables correct staged rollout from a single repository to multiple environments (staging, production).
 
+### Source of Truth: migrations (SSoT) vs schema.sql
+
+migraguard treats **migration SQL files** as the **Single Source of Truth (SSoT)** for schema evolution.
+They capture not only the end state, but also the *intent, ordering, and operational safety tactics* required for production changes.
+
+`schema.sql` is a **derived artifact**:
+- Generated from a real database via `dump` (pg_dump), and updated by `apply --with-drift-check`
+- Used as an **expected-state snapshot** for drift detection and human review
+- Not intended to be hand-edited or treated as the authoritative desired state
+
+This design supports migraguard's incident-prevention model:
+- Offline CI integrity checks (`check`) can reason about history and editability rules without a DB
+- Regression detection can catch "hotfix reversion" back to a previous checksum
+- Drift is treated as a deployment blocker unless explicitly resolved through the normal workflow
+
+> If you prefer a "desired state" workflow where the schema definition itself is the SSoT and migrations are generated from it, consider tools like Atlas. migraguard is optimized for teams writing DDL directly with operational guardrails.
+
 ### Checksum Normalization
 
 Checksums are computed on **normalized SQL** (SHA-256): comments are stripped (`-- ...` and `/* ... */` including nested), whitespace is collapsed, string literals are preserved as-is. Adding comments, adjusting indentation, or inserting blank lines does not change the checksum; only actual SQL statement changes are detected. `-- migraguard:depends-on` directives are also comments and do not affect the checksum.
