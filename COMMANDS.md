@@ -64,7 +64,20 @@ migraguard check
 
 ### `migraguard lint`
 
-Run Squawk lint on migration files to detect idempotency and safety rule violations.
+Run built-in safety rules on all migration files. Rules use libpg-query AST analysis — no external tools required.
+
+Rules (all enabled by default):
+- `require-if-not-exists` — CREATE/DROP must use IF NOT EXISTS / IF EXISTS
+- `require-concurrent-index` — CREATE INDEX must use CONCURRENTLY (skipped for tables created in the same file)
+- `require-lock-timeout` — SET lock_timeout must appear before DDL statements
+- `ban-concurrent-index-in-transaction` — CONCURRENTLY cannot be inside BEGIN...COMMIT
+- `adding-not-nullable-field` — NOT NULL column must have a DEFAULT value
+- `constraint-missing-not-valid` — ADD CONSTRAINT must use NOT VALID
+
+Disable specific rules in config:
+```json
+{ "lint": { "rules": { "require-lock-timeout": false } } }
+```
 
 ```bash
 migraguard lint

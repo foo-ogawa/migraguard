@@ -69,7 +69,7 @@ program
 
 program
   .command('lint')
-  .description('Run Squawk lint on migration files')
+  .description('Run built-in safety rules on migration files')
   .action(() => run(async () => {
     const config = await loadConfig();
     const result = await commandLint(config);

@@ -1,5 +1,7 @@
 # migraguard
 
+[![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An incident-prevention migration tool for PostgreSQL. Enforces safe operational policies via CI gates and DB state tracking, so that common migration accidents are structurally impossible.
 
 **Prevented accidents:**
@@ -48,11 +50,7 @@ npx migraguard dump
 - **One release = one file**: Migration files are squashed into a single file before release, simplifying error recovery. In DAG mode, independent DDL can be released individually
 - **Parallel releases via dependency tree**: DDL dependencies are analyzed to build a DAG, enabling parallel releases for independent changes
 - **Shift verification left**: Linting, checksum-based tamper detection, and schema dump diffs run at the PR stage
-- **Minimal footprint**: The runtime depends on four external tools with clear responsibilities:
-  - `psql` — executes migration SQL
-  - `pg_dump` — produces schema dumps for drift detection
-  - [Squawk](https://squawkhq.com/) — lints SQL for safety (optional)
-  - [libpg-query](https://github.com/pganalyze/libpg-query) — parses DDL for dependency analysis (DAG model)
+- **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)). No external linter required — lint rules are built in via AST analysis
 
 ## Core Concepts
 
@@ -157,7 +155,7 @@ See [docs/state-model.md](docs/state-model.md) for detailed apply, check, resolv
 | `status` | Display migration status per file |
 | `editable` | List currently editable files (tail / leaf) |
 | `check` | Verify file integrity via metadata.json (no DB required) |
-| `lint` | SQL lint via Squawk |
+| `lint` | Run built-in safety rules (AST-based) |
 | `verify` / `verify --all` | Prove idempotency on shadow DB |
 | `dump` | Save normalized schema dump |
 | `diff` | Show schema diff (DB vs saved dump) |
@@ -242,7 +240,14 @@ jobs:
     "excludePrivileges": true
   },
   "lint": {
-    "squawk": true
+    "rules": {
+      "require-concurrent-index": true,
+      "require-if-not-exists": true,
+      "require-lock-timeout": true,
+      "ban-concurrent-index-in-transaction": true,
+      "adding-not-nullable-field": true,
+      "constraint-missing-not-valid": true
+    }
   }
 }
 ```
@@ -309,7 +314,18 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 UPDATE users SET status = 'active' WHERE status IS NULL;
 ```
 
-For safe DDL patterns (lock timeout, CONCURRENTLY, batch backfills), see [docs/safe-ddl.md](docs/safe-ddl.md).
+`migraguard lint` enforces these patterns with built-in rules (no external tools required):
+
+| Rule | Detects |
+|------|---------|
+| `require-if-not-exists` | CREATE/DROP without IF NOT EXISTS / IF EXISTS |
+| `require-concurrent-index` | CREATE INDEX without CONCURRENTLY on existing tables |
+| `require-lock-timeout` | DDL without prior SET lock_timeout |
+| `ban-concurrent-index-in-transaction` | CONCURRENTLY inside BEGIN...COMMIT |
+| `adding-not-nullable-field` | NOT NULL column without DEFAULT |
+| `constraint-missing-not-valid` | ADD CONSTRAINT without NOT VALID |
+
+Rules are enabled by default and can be disabled per-rule in `migraguard.config.json` under `lint.rules`. See [docs/safe-ddl.md](docs/safe-ddl.md) for detailed patterns.
 
 ## Directory Structure
 
@@ -422,8 +438,8 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 | Language | TypeScript (Node.js) |
 | DB execution | `psql` CLI |
 | Schema dump | `pg_dump --schema-only` |
-| SQL lint | [Squawk](https://squawkhq.com/) |
-| SQL parser | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build, for DDL dependency analysis) |
+| SQL lint | Built-in rules via [libpg-query](https://github.com/pganalyze/libpg-query) AST analysis |
+| SQL parser | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build) |
 | Package manager | npm |
 
 ## Detailed Documentation

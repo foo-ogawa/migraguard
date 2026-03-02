@@ -1,6 +1,6 @@
 # Safe DDL Patterns for PostgreSQL
 
-Since migraguard assumes plain SQL executed via `psql`, understanding safe DDL patterns is essential for production migrations. Most of these patterns are enforced by [Squawk](https://squawkhq.com/) via `migraguard lint`.
+Since migraguard assumes plain SQL executed via `psql`, understanding safe DDL patterns is essential for production migrations. `migraguard lint` enforces these patterns via built-in rules using libpg-query AST analysis — no external tools required.
 
 ## Setting Lock Timeout
 
@@ -16,7 +16,7 @@ RESET statement_timeout;
 
 Without `lock_timeout`, `ALTER TABLE` can block for extended periods waiting for a table lock, stalling subsequent queries. Always set this in production.
 
-**Squawk rule**: [`require-timeout-settings`](https://squawkhq.com/docs/require-timeout-settings) — errors if DDL statements appear without prior `SET lock_timeout` / `SET statement_timeout`.
+**Rule**: `require-lock-timeout` — errors if DDL statements appear without prior `SET lock_timeout`.
 
 ## CREATE INDEX CONCURRENTLY
 
@@ -28,9 +28,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 
 A regular `CREATE INDEX` acquires an exclusive lock on the entire table. `CONCURRENTLY` avoids blocking writes but cannot run inside a transaction. Since `psql -v ON_ERROR_STOP=1 -f` executes files directly, do not include `BEGIN` / `COMMIT`.
 
-**Squawk rules**:
-- [`require-concurrent-index-creation`](https://squawkhq.com/docs/require-concurrent-index-creation) — errors on `CREATE INDEX` without `CONCURRENTLY`
-- [`ban-concurrent-index-creation-in-transaction`](https://squawkhq.com/docs/ban-concurrent-index-creation-in-transaction) — errors on `CREATE INDEX CONCURRENTLY` inside a transaction
+**Rules**:
+- `require-concurrent-index` — errors on `CREATE INDEX` without `CONCURRENTLY` (skipped for tables created in the same file)
+- `ban-concurrent-index-in-transaction` — errors on `CREATE INDEX CONCURRENTLY` inside `BEGIN`...`COMMIT`
 
 ## Idempotent Statements (IF NOT EXISTS / IF EXISTS)
 
@@ -43,7 +43,32 @@ DROP TABLE IF EXISTS temp_backup;
 
 Without guards, a partially failed migration cannot be safely retried — the already-succeeded statements will error on re-execution.
 
-**Squawk rule**: [`prefer-robust-stmts`](https://squawkhq.com/docs/prefer-robust-stmts) — errors on DDL without `IF NOT EXISTS` / `IF EXISTS` guards outside a transaction.
+**Rule**: `require-if-not-exists` — errors on CREATE TABLE/INDEX without `IF NOT EXISTS` and DROP without `IF EXISTS`.
+
+## Adding NOT NULL Columns
+
+```sql
+-- Bad: blocks writes while scanning entire table for NULLs
+ALTER TABLE users ADD COLUMN status VARCHAR(16) NOT NULL;
+
+-- Good: add with DEFAULT to avoid table rewrite (PG 11+)
+ALTER TABLE users ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'active';
+```
+
+**Rule**: `adding-not-nullable-field` — errors on adding a NOT NULL column without a DEFAULT value.
+
+## Adding Constraints
+
+```sql
+-- Bad: full table scan, blocks writes
+ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id);
+
+-- Good: NOT VALID skips scan, then VALIDATE separately
+ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) NOT VALID;
+ALTER TABLE orders VALIDATE CONSTRAINT fk_user;
+```
+
+**Rule**: `constraint-missing-not-valid` — errors on ADD CONSTRAINT (FOREIGN KEY / CHECK) without NOT VALID.
 
 ## Batch Large Data Backfills
 
@@ -55,4 +80,4 @@ WHERE status IS NULL
 
 Large-row UPDATEs are problematic for both lock duration and WAL write volume. Either batch in the application layer or segment ranges within the migration.
 
-**Squawk rule**: None. Squawk cannot detect unbounded backfills. This must be enforced by code review.
+**Rule**: None. AST analysis cannot detect unbounded backfills. This must be enforced by code review.

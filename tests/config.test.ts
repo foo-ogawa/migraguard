@@ -44,7 +44,9 @@ describe('config', () => {
       expect(config.dump.normalize).toBe(true);
       expect(config.dump.excludeOwners).toBe(true);
       expect(config.dump.excludePrivileges).toBe(true);
-      expect(config.lint.squawk).toBe(true);
+      expect(config.lint.rules['require-concurrent-index']).toBe(true);
+      expect(config.lint.rules['require-if-not-exists']).toBe(true);
+      expect(config.lint.rules['require-lock-timeout']).toBe(true);
       expect(config.configDir).toBe('/project');
     });
 

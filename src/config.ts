@@ -27,7 +27,7 @@ export interface DumpConfig {
 }
 
 export interface LintConfig {
-  squawk: boolean;
+  rules: Record<string, boolean>;
 }
 
 export interface MigraguardConfig {
@@ -62,7 +62,14 @@ const DEFAULT_DUMP: DumpConfig = {
 };
 
 const DEFAULT_LINT: LintConfig = {
-  squawk: true,
+  rules: {
+    'require-concurrent-index': true,
+    'require-if-not-exists': true,
+    'require-lock-timeout': true,
+    'ban-concurrent-index-in-transaction': true,
+    'adding-not-nullable-field': true,
+    'constraint-missing-not-valid': true,
+  },
 };
 
 export interface RawConfig {
@@ -127,7 +134,11 @@ export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig
     naming: { ...DEFAULT_NAMING, ...raw.naming },
     connection: applyEnvOverrides(connection),
     dump: { ...DEFAULT_DUMP, ...raw.dump },
-    lint: { ...DEFAULT_LINT, ...raw.lint },
+    lint: {
+      ...DEFAULT_LINT,
+      ...raw.lint,
+      rules: { ...DEFAULT_LINT.rules, ...raw.lint?.rules },
+    },
   };
 }
 
