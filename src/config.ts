@@ -89,6 +89,12 @@ const DEFAULT_LINT: LintConfig = {
     'require-if-not-exists-materialized-view': 'error',
     'ban-refresh-materialized-view-in-migration': 'error',
     'ban-select-star-in-view': 'error',
+    'ban-rename-column': 'error',
+    'ban-rename-table': 'error',
+    'ban-drop-table': 'error',
+    'require-pk-via-concurrent-index': 'error',
+    'ban-set-not-null': 'error',
+    'ban-alter-enum-in-transaction': 'error',
   },
 };
 

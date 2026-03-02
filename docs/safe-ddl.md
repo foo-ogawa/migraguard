@@ -93,6 +93,50 @@ ALTER TABLE users ADD CONSTRAINT u_email UNIQUE USING INDEX idx_users_email;
 
 **Rule**: `require-unique-via-concurrent-index` — errors on direct UNIQUE constraint addition without USING INDEX.
 
+## PRIMARY KEY Constraints
+
+Adding a PRIMARY KEY via `ALTER TABLE ... ADD PRIMARY KEY (col)` internally builds a unique index while holding an ACCESS EXCLUSIVE lock, blocking all reads and writes for the duration. The safe pattern is identical to UNIQUE constraints: create the index concurrently first, then attach it.
+
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS account_pk_idx ON account (id);
+ALTER TABLE account ADD CONSTRAINT account_pk PRIMARY KEY USING INDEX account_pk_idx;
+```
+
+**Rule**: `require-pk-via-concurrent-index` — errors on direct PRIMARY KEY addition without USING INDEX.
+
+## SET NOT NULL on Existing Columns
+
+`ALTER TABLE ... ALTER COLUMN ... SET NOT NULL` acquires an ACCESS EXCLUSIVE lock and scans all rows to verify no NULLs exist. On large tables this causes extended downtime. The safe pattern (PG 12+) is to add a CHECK constraint with NOT VALID, validate it separately, then apply SET NOT NULL (which becomes a metadata-only operation once a validated CHECK constraint exists).
+
+```sql
+-- Step 1: add constraint without validation (fast, no scan)
+ALTER TABLE users ADD CONSTRAINT users_email_not_null CHECK (email IS NOT NULL) NOT VALID;
+
+-- Step 2 (separate migration): validate existing rows (non-blocking)
+ALTER TABLE users VALIDATE CONSTRAINT users_email_not_null;
+
+-- Step 3 (separate migration): now SET NOT NULL is metadata-only
+ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+```
+
+**Rule**: `ban-set-not-null` — errors on SET NOT NULL. Use the CHECK NOT VALID → VALIDATE → SET NOT NULL pattern instead.
+
+## ENUM Types in Transactions
+
+`ALTER TYPE ... ADD VALUE` cannot be rolled back — if the transaction is aborted, the new enum value remains. On PostgreSQL versions before 12, this statement cannot run inside a transaction at all. Even on PG 12+, placing it inside a transaction provides a false sense of safety since it cannot be rolled back.
+
+```sql
+-- Bad: inside a transaction
+BEGIN;
+ALTER TYPE status ADD VALUE 'archived';
+COMMIT;
+
+-- Good: outside a transaction
+ALTER TYPE status ADD VALUE 'archived';
+```
+
+**Rule**: `ban-alter-enum-in-transaction` — errors on ALTER TYPE ... ADD VALUE inside BEGIN...COMMIT.
+
 ## ANALYZE After CREATE INDEX
 
 After creating an index, the query planner may not use it optimally until table statistics are updated. Autovacuum will eventually run ANALYZE, but there is a lag. Explicitly running `ANALYZE <table>` in the migration ensures immediate planner awareness. A bare `ANALYZE;` without a table name scans the entire database and is dangerous in production.
@@ -140,17 +184,30 @@ CREATE OR REPLACE VIEW user_stats AS SELECT user_id, post_count FROM user_stats_
 - `require-if-not-exists-materialized-view` — errors on CREATE MATERIALIZED VIEW without IF NOT EXISTS
 - `ban-refresh-materialized-view-in-migration` — errors on REFRESH MATERIALIZED VIEW in migration files
 
-## Destructive DDL
+## Renaming Columns and Tables
 
-`DROP COLUMN` is irreversible and can break dependent views, functions, and application code. `ALTER COLUMN TYPE` may trigger a full table rewrite with an exclusive lock, causing extended downtime on large tables. The safe alternative for type changes is: add new column → backfill → swap references → drop old column (across multiple migrations).
+Renaming a column or table breaks every existing query, view, function, and application code that references the old name. During rolling deployments, old application instances will fail immediately after the rename is applied. There is no safe way to rename in a single step.
 
 ```sql
 -- Both flagged by default
+ALTER TABLE users RENAME COLUMN email TO email_address;
+ALTER TABLE users RENAME TO customers;
+```
+
+**Rules**: `ban-rename-column`, `ban-rename-table`. For column renames, consider adding a new column and deprecating the old one. For table renames, consider using a VIEW to alias the new name.
+
+## Destructive DDL
+
+`DROP TABLE` and `DROP COLUMN` are irreversible and can break dependent views, functions, and application code. `ALTER COLUMN TYPE` may trigger a full table rewrite with an exclusive lock, causing extended downtime on large tables. The safe alternative for type changes is: add new column → backfill → swap references → drop old column (across multiple migrations).
+
+```sql
+-- All flagged by default
+DROP TABLE users;
 ALTER TABLE users DROP COLUMN email;
 ALTER TABLE users ALTER COLUMN email TYPE TEXT;
 ```
 
-**Rules**: `ban-drop-column`, `ban-alter-column-type`. Allow per-file with `-- migraguard:allow ban-drop-column` or disable globally in `lint.rules` config.
+**Rules**: `ban-drop-table`, `ban-drop-column`, `ban-alter-column-type`. Allow per-file with `-- migraguard:allow ban-drop-table` or disable globally in `lint.rules` config.
 
 ## DML in Migrations
 
@@ -256,6 +313,7 @@ Any PostgreSQL AST node type can be used as a visitor key. Common examples:
 | `VacuumStmt` | ANALYZE / VACUUM |
 | `TruncateStmt` | TRUNCATE |
 | `RenameStmt` | ALTER ... RENAME |
+| `AlterEnumStmt` | ALTER TYPE ... ADD VALUE |
 
 This is not a closed list. Any node type in the [libpg-query AST](https://github.com/pganalyze/libpg-query) can be used as a visitor key.
 

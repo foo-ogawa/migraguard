@@ -340,6 +340,12 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `ban-select-star-in-view` | SELECT * in VIEW / MATERIALIZED VIEW definitions |
 | `require-if-not-exists-materialized-view` | CREATE MATERIALIZED VIEW without IF NOT EXISTS |
 | `ban-refresh-materialized-view-in-migration` | REFRESH MATERIALIZED VIEW in migration files |
+| `ban-rename-column` | ALTER TABLE ... RENAME COLUMN |
+| `ban-rename-table` | ALTER TABLE ... RENAME TO |
+| `ban-drop-table` | DROP TABLE |
+| `require-pk-via-concurrent-index` | PRIMARY KEY added directly (not via USING INDEX) |
+| `ban-set-not-null` | ALTER COLUMN ... SET NOT NULL (use CHECK NOT VALID pattern) |
+| `ban-alter-enum-in-transaction` | ALTER TYPE ... ADD VALUE inside BEGIN...COMMIT |
 
 Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Per-file exceptions use a comment directive:
 
