@@ -21,6 +21,8 @@ import { requireDropIndexConcurrently } from './require-drop-index-concurrently.
 import { requireUniqueViaConcurrentIndex } from './require-unique-via-concurrent-index.js';
 import { banValidateConstraintSameFile } from './ban-validate-constraint-same-file.js';
 import { banBareAnalyze } from './ban-bare-analyze.js';
+import { requireIfNotExistsMaterializedView } from './require-if-not-exists-materialized-view.js';
+import { banRefreshMaterializedViewInMigration } from './ban-refresh-materialized-view-in-migration.js';
 import type { LintRule } from './engine.js';
 
 export const ALL_RULES: LintRule[] = [
@@ -44,4 +46,6 @@ export const ALL_RULES: LintRule[] = [
   requireUniqueViaConcurrentIndex,
   banValidateConstraintSameFile,
   banBareAnalyze,
+  requireIfNotExistsMaterializedView,
+  banRefreshMaterializedViewInMigration,
 ];

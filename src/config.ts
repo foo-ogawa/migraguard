@@ -86,6 +86,8 @@ const DEFAULT_LINT: LintConfig = {
     'require-unique-via-concurrent-index': 'error',
     'ban-validate-constraint-same-file': 'error',
     'ban-bare-analyze': 'error',
+    'require-if-not-exists-materialized-view': 'error',
+    'ban-refresh-materialized-view-in-migration': 'error',
   },
 };
 

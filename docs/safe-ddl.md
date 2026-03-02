@@ -109,6 +109,24 @@ CREATE OR REPLACE VIEW active_users AS SELECT * FROM users WHERE active;
 
 Avoid `DROP VIEW ... CASCADE` — it silently drops all dependent objects, making impact hard to track.
 
+## Materialized Views
+
+```sql
+-- Good: idempotent creation
+CREATE MATERIALIZED VIEW IF NOT EXISTS user_stats_mv AS
+  SELECT user_id, count(*) AS post_count FROM posts GROUP BY user_id
+  WITH NO DATA;
+
+-- Expose via regular VIEW (OR REPLACE for safe switching)
+CREATE OR REPLACE VIEW user_stats AS SELECT * FROM user_stats_mv;
+```
+
+Materialized views hold data and require `REFRESH` to update. Migrations should handle creation and indexing only — `REFRESH` is a heavy operation that belongs in a separate job.
+
+**Rules**:
+- `require-if-not-exists-materialized-view` — errors on CREATE MATERIALIZED VIEW without IF NOT EXISTS
+- `ban-refresh-materialized-view-in-migration` — errors on REFRESH MATERIALIZED VIEW in migration files
+
 **Rule**: `ban-drop-cascade` — errors on any DROP with CASCADE.
 
 ## Destructive DDL
