@@ -13,6 +13,10 @@ dist/
 # OS
 Thumbs.db
 
+# Env
+.env
+.env.*
+
 # Test artifacts
 coverage/
 MigrationDependencyGraph.png
