@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
  *
  * Handles:
  *  - Line comments (-- ...)
- *  - Block comments (/* ... *​/, with PostgreSQL-style nesting)
+ *  - Block comments (with PostgreSQL-style nesting)
  *  - Single-quoted strings ('...', with '' escape)
  *  - Double-quoted identifiers ("...", with "" escape)
  *  - Dollar-quoted strings ($$...$$, $tag$...$tag$)
