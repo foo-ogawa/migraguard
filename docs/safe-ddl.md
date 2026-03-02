@@ -81,3 +81,74 @@ WHERE status IS NULL
 Large-row UPDATEs are problematic for both lock duration and WAL write volume. Either batch in the application layer or segment ranges within the migration.
 
 **Rule**: None. AST analysis cannot detect unbounded backfills. This must be enforced by code review.
+
+## Custom Lint Rules
+
+Project-specific rules can be added as `.js` / `.mjs` files. Set `lint.customRulesDir` in `migraguard.config.json`:
+
+```json
+{ "lint": { "customRulesDir": "lint-rules" } }
+```
+
+Each file must default-export a `LintRule` object. The type is available via `import('migraguard').LintRule`.
+
+### Example: FK Column Naming Convention
+
+```javascript
+// lint-rules/require-fk-column-suffix.js
+/** @type {import('migraguard').LintRule} */
+export default {
+  id: 'require-fk-column-suffix',
+  description: 'FK columns must end with _id',
+  create() {
+    return {
+      CreateStmt(node, ctx) {
+        const tableElts = node.tableElts;
+        if (!Array.isArray(tableElts)) return;
+        for (const elt of tableElts) {
+          if (!elt.ColumnDef) continue;
+          const col = elt.ColumnDef;
+          const constraints = col.constraints;
+          if (!Array.isArray(constraints)) continue;
+          const hasFk = constraints.some(
+            (c) => c.Constraint && c.Constraint.contype === 'CONSTR_FOREIGN',
+          );
+          if (hasFk && !col.colname?.endsWith('_id')) {
+            ctx.report({
+              message: `FK column "${col.colname}" does not end with _id`,
+              hint: 'Rename to end with _id',
+            });
+          }
+        }
+      },
+    };
+  },
+};
+```
+
+### Available Visitors
+
+Any PostgreSQL AST node type can be used as a visitor key. Common examples:
+
+| Visitor | Triggered by |
+|---------|-------------|
+| `CreateStmt` | CREATE TABLE |
+| `IndexStmt` | CREATE INDEX |
+| `AlterTableStmt` | ALTER TABLE |
+| `DropStmt` | DROP TABLE / INDEX / VIEW / ... |
+| `ViewStmt` | CREATE VIEW |
+| `SelectStmt` | SELECT |
+| `InsertStmt` | INSERT |
+| `UpdateStmt` | UPDATE |
+| `DeleteStmt` | DELETE |
+| `CreateFunctionStmt` | CREATE FUNCTION |
+| `TransactionStmt` | BEGIN / COMMIT / ROLLBACK |
+| `VariableSetStmt` | SET ... |
+| `TruncateStmt` | TRUNCATE |
+| `RenameStmt` | ALTER ... RENAME |
+
+This is not a closed list. Any node type in the [libpg-query AST](https://github.com/pganalyze/libpg-query) can be used as a visitor key.
+
+Each visitor receives `(node, ctx)`. Use `ctx.report({ message, hint })` to flag violations. `ctx` also provides shared state: `createdTables`, `lockTimeoutSet`, `inTransaction`.
+
+Custom rules can be disabled via `lint.rules` by their `id`, just like built-in rules.

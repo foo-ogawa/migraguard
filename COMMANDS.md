@@ -74,10 +74,17 @@ Rules (all enabled by default):
 - `adding-not-nullable-field` — NOT NULL column must have a DEFAULT value
 - `constraint-missing-not-valid` — ADD CONSTRAINT must use NOT VALID
 
-Disable specific rules in config:
+Disable specific rules or add custom rules via config:
 ```json
-{ "lint": { "rules": { "require-lock-timeout": false } } }
+{
+  "lint": {
+    "rules": { "require-lock-timeout": false },
+    "customRulesDir": "lint-rules"
+  }
+}
 ```
+
+Custom rule files (`.js` / `.mjs`) in the specified directory are loaded automatically. Each file must default-export a `LintRule` object. See README for an example.
 
 ```bash
 migraguard lint

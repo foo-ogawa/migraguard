@@ -1,14 +1,46 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
+import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { ALL_RULES, runRules } from '../rules/index.js';
-import type { LintViolation } from '../rules/index.js';
+import type { LintRule, LintViolation } from '../rules/index.js';
 
 export interface LintResult {
   ok: boolean;
   filesLinted: number;
   violations: number;
+}
+
+async function loadCustomRules(config: MigraguardConfig): Promise<LintRule[]> {
+  const dir = config.lint.customRulesDir;
+  if (!dir) return [];
+
+  const absDir = resolveFromConfig(config, dir);
+  let entries: string[];
+  try {
+    entries = await readdir(absDir);
+  } catch {
+    return [];
+  }
+
+  const rules: LintRule[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith('.js') && !entry.endsWith('.mjs')) continue;
+    const filePath = resolve(absDir, entry);
+    try {
+      const mod = await import(pathToFileURL(filePath).href);
+      const rule: LintRule = mod.default ?? mod;
+      if (rule && typeof rule.id === 'string' && typeof rule.create === 'function') {
+        rules.push(rule);
+      }
+    } catch (err: unknown) {
+      console.error(chalk.yellow(`Warning: failed to load custom rule from ${entry}: ${(err as Error).message}`));
+    }
+  }
+  return rules;
 }
 
 export async function commandLint(config: MigraguardConfig): Promise<LintResult> {
@@ -18,7 +50,9 @@ export async function commandLint(config: MigraguardConfig): Promise<LintResult>
     return { ok: true, filesLinted: 0, violations: 0 };
   }
 
-  const enabledRules = ALL_RULES.filter((r) => config.lint.rules[r.id] !== false);
+  const customRules = await loadCustomRules(config);
+  const allRules = [...ALL_RULES, ...customRules];
+  const enabledRules = allRules.filter((r) => config.lint.rules[r.id] !== false);
 
   if (enabledRules.length === 0) {
     console.log(chalk.yellow('All lint rules are disabled.'));

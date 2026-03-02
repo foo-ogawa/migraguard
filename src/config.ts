@@ -28,6 +28,7 @@ export interface DumpConfig {
 
 export interface LintConfig {
   rules: Record<string, boolean>;
+  customRulesDir?: string;
 }
 
 export interface MigraguardConfig {

@@ -13,28 +13,15 @@ export interface RuleContext {
   inTransaction: boolean;
 }
 
-export interface NodeVisitors {
-  CreateStmt?: (node: Record<string, unknown>, ctx: RuleContext) => void;
-  IndexStmt?: (node: Record<string, unknown>, ctx: RuleContext) => void;
-  AlterTableStmt?: (node: Record<string, unknown>, ctx: RuleContext) => void;
-  DropStmt?: (node: Record<string, unknown>, ctx: RuleContext) => void;
-  TransactionStmt?: (node: Record<string, unknown>, ctx: RuleContext) => void;
-}
+type NodeHandler = (node: Record<string, unknown>, ctx: RuleContext) => void;
+
+export type NodeVisitors = Record<string, NodeHandler | undefined>;
 
 export interface LintRule {
   id: string;
   description: string;
   create(): NodeVisitors;
 }
-
-type StmtKey = keyof NodeVisitors;
-const VISITOR_KEYS: StmtKey[] = [
-  'CreateStmt',
-  'IndexStmt',
-  'AlterTableStmt',
-  'DropStmt',
-  'TransactionStmt',
-];
 
 export async function runRules(
   sql: string,
@@ -65,7 +52,6 @@ export async function runRules(
     if ('VariableSetStmt' in s) {
       const name = s.VariableSetStmt.name as string | undefined;
       if (name === 'lock_timeout') lockTimeoutSet = true;
-      continue;
     }
 
     if ('TransactionStmt' in s) {
@@ -86,8 +72,7 @@ export async function runRules(
       inTransaction,
     };
 
-    for (const key of VISITOR_KEYS) {
-      if (!(key in s)) continue;
+    for (const key of Object.keys(s)) {
       const node = s[key];
       for (const { ruleId, handlers } of visitors) {
         const handler = handlers[key];

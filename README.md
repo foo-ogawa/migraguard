@@ -325,7 +325,9 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `adding-not-nullable-field` | NOT NULL column without DEFAULT |
 | `constraint-missing-not-valid` | ADD CONSTRAINT without NOT VALID |
 
-Rules are enabled by default and can be disabled per-rule in `migraguard.config.json` under `lint.rules`. See [docs/safe-ddl.md](docs/safe-ddl.md) for detailed patterns.
+Rules are enabled by default and can be disabled per-rule in `migraguard.config.json` under `lint.rules`.
+
+Project-specific rules can be added via `lint.customRulesDir`. See [docs/safe-ddl.md](docs/safe-ddl.md) for built-in rule details and custom rule examples.
 
 ## Directory Structure
 

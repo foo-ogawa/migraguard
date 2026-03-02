@@ -9,6 +9,9 @@
     "user": "migraguard_test",
     "password": "migraguard_test"
   },
+  "lint": {
+    "customRulesDir": "lint-rules"
+  },
   "dump": {
     "normalize": true,
     "excludeOwners": true,
