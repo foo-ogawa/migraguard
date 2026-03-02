@@ -4,7 +4,7 @@ Since migraguard assumes plain SQL executed via `psql`, understanding safe DDL p
 
 ## Timeout Discipline
 
-PostgreSQL の DDL はテーブルロックを取得する。`lock_timeout` が未設定だと、ロック待ちが無期限に続き、後続クエリが全てブロックされる。`statement_timeout` が未設定だと、重い VALIDATE や backfill が終わらない。どちらも本番障害の直接原因になる。SET したまま RESET しないと、同一セッション内の後続操作にタイムアウト設定が漏れる。
+DDL statements acquire table locks. Without `lock_timeout`, a lock wait can block indefinitely, stalling all subsequent queries on the table. Without `statement_timeout`, a heavy VALIDATE or backfill can run forever. Both are direct causes of production incidents. Failing to RESET after SET leaks the timeout setting into subsequent operations in the same session.
 
 ```sql
 SET lock_timeout = '5s';
@@ -20,19 +20,19 @@ RESET statement_timeout;
 
 ## CREATE INDEX CONCURRENTLY
 
-通常の `CREATE INDEX` は対象テーブル全体に排他ロック (ACCESS EXCLUSIVE) を取得し、インデックス構築中は書き込みも読み取りもブロックされる。本番テーブルでは数分〜数十分の停止を引き起こす。`CONCURRENTLY` を使うとロックを最小化できるが、トランザクション内では実行できない制約がある。
+A regular `CREATE INDEX` acquires an ACCESS EXCLUSIVE lock on the target table, blocking both reads and writes for the duration of the index build. On production tables this can mean minutes to hours of downtime. `CONCURRENTLY` minimizes locking but cannot run inside a transaction block.
 
 ```sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 ```
 
 **Rules**:
-- `require-concurrent-index` — CREATE INDEX に CONCURRENTLY がない場合にエラー（同一ファイル内で作成されたテーブルはスキップ）
-- `ban-concurrent-index-in-transaction` — BEGIN...COMMIT 内の CONCURRENTLY をエラー
+- `require-concurrent-index` — errors on CREATE INDEX without CONCURRENTLY (skipped for tables created in the same file)
+- `ban-concurrent-index-in-transaction` — errors on CONCURRENTLY inside BEGIN...COMMIT
 
 ## Idempotent Statements (IF NOT EXISTS / IF EXISTS)
 
-マイグレーションが途中で失敗した場合、成功済みの文は再実行時にエラーになる（テーブルが既に存在する等）。`IF NOT EXISTS` / `IF EXISTS` をつけることで、再実行しても安全な冪等 SQL になる。migraguard の設計思想（失敗→修正→再apply）を支える基本パターン。
+When a migration fails partway through, the already-succeeded statements will error on re-execution (e.g., "table already exists"). Adding `IF NOT EXISTS` / `IF EXISTS` makes every statement safe to re-run. This is the foundation of migraguard's design: fail → fix → re-apply.
 
 ```sql
 CREATE TABLE IF NOT EXISTS users (...);
@@ -40,62 +40,62 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 DROP TABLE IF EXISTS temp_backup;
 ```
 
-**Rule**: `require-if-not-exists` — CREATE TABLE/INDEX に IF NOT EXISTS がない、DROP に IF EXISTS がない場合にエラー。
+**Rule**: `require-if-not-exists` — errors on CREATE TABLE/INDEX without IF NOT EXISTS and DROP without IF EXISTS.
 
 ## Adding NOT NULL Columns
 
-既存テーブルに NOT NULL カラムを DEFAULT なしで追加すると、PostgreSQL は全行をスキャンして NULL がないことを確認する。大きなテーブルでは長時間の排他ロックとテーブルリライトが発生する。PostgreSQL 11+ では DEFAULT 付きの NOT NULL カラム追加はメタデータ変更のみで即座に完了する。
+Adding a NOT NULL column without a DEFAULT forces PostgreSQL to scan every row to verify no NULLs exist. On large tables this causes a long-held exclusive lock and a full table rewrite. Since PostgreSQL 11, adding a NOT NULL column with a DEFAULT is a metadata-only operation that completes instantly.
 
 ```sql
--- Bad: 全行スキャン + 排他ロック
+-- Bad: full table scan + exclusive lock
 ALTER TABLE users ADD COLUMN status VARCHAR(16) NOT NULL;
 
--- Good: メタデータ変更のみ (PG 11+)
+-- Good: metadata-only change (PG 11+)
 ALTER TABLE users ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'active';
 ```
 
-**Rule**: `adding-not-nullable-field` — NOT NULL カラムを DEFAULT なしで追加した場合にエラー。
+**Rule**: `adding-not-nullable-field` — errors on adding a NOT NULL column without a DEFAULT value.
 
 ## Adding Constraints
 
-FOREIGN KEY や CHECK 制約を直接追加すると、PostgreSQL は全行をスキャンして制約を検証する。この間テーブルは書き込みブロックされる。`NOT VALID` をつけると検証をスキップして即座に制約を追加でき、`VALIDATE CONSTRAINT` で後から非ブロッキングで検証できる。
+Adding a FOREIGN KEY or CHECK constraint directly causes PostgreSQL to scan the entire table to validate the constraint. The table is write-locked during this scan. Using `NOT VALID` skips the validation and adds the constraint instantly. `VALIDATE CONSTRAINT` can then verify existing rows in a non-blocking manner.
 
 ```sql
 ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) NOT VALID;
--- 別マイグレーションで:
+-- In a separate migration:
 ALTER TABLE orders VALIDATE CONSTRAINT fk_user;
 ```
 
-**Rule**: `constraint-missing-not-valid` — FOREIGN KEY / CHECK 制約の追加に NOT VALID がない場合にエラー。
+**Rule**: `constraint-missing-not-valid` — errors on adding FOREIGN KEY / CHECK constraints without NOT VALID.
 
 ## NOT VALID + VALIDATE Separation
 
-NOT VALID で制約を追加した後、同一ファイル内で VALIDATE すると、NOT VALID の意味がなくなる（結局同じマイグレーション内でフルスキャンが走る）。VALIDATE はトラフィックの少ない時間帯に別マイグレーションとして実行することで、影響を制御できる。
+If you add a constraint with NOT VALID and then VALIDATE it in the same migration file, you lose the benefit — the full table scan runs in the same deployment. Separating VALIDATE into a different migration gives you control over timing (e.g., run during low-traffic hours).
 
 ```sql
--- File 1: 制約追加（高速、ロックなし）
+-- File 1: add constraint (fast, no lock)
 ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) NOT VALID;
 
--- File 2（別マイグレーション）: 検証（タイミングを制御）
+-- File 2 (separate migration): validate (timing controlled)
 ALTER TABLE orders VALIDATE CONSTRAINT fk_user;
 ```
 
-**Rule**: `ban-validate-constraint-same-file` — NOT VALID と VALIDATE CONSTRAINT が同一ファイルにある場合にエラー。
+**Rule**: `ban-validate-constraint-same-file` — errors if NOT VALID and VALIDATE CONSTRAINT appear in the same file.
 
 ## UNIQUE Constraints
 
-UNIQUE 制約を `ALTER TABLE ... ADD CONSTRAINT UNIQUE (col)` で直接追加すると、内部的にインデックスが構築され、その間テーブルが排他ロックされる。先に `CREATE UNIQUE INDEX CONCURRENTLY` で非ブロッキングにインデックスを作成し、`USING INDEX` で制約に紐づける方が安全。
+Adding a UNIQUE constraint via `ALTER TABLE ... ADD CONSTRAINT UNIQUE (col)` internally builds an index while holding an exclusive lock. Creating the index first with `CREATE UNIQUE INDEX CONCURRENTLY` avoids blocking writes, then attaching it with `USING INDEX` is a metadata-only operation.
 
 ```sql
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 ALTER TABLE users ADD CONSTRAINT u_email UNIQUE USING INDEX idx_users_email;
 ```
 
-**Rule**: `require-unique-via-concurrent-index` — USING INDEX を使わない直接的な UNIQUE 制約追加をエラー。
+**Rule**: `require-unique-via-concurrent-index` — errors on direct UNIQUE constraint addition without USING INDEX.
 
 ## ANALYZE After CREATE INDEX
 
-インデックス作成後、クエリプランナーは最新の統計情報がないと新しいインデックスを最適に活用できない。autovacuum が統計を更新するまでにはラグがあるため、マイグレーション内で明示的に `ANALYZE <table>` を実行するのが確実。テーブル名を指定しない bare `ANALYZE;` はデータベース全体をスキャンするため、本番では危険。
+After creating an index, the query planner may not use it optimally until table statistics are updated. Autovacuum will eventually run ANALYZE, but there is a lag. Explicitly running `ANALYZE <table>` in the migration ensures immediate planner awareness. A bare `ANALYZE;` without a table name scans the entire database and is dangerous in production.
 
 ```sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
@@ -103,30 +103,30 @@ ANALYZE users;
 ```
 
 **Rules**:
-- `require-analyze-after-index` — CREATE INDEX の後に `ANALYZE <table>` がない場合にエラー（DROP INDEX は AST からテーブルを特定できないため対象外）
-- `ban-bare-analyze` — テーブル名なしの `ANALYZE;` をエラー
+- `require-analyze-after-index` — errors if CREATE INDEX is not followed by `ANALYZE <table>` on the affected table (DROP INDEX is not checked — the affected table cannot be determined from the index name via AST)
+- `ban-bare-analyze` — errors on `ANALYZE;` without a table name
 
 ## Views
 
-PostgreSQL の `CREATE VIEW` は既存ビューがあるとエラーになる。`CREATE OR REPLACE VIEW` を使えば冪等に更新できる。ただし、ビュー定義に `SELECT *` を使うと、基テーブルのカラム変更時に `OR REPLACE` が失敗する（列数・列名の互換性が壊れる）。列を明示することでスキーマ変更に強いビューになる。
+PostgreSQL's `CREATE VIEW` fails if the view already exists. `CREATE OR REPLACE VIEW` makes it idempotent. However, using `SELECT *` in a view definition causes `OR REPLACE` to fail when the base table's columns change (column count/name compatibility breaks). Listing columns explicitly makes views resilient to schema evolution.
 
 ```sql
--- Good: 冪等 + 列明示
+-- Good: idempotent + explicit columns
 CREATE OR REPLACE VIEW active_users AS
   SELECT id, name, email FROM users WHERE active;
 ```
 
 **Rules**:
-- `require-create-or-replace-view` — CREATE VIEW に OR REPLACE がない場合にエラー
-- `ban-select-star-in-view` — VIEW / MATERIALIZED VIEW 定義内の SELECT * をエラー
+- `require-create-or-replace-view` — errors on CREATE VIEW without OR REPLACE
+- `ban-select-star-in-view` — errors on SELECT * in VIEW or MATERIALIZED VIEW definitions
 
-`DROP VIEW ... CASCADE` は依存オブジェクトを暗黙に削除するため、影響の追跡が困難になる。
+`DROP VIEW ... CASCADE` silently drops all dependent objects, making impact difficult to trace.
 
-**Rule**: `ban-drop-cascade` — CASCADE 付きの DROP をエラー。
+**Rule**: `ban-drop-cascade` — errors on any DROP with CASCADE.
 
 ## Materialized Views
 
-Materialized View (MV) は実データを保持し、`REFRESH` で更新するオブジェクト。REFRESH は全データの再計算を伴い、ロックと実行時間の影響が大きい。マイグレーションでは作成・インデックス構築・ANALYZE までを行い、REFRESH は別ジョブとして管理すべき。MV はバージョン名で新規作成し、外向きのインターフェースは通常 VIEW（OR REPLACE で切替可能）にするのが安定パターン。
+Materialized views (MVs) hold physical data and require `REFRESH` to update. REFRESH recomputes all data, causing significant lock contention and execution time. Migrations should only handle creation, indexing, and ANALYZE — REFRESH belongs in a separate operational job. The stable pattern is to create MVs with versioned names and expose them via regular VIEWs (switchable with OR REPLACE).
 
 ```sql
 CREATE MATERIALIZED VIEW IF NOT EXISTS user_stats_mv AS
@@ -137,12 +137,12 @@ CREATE OR REPLACE VIEW user_stats AS SELECT user_id, post_count FROM user_stats_
 ```
 
 **Rules**:
-- `require-if-not-exists-materialized-view` — CREATE MATERIALIZED VIEW に IF NOT EXISTS がない場合にエラー
-- `ban-refresh-materialized-view-in-migration` — マイグレーション内の REFRESH MATERIALIZED VIEW をエラー
+- `require-if-not-exists-materialized-view` — errors on CREATE MATERIALIZED VIEW without IF NOT EXISTS
+- `ban-refresh-materialized-view-in-migration` — errors on REFRESH MATERIALIZED VIEW in migration files
 
 ## Destructive DDL
 
-`DROP COLUMN` は不可逆で、依存するビュー・関数・アプリケーションコードを壊す可能性がある。`ALTER COLUMN TYPE` はテーブル全体のリライトと排他ロックを伴うことがあり、大きなテーブルでは長時間の停止を引き起こす。型変更の安全な代替手順は: 新カラム追加 → バックフィル → 切替 → 旧カラム削除（複数マイグレーションに分割）。
+`DROP COLUMN` is irreversible and can break dependent views, functions, and application code. `ALTER COLUMN TYPE` may trigger a full table rewrite with an exclusive lock, causing extended downtime on large tables. The safe alternative for type changes is: add new column → backfill → swap references → drop old column (across multiple migrations).
 
 ```sql
 -- Both flagged by default
@@ -150,18 +150,18 @@ ALTER TABLE users DROP COLUMN email;
 ALTER TABLE users ALTER COLUMN email TYPE TEXT;
 ```
 
-**Rules**: `ban-drop-column`, `ban-alter-column-type`. ファイル単位で `-- migraguard:allow ban-drop-column` で許可、またはグローバルに `lint.rules` で設定。
+**Rules**: `ban-drop-column`, `ban-alter-column-type`. Allow per-file with `-- migraguard:allow ban-drop-column` or disable globally in `lint.rules` config.
 
 ## DML in Migrations
 
-WHERE なしの UPDATE / DELETE は全行に影響し、長時間の行ロックと大量の WAL 書き込みを引き起こす。TRUNCATE は ACCESS EXCLUSIVE ロックを取得し、取り消しができない。マイグレーション内の DML は必ず WHERE 条件で範囲を限定し、大量データの変更はバッチ化すべき。
+UPDATE or DELETE without a WHERE clause affects every row, causing long-held row locks and massive WAL writes. TRUNCATE acquires an ACCESS EXCLUSIVE lock and is irreversible. DML in migrations must always be bounded by a WHERE condition. Large data changes should be batched.
 
 ```sql
--- Bad: 全行影響
+-- Bad: affects all rows
 UPDATE users SET status = 'active';
 DELETE FROM users;
 
--- Good: 範囲限定
+-- Good: bounded
 UPDATE users SET status = 'active' WHERE status IS NULL AND id BETWEEN 1 AND 100000;
 ```
 
@@ -169,7 +169,7 @@ UPDATE users SET status = 'active' WHERE status IS NULL AND id BETWEEN 1 AND 100
 
 ## Batch Large Data Backfills
 
-大量行の UPDATE はロック保持時間と WAL 書き込み量の両方で問題になる。単一の UPDATE で全行を変更するのではなく、主キー範囲で分割するか、アプリケーション層でバッチ処理すべき。このパターンは AST では検出できないため、コードレビューで担保する。
+Updating a large number of rows in a single statement is problematic for both lock duration and WAL volume. Instead of updating all rows at once, split by primary key range or batch in the application layer. This pattern cannot be detected by AST analysis and must be enforced by code review.
 
 ```sql
 UPDATE users SET status = 'active'
@@ -177,21 +177,21 @@ WHERE status IS NULL
   AND id BETWEEN 1 AND 100000;
 ```
 
-**Rule**: None. AST 解析では無制限バックフィルを検出できない。コードレビューで担保。
+**Rule**: None. AST analysis cannot detect unbounded backfills. Enforce via code review.
 
 ## DROP INDEX
 
-通常の `DROP INDEX` は ACCESS EXCLUSIVE ロックを取得し、テーブルへの全アクセスがブロックされる。`DROP INDEX CONCURRENTLY` を使えば書き込みをブロックせずにインデックスを削除できる。CREATE INDEX と同様、本番テーブルでは CONCURRENTLY が必須。
+A regular `DROP INDEX` acquires an ACCESS EXCLUSIVE lock, blocking all access to the table. `DROP INDEX CONCURRENTLY` removes the index without blocking writes. As with CREATE INDEX, CONCURRENTLY is essential for production tables.
 
 ```sql
 DROP INDEX CONCURRENTLY IF EXISTS idx_users_email;
 ```
 
-**Rule**: `require-drop-index-concurrently` — DROP INDEX に CONCURRENTLY がない場合にエラー。
+**Rule**: `require-drop-index-concurrently` — errors on DROP INDEX without CONCURRENTLY.
 
 ## Custom Lint Rules
 
-プロジェクト固有のルールを `.js` / `.mjs` ファイルとして追加できる。`lint.customRulesDir` に配置ディレクトリを指定する。
+Project-specific rules can be added as `.js` / `.mjs` files. Set `lint.customRulesDir` in `migraguard.config.json`:
 
 ```json
 { "lint": { "customRulesDir": "lint-rules" } }
