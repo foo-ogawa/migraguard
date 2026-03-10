@@ -19,7 +19,7 @@ Execution is deliberately simple: plain SQL files executed via `psql`. migraguar
 - **Tamper detection in CI (offline)** — Only the tail file (linear) or leaf nodes (DAG) are editable. `check` rejects changes to any other file without DB connection
 - **Regression detection** — If a hotfixed file reverts to an old checksum, `apply` raises an error immediately
 - **Failure blocking with explicit resolve** — A `failed` migration blocks all progress until a human explicitly judges and resolves it
-- **Drift gate + Idempotency proof** — two [verification mechanisms](#verification-two-distinct-mechanisms): `apply --with-drift-check` detects schema divergence before applying; `verify` proves migrations are safely re-executable on a shadow DB
+- **Drift gate + Idempotency proof** — two [verification mechanisms](#verification-two-distinct-mechanisms): `apply --with-drift-check` detects local schema divergence before applying; `diff` verifies post-deploy schema consistency; `verify` proves migrations are safely re-executable on a shadow DB
 - **Mutual exclusion** — `apply` uses PostgreSQL advisory locks to prevent concurrent execution
 - **One release at a time** — the next migration cannot be added until the current release is deployed to all environments, ensuring the latest file is always hotfix-ready
 
@@ -71,8 +71,8 @@ migraguard treats **migration SQL files** as the **Single Source of Truth (SSoT)
 They capture not only the end state, but also the *intent, ordering, and operational safety tactics* required for production changes.
 
 `schema.sql` is a **derived artifact**:
-- Generated from a real database via `dump` (pg_dump), and updated by `apply --with-drift-check`
-- Used as an **expected-state snapshot** for drift detection and human review
+- Generated from a real database via `dump` (pg_dump), and updated locally by `apply --with-drift-check`
+- Used as an **expected-state snapshot** for drift detection (`diff`) and human review
 - Not intended to be hand-edited or treated as the authoritative desired state
 
 This design supports migraguard's incident-prevention model:
@@ -107,10 +107,11 @@ The table is **fully INSERT-only** — no UPDATEs. Every application attempt (in
 
 | Mechanism | Purpose | When to use |
 |-----------|---------|-------------|
-| `apply --with-drift-check` | **Drift gate**: detect unauthorized schema changes before apply, auto-update dump after | CI pipeline on merge to release branches |
+| `apply --with-drift-check` | **Local drift gate**: detect unauthorized schema changes before apply, auto-update dump after | Local development before commit |
+| `diff` | **Post-deploy verification**: confirm DB schema matches expected `schema.sql` after apply | CI pipeline on merge to release branches (run after `apply`) |
 | `verify` | **Idempotency proof**: apply migrations twice on a shadow DB, confirm no errors and no schema change | Before releases or in CI as a final safety net |
 
-`apply --with-drift-check` guards against drift; `verify` proves re-executability. Both are stronger than lint rules — they operate on actual DB state. See [docs/state-model.md](docs/state-model.md) for detailed flows.
+`apply --with-drift-check` guards against drift in local development; `diff` verifies schema consistency after deployment; `verify` proves re-executability. All are stronger than lint rules — they operate on actual DB state. See [docs/state-model.md](docs/state-model.md) for detailed flows.
 
 ## Workflow
 
@@ -134,8 +135,8 @@ CI (PR):
   migraguard verify (optional)       → idempotency proof on shadow DB
 
 Deploy:
-  merge to db_dev → CI: apply --with-drift-check → staging
-  merge to db_pro → CI: apply --with-drift-check → production
+  merge to db_dev → CI: apply → diff → staging
+  merge to db_pro → CI: apply → diff → production
 ```
 
 **Key rule**: Do not add the next migration file until the current release is deployed to all environments. This ensures the latest file can always be modified and re-applied for hotfixes.
@@ -167,7 +168,7 @@ See [docs/state-model.md](docs/state-model.md) for detailed apply, check, resolv
 | `new <name>` | Generate a new migration SQL file |
 | `squash` | Merge pending files into one for release |
 | `apply` | Execute pending migrations via `psql` |
-| `apply --with-drift-check` | Drift check → apply → dump update |
+| `apply --with-drift-check` | Local: drift check → apply → dump update |
 | `resolve <file>` | Mark a failed migration as skipped (explicit judgment) |
 | `status` | Display migration status per file |
 | `editable` | List currently editable files (tail / leaf) |
@@ -224,7 +225,13 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npx migraguard check
-      - run: npx migraguard apply --with-drift-check
+      - run: npx migraguard apply
+        env:
+          PGHOST: ${{ secrets.DB_HOST }}
+          PGDATABASE: ${{ secrets.DB_NAME }}
+          PGUSER: ${{ secrets.DB_USER }}
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+      - run: npx migraguard diff
         env:
           PGHOST: ${{ secrets.DB_HOST }}
           PGDATABASE: ${{ secrets.DB_NAME }}
@@ -439,7 +446,7 @@ migraguard embeds operational policies into the tool and prevents incidents via 
 |------|-----------|---------|-------|--------|------------------|
 | **Tamper detection** | checksum + CI gate (offline) | checksum (at apply time) | Merkle hash (atlas.sum) | Merkle tree (sqitch.plan) | none |
 | **Regression detection** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Drift detection** | ✅ apply --with-drift-check | ❌ | ✅ schema diff | ❌ | ⚠️ |
+| **Drift detection** | ✅ apply --with-drift-check (local) / diff (CI) | ❌ | ✅ schema diff | ❌ | ⚠️ |
 | **Idempotency verification** | ✅ verify (double-apply) | ❌ | ❌ | ❌ | ❌ |
 | **Parallel releases** | ✅ DAG | ❌ | ❌ | ⚠️ | ❌ |
 | **Offline CI gate** | ✅ check | ❌ | ✅ atlas.sum | ❌ | ❌ |
