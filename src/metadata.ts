@@ -77,8 +77,8 @@ export function updateEntry(metadata: MetadataJson, fileName: string, checksum: 
   };
 }
 
-export function isDagMode(metadata: MetadataJson): boolean {
-  return metadata.model === 'dag';
+export function isDagMode(metadata: MetadataJson, config?: MigraguardConfig): boolean {
+  return config?.model === 'dag' || metadata.model === 'dag';
 }
 
 export function isPreModelSince(metadata: MetadataJson, fileName: string): boolean {

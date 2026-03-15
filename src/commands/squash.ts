@@ -72,7 +72,7 @@ export async function commandSquash(config: MigraguardConfig): Promise<void> {
     return;
   }
 
-  if (isDagMode(metadata)) {
+  if (isDagMode(metadata, config)) {
     await dagSquash(config, newFiles, metadata);
   } else {
     if (newFiles.length === 1) {

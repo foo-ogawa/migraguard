@@ -67,7 +67,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
   }
 
   const metadata = await loadMetadata(config);
-  const dag = isDagMode(metadata);
+  const dag = isDagMode(metadata, config);
 
   let graph: DependencyGraph | null = null;
   let leafSet: Set<string> | null = null;

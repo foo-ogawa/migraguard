@@ -156,7 +156,51 @@ describe('commands/check', () => {
     expect(result.errors.some((e) => e.includes('missing from disk'))).toBe(true);
   });
 
-  // --- DAG mode tests ---
+  // --- DAG mode via config (metadata has no model field) ---
+
+  it('config model=dag: allows mid-sequence insertion when metadata has no model', async () => {
+    const contentA = 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);';
+    const checksumA = await setupMigration('20260311_000001__create_users.sql', contentA);
+
+    const contentB = 'CREATE TABLE IF NOT EXISTS health_records (id INT, user_id INT REFERENCES users(id));';
+    const checksumB = await setupMigration('20260313_000003__create_health_records.sql', contentB);
+
+    await setupMigration(
+      '20260313_000004__add_health_records_unique.sql',
+      'ALTER TABLE health_records ADD CONSTRAINT uq_hr UNIQUE (user_id);',
+    );
+
+    await setupMetadata({
+      migrations: [
+        { file: '20260311_000001__create_users.sql', checksum: checksumA },
+        { file: '20260313_000003__create_health_records.sql', checksum: checksumB },
+      ],
+    });
+
+    const configWithDag = buildConfig({
+      model: 'dag',
+      migrationsDir: 'db/migrations',
+      metadataFile: 'db/.migraguard/metadata.json',
+    }, tempDir);
+    const result = await commandCheck(configWithDag);
+    expect(result.ok).toBe(true);
+  });
+
+  it('config model=dag: allows multiple new files', async () => {
+    await setupMigration('20260301_120000__file_a.sql', 'CREATE TABLE a (id INT);');
+    await setupMigration('20260302_120000__file_b.sql', 'CREATE TABLE b (id INT);');
+    await setupMetadata({ migrations: [] });
+
+    const configWithDag = buildConfig({
+      model: 'dag',
+      migrationsDir: 'db/migrations',
+      metadataFile: 'db/.migraguard/metadata.json',
+    }, tempDir);
+    const result = await commandCheck(configWithDag);
+    expect(result.ok).toBe(true);
+  });
+
+  // --- DAG mode via metadata ---
 
   it('DAG: allows multiple new files (no squash enforcement)', async () => {
     await setupMigration('20260301_120000__file_a.sql', 'CREATE TABLE a (id INT);');

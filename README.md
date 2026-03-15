@@ -243,6 +243,7 @@ jobs:
 
 ```json
 {
+  "model": "dag",
   "migrationsDirs": ["db/migrations"],
   "schemaFile": "db/schema.sql",
   "metadataFile": "db/.migraguard/metadata.json",
@@ -274,6 +275,12 @@ jobs:
   }
 }
 ```
+
+### Model Configuration
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `model` | _(unset = linear)_ | Set to `"dag"` to enable DAG mode. When set in config, takes precedence over `metadata.json` |
 
 ### Naming Configuration
 

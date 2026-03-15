@@ -35,6 +35,7 @@ export interface LintConfig {
 
 export interface MigraguardConfig {
   configDir: string;
+  model?: 'dag';
   migrationsDirs: string[];
   schemaFile: string;
   metadataFile: string;
@@ -104,6 +105,7 @@ const DEFAULT_LINT: LintConfig = {
 };
 
 export interface RawConfig {
+  model?: 'dag';
   migrationsDir?: string;
   migrationsDirs?: string[];
   schemaFile?: string;
@@ -159,6 +161,7 @@ export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig
 
   return {
     configDir,
+    ...(raw.model ? { model: raw.model } : {}),
     migrationsDirs: resolveMigrationsDirs(raw),
     schemaFile: raw.schemaFile ?? 'db/schema.sql',
     metadataFile: raw.metadataFile ?? 'db/.migraguard/metadata.json',

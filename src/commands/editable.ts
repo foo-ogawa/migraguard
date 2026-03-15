@@ -32,7 +32,7 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
   }
 
   const metadata = await loadMetadata(config);
-  const dag = isDagMode(metadata);
+  const dag = isDagMode(metadata, config);
   const metadataFileSet = new Set(metadata.migrations.map((m) => m.file));
   const newFiles = files.filter((f) => !metadataFileSet.has(f.fileName));
 

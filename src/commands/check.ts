@@ -14,7 +14,7 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
   const errors: string[] = [];
   const metadata = await loadMetadata(config);
   const files = await scanMigrations(config);
-  const dag = isDagMode(metadata);
+  const dag = isDagMode(metadata, config);
 
   const metadataMap = new Map(metadata.migrations.map((m) => [m.file, m.checksum]));
 
