@@ -1,11 +1,28 @@
 import type { NamingConfig } from './config.js';
 
+export type Phase = 'expand' | 'backfill' | 'switch' | 'contract';
+
+export const PHASE_ORDER: Record<Phase, number> = {
+  expand: 1,
+  backfill: 2,
+  switch: 3,
+  contract: 4,
+};
+
+export const ALL_PHASES: Phase[] = ['expand', 'backfill', 'switch', 'contract'];
+
 export interface ParsedFileName {
   fullName: string;
   prefix: string;
   timestamp: string;
   description: string;
   sortKey: string;
+}
+
+export interface ParsedPhaseFile {
+  order: number;
+  phase: Phase;
+  fileName: string;
 }
 
 function escapeRegExp(s: string): string {
@@ -143,4 +160,29 @@ export function generateFileName(
 
 export function compareSortKeys(a: string, b: string): number {
   return a.localeCompare(b);
+}
+
+export function parseGroupDirName(dirName: string, naming: NamingConfig): ParsedFileName | undefined {
+  const withSql = dirName + '.sql';
+  return parseFileName(withSql, naming);
+}
+
+const PHASE_FILE_REGEX = /^(\d+)_(expand|backfill|switch|contract)\.sql$/;
+
+export function parsePhaseFileName(fileName: string): ParsedPhaseFile | undefined {
+  const match = fileName.match(PHASE_FILE_REGEX);
+  if (!match) return undefined;
+
+  const order = parseInt(match[1], 10);
+  const phase = match[2] as Phase;
+  return { order, phase, fileName };
+}
+
+export function generateGroupDirName(
+  description: string,
+  naming: NamingConfig,
+  options?: { now?: Date; existingParsed?: ParsedFileName[] },
+): string {
+  const sqlName = generateFileName(description, naming, options);
+  return sqlName.replace(/\.sql$/, '');
 }

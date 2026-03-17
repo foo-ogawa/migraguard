@@ -36,13 +36,14 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
     }
   }
 
-  // 1. Multiple new files check (linear mode only)
-  if (!dag && newFiles.length > 1) {
+  // 1. Multiple new files check (linear mode only, exclude Class B phase files)
+  const newSafeFiles = newFiles.filter((f) => f.migrationClass === 'safe');
+  if (!dag && newSafeFiles.length > 1) {
     errors.push(
-      `Found ${newFiles.length} new files not recorded in metadata.json. ` +
+      `Found ${newSafeFiles.length} new files not recorded in metadata.json. ` +
       `Run "migraguard squash" to merge them into a single file before committing.`,
     );
-    for (const f of newFiles) {
+    for (const f of newSafeFiles) {
       errors.push(`  new: ${f.fileName}`);
     }
   }
@@ -79,9 +80,39 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
 
   // 4. Missing files
   const fileNames = new Set(files.map((f) => f.fileName));
+  const baselinedFiles = new Set<string>();
+  if (metadata.baselines) {
+    for (const baseline of metadata.baselines) {
+      for (const inc of baseline.includes) {
+        baselinedFiles.add(inc.file);
+      }
+    }
+  }
+
   for (const entry of metadata.migrations) {
     if (!fileNames.has(entry.file)) {
       errors.push(`File recorded in metadata.json but missing from disk: "${entry.file}"`);
+    }
+  }
+
+  // 5. Baseline integrity: baselined files should NOT exist on disk
+  for (const bf of baselinedFiles) {
+    if (fileNames.has(bf)) {
+      errors.push(`Baselined file still exists on disk: "${bf}" — should have been removed during baseline`);
+    }
+  }
+
+  // 6. Class B structure validation
+  const groupFiles = new Map<string, Set<string>>();
+  for (const f of files) {
+    if (f.migrationClass === 'expand_contract' && f.groupName && f.phase) {
+      if (!groupFiles.has(f.groupName)) groupFiles.set(f.groupName, new Set());
+      groupFiles.get(f.groupName)!.add(f.phase);
+    }
+  }
+  for (const [groupName, phases] of groupFiles) {
+    if (!phases.has('expand')) {
+      errors.push(`Migration group "${groupName}" is missing required expand phase file`);
     }
   }
 

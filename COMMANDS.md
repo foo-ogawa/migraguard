@@ -9,7 +9,16 @@ Create a new migration SQL file with a local-timezone timestamp prefix.
 ```bash
 migraguard new add_users_email_index
 # → db/migrations/20260301_120000__add_users_email_index.sql
+
+migraguard new --expand-contract rename_username_to_handle
+# → db/migrations/20260301_120000__rename_username_to_handle/
+#     1_expand.sql
+#     2_backfill.sql
+#     3_switch.sql
+#     4_contract.sql
 ```
+
+`--expand-contract` creates a Migration Group directory with four phase templates. See [docs/expand-contract.md](docs/expand-contract.md) for details.
 
 ### `migraguard squash`
 
@@ -121,7 +130,7 @@ Show the diff between the current DB schema and the saved `schema.sql`.
 migraguard diff
 ```
 
-## Dependency analysis (extension)
+## Dependency analysis
 
 ### `migraguard deps`
 
@@ -131,3 +140,62 @@ Analyze and display the dependency graph between migration files.
 migraguard deps
 migraguard deps --html deps.html   # output as HTML with GitGraph.js visualization
 ```
+
+## Expand/Contract commands
+
+Commands for managing long-running Migration Groups. See [docs/expand-contract.md](docs/expand-contract.md) for the full guide.
+
+### `migraguard group-status [group]`
+
+Show the current state of Migration Groups (expand/contract phases).
+
+```bash
+migraguard group-status                                         # all groups
+migraguard group-status 20260315_100000__rename_username_to_handle   # specific group
+```
+
+### `migraguard advance <group> <phase> <status>`
+
+Record a phase state transition. Used by external executors to report progress.
+
+Valid phases: `expand`, `backfill`, `switch`, `contract`.
+Valid statuses: `running`, `completed`, `failed`.
+
+```bash
+migraguard advance 20260315_100000__rename_username_to_handle backfill running
+migraguard advance 20260315_100000__rename_username_to_handle backfill completed
+migraguard advance 20260315_100000__rename_username_to_handle backfill failed
+```
+
+### `migraguard apply-phase <group> <phase>`
+
+Apply a specific phase of a Migration Group via `psql`. Validates prerequisites and acquires advisory lock.
+
+```bash
+migraguard apply-phase 20260315_100000__rename_username_to_handle expand
+migraguard apply-phase 20260315_100000__rename_username_to_handle switch
+migraguard apply-phase 20260315_100000__rename_username_to_handle contract
+```
+
+### `migraguard gate`
+
+Evaluate deployment gate conditions against current Migration Group states. Exit code 0 = pass, 1 = fail.
+
+```bash
+migraguard gate \
+  --require "group:rename_username_to_handle.expand_applied" \
+  --forbid  "group:rename_username_to_handle.contract_completed"
+
+migraguard gate --contract-file schema-requirements.json
+```
+
+### `migraguard baseline`
+
+Squash applied migrations into `schema.sql`. Removes squashed files from disk and records the baseline in `metadata.json`.
+
+```bash
+migraguard baseline                                             # squash all except leaves
+migraguard baseline --keep-since 20260315_100000__rename_username_to_handle  # keep from cutpoint
+```
+
+Open Migration Groups are excluded from baseline. Requires DB connection.

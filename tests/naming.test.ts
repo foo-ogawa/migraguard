@@ -6,6 +6,11 @@ import {
   nextSerialNumber,
   isSerialFormat,
   compareSortKeys,
+  parseGroupDirName,
+  parsePhaseFileName,
+  generateGroupDirName,
+  PHASE_ORDER,
+  ALL_PHASES,
 } from '../src/naming.js';
 import type { NamingConfig } from '../src/config.js';
 import type { ParsedFileName } from '../src/naming.js';
@@ -217,6 +222,100 @@ describe('naming', () => {
       expect(parsed).toBeDefined();
       expect(parsed!.timestamp).toBe('0002');
       expect(parsed!.description).toBe('new_table');
+    });
+  });
+
+  describe('PHASE_ORDER', () => {
+    it('defines correct ordering', () => {
+      expect(PHASE_ORDER.expand).toBe(1);
+      expect(PHASE_ORDER.backfill).toBe(2);
+      expect(PHASE_ORDER.switch).toBe(3);
+      expect(PHASE_ORDER.contract).toBe(4);
+    });
+  });
+
+  describe('ALL_PHASES', () => {
+    it('lists all four phases in order', () => {
+      expect(ALL_PHASES).toEqual(['expand', 'backfill', 'switch', 'contract']);
+    });
+  });
+
+  describe('parseGroupDirName', () => {
+    it('parses a directory name matching the naming pattern', () => {
+      const result = parseGroupDirName('20260315_100000__rename_user_status', DEFAULT_NAMING);
+      expect(result).toBeDefined();
+      expect(result!.timestamp).toBe('20260315_100000');
+      expect(result!.description).toBe('rename_user_status');
+    });
+
+    it('returns undefined for non-matching directory names', () => {
+      expect(parseGroupDirName('invalid_dir', DEFAULT_NAMING)).toBeUndefined();
+      expect(parseGroupDirName('README', DEFAULT_NAMING)).toBeUndefined();
+    });
+
+    it('works with prefix naming', () => {
+      const naming: NamingConfig = {
+        pattern: '{prefix}_{timestamp}__{description}.sql',
+        timestamp: 'YYYYMMDD_HHMMSS',
+        prefix: 'auth',
+        sortKey: 'timestamp',
+      };
+      const result = parseGroupDirName('auth_20260315_100000__rename_roles', naming);
+      expect(result).toBeDefined();
+      expect(result!.description).toBe('rename_roles');
+    });
+  });
+
+  describe('parsePhaseFileName', () => {
+    it('parses expand phase file', () => {
+      const result = parsePhaseFileName('1_expand.sql');
+      expect(result).toBeDefined();
+      expect(result!.order).toBe(1);
+      expect(result!.phase).toBe('expand');
+    });
+
+    it('parses backfill phase file', () => {
+      const result = parsePhaseFileName('2_backfill.sql');
+      expect(result).toBeDefined();
+      expect(result!.order).toBe(2);
+      expect(result!.phase).toBe('backfill');
+    });
+
+    it('parses switch phase file', () => {
+      const result = parsePhaseFileName('3_switch.sql');
+      expect(result).toBeDefined();
+      expect(result!.order).toBe(3);
+      expect(result!.phase).toBe('switch');
+    });
+
+    it('parses contract phase file', () => {
+      const result = parsePhaseFileName('4_contract.sql');
+      expect(result).toBeDefined();
+      expect(result!.order).toBe(4);
+      expect(result!.phase).toBe('contract');
+    });
+
+    it('returns undefined for non-phase files', () => {
+      expect(parsePhaseFileName('migration.sql')).toBeUndefined();
+      expect(parsePhaseFileName('expand.sql')).toBeUndefined();
+      expect(parsePhaseFileName('1_migration.sql')).toBeUndefined();
+    });
+  });
+
+  describe('generateGroupDirName', () => {
+    it('generates directory name without .sql extension', () => {
+      const d = new Date(2026, 2, 15, 10, 0, 0);
+      const name = generateGroupDirName('rename_user_status', DEFAULT_NAMING, { now: d });
+      expect(name).toBe('20260315_100000__rename_user_status');
+      expect(name).not.toContain('.sql');
+    });
+
+    it('roundtrips with parseGroupDirName', () => {
+      const d = new Date(2026, 2, 15, 10, 0, 0);
+      const dirName = generateGroupDirName('split_orders', DEFAULT_NAMING, { now: d });
+      const parsed = parseGroupDirName(dirName, DEFAULT_NAMING);
+      expect(parsed).toBeDefined();
+      expect(parsed!.description).toBe('split_orders');
     });
   });
 });
