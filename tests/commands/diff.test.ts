@@ -27,7 +27,7 @@ describe('commands/diff', () => {
         '',
       ].join('\n');
 
-      const result = formatSchemaDiff(saved, current);
+      formatSchemaDiff(saved, current);
       const plain = chalk.level;
       chalk.level = 0;
       const plainResult = formatSchemaDiff(saved, current);

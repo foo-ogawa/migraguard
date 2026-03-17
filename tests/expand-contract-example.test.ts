@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, writeFile, rm, mkdir, readFile, cp } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConfig } from '../src/config.js';
 import { scanMigrations } from '../src/scanner.js';
-import { checksumFile, checksumString } from '../src/checksum.js';
+import { checksumFile } from '../src/checksum.js';
 import { commandCheck } from '../src/commands/check.js';
 import { commandLint } from '../src/commands/lint.js';
 import { commandNew } from '../src/commands/new.js';
