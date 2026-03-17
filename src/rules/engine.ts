@@ -1,4 +1,5 @@
 import libpg from 'libpg-query';
+import type { Phase } from '../naming.js';
 
 export interface LintViolation {
   rule: string;
@@ -32,6 +33,7 @@ export type NodeVisitors = Record<string, NodeHandler | undefined>;
 export interface LintRule {
   id: string;
   description: string;
+  applicablePhases?: Phase[];
   create(): NodeVisitors;
 }
 

@@ -226,8 +226,10 @@ export async function commandVerify(
     const sConfig = shadowConfig(config, dbName);
     const sDumpConfig = shadowDumpConfig(config, dbName);
 
+    const verifiableFiles = files.filter((f) => f.phase !== 'backfill');
+
     if (allMode) {
-      for (const file of files) {
+      for (const file of verifiableFiles) {
         const r = await verifyFile(file, sConfig, sDumpConfig);
         results.push(r);
         if (r.passed) {
@@ -245,7 +247,7 @@ export async function commandVerify(
       console.log(chalk.green('  ✓ Schema restored.\n'));
 
       const appliedFiles = await getAppliedFiles(config);
-      const pendingFiles = files.filter((f) => !appliedFiles.has(f.fileName));
+      const pendingFiles = verifiableFiles.filter((f) => !appliedFiles.has(f.fileName));
 
       if (pendingFiles.length === 0) {
         console.log(chalk.green('  All migrations already applied. Nothing to verify.'));

@@ -3,6 +3,7 @@ import libpg from 'libpg-query';
 import type { MigraguardConfig, RawConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
+import type { Phase } from './naming.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -296,16 +297,37 @@ function extractCreateFunctionStmt(
 // Explicit dependency parsing — comments and config
 // ---------------------------------------------------------------------------
 
-const DEPENDS_ON_PATTERN = /^--\s*migraguard:depends-on\s+(\S+)/gm;
+export interface ExplicitDep {
+  target: string;
+  phase?: Phase;
+}
 
-export function parseExplicitDepsFromSql(sql: string): string[] {
-  const deps: string[] = [];
+const DEPENDS_ON_PATTERN = /^--\s*migraguard:depends-on\s+(\S+)/gm;
+const VALID_PHASES: Set<string> = new Set(['expand', 'backfill', 'switch', 'contract']);
+
+export function parseExplicitDepsFromSql(sql: string): ExplicitDep[] {
+  const deps: ExplicitDep[] = [];
   let match: RegExpExecArray | null;
   while ((match = DEPENDS_ON_PATTERN.exec(sql)) !== null) {
-    deps.push(match[1]);
+    const raw = match[1];
+    const colonIdx = raw.lastIndexOf(':');
+    if (colonIdx > 0) {
+      const maybePath = raw.substring(0, colonIdx);
+      const maybePhase = raw.substring(colonIdx + 1);
+      if (VALID_PHASES.has(maybePhase)) {
+        deps.push({ target: maybePath, phase: maybePhase as Phase });
+        continue;
+      }
+    }
+    deps.push({ target: raw });
   }
   DEPENDS_ON_PATTERN.lastIndex = 0;
   return deps;
+}
+
+/** Legacy compat: returns just the target strings for existing callers */
+export function parseExplicitDepTargetsFromSql(sql: string): string[] {
+  return parseExplicitDepsFromSql(sql).map((d) => d.target);
 }
 
 export function parseExplicitDepsFromConfig(
@@ -388,11 +410,23 @@ export async function buildDependencyGraphFromFiles(
     }
 
     for (const dep of explicitDeps) {
-      if (fileNames.includes(dep) && dep !== file.fileName) {
-        const key = `${file.fileName}->${dep}`;
+      let resolvedTarget = dep.target;
+
+      if (!fileNames.includes(resolvedTarget)) {
+        const expandFile = fileNames.find(
+          (f) => f.startsWith(resolvedTarget + '/') && f.endsWith('_expand.sql'),
+        );
+        if (expandFile) {
+          resolvedTarget = expandFile;
+        }
+      }
+
+      if (fileNames.includes(resolvedTarget) && resolvedTarget !== file.fileName) {
+        const via = dep.phase ? `(explicit:${dep.phase})` : '(explicit)';
+        const key = `${file.fileName}->${resolvedTarget}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
-          edges.push({ from: file.fileName, to: dep, via: '(explicit)' });
+          edges.push({ from: file.fileName, to: resolvedTarget, via });
         }
       }
     }

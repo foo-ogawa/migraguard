@@ -3,16 +3,30 @@ import { dirname } from 'node:path';
 import { existsSync } from 'node:fs';
 import type { MigraguardConfig } from './config.js';
 import { resolveFromConfig } from './config.js';
+import type { MigrationClass } from './scanner.js';
 
 export interface MigrationEntry {
   file: string;
   checksum: string;
+  migrationClass?: MigrationClass;
+  groupName?: string;
+}
+
+export interface BaselineInclude {
+  file: string;
+  checksum: string;
+}
+
+export interface BaselineEntry {
+  date: string;
+  includes: BaselineInclude[];
 }
 
 export interface MetadataJson {
   model?: 'dag';
   modelSince?: string;
   migrations: MigrationEntry[];
+  baselines?: BaselineEntry[];
 }
 
 export function metadataPath(config: MigraguardConfig): string {
@@ -86,12 +100,20 @@ export function isPreModelSince(metadata: MetadataJson, fileName: string): boole
   return fileName < metadata.modelSince;
 }
 
+export function isBaselinedFile(metadata: MetadataJson, fileName: string): boolean {
+  if (!metadata.baselines) return false;
+  return metadata.baselines.some((b) =>
+    b.includes.some((inc) => inc.file === fileName),
+  );
+}
+
 function isMetadataJson(data: unknown): data is MetadataJson {
   if (typeof data !== 'object' || data === null) return false;
   const obj = data as Record<string, unknown>;
   if (!Array.isArray(obj['migrations'])) return false;
   if ('model' in obj && obj['model'] !== undefined && obj['model'] !== 'dag') return false;
   if ('modelSince' in obj && obj['modelSince'] !== undefined && typeof obj['modelSince'] !== 'string') return false;
+  if ('baselines' in obj && obj['baselines'] !== undefined && !Array.isArray(obj['baselines'])) return false;
   return obj['migrations'].every(
     (m: unknown) =>
       typeof m === 'object' &&

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readdir, readFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, readdir, readFile, stat, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -99,5 +99,58 @@ describe('commands/new', () => {
     const files = await readdir(migDir);
     expect(files).toHaveLength(2);
     expect(files).toContain('20260101_000000__existing.sql');
+  });
+
+  describe('--expand-contract', () => {
+    it('creates a migration group directory with four phase files', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await commandNew(config, 'rename_user_status', { expandContract: true });
+
+      const migDir = join(tempDir, 'db', 'migrations');
+      const entries = await readdir(migDir);
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatch(/^\d{8}_\d{6}__rename_user_status$/);
+
+      const groupDir = join(migDir, entries[0]);
+      const groupStat = await stat(groupDir);
+      expect(groupStat.isDirectory()).toBe(true);
+
+      const phaseFiles = await readdir(groupDir);
+      expect(phaseFiles.sort()).toEqual([
+        '1_expand.sql',
+        '2_backfill.sql',
+        '3_switch.sql',
+        '4_contract.sql',
+      ]);
+    });
+
+    it('writes phase templates with correct content', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await commandNew(config, 'split_orders', { expandContract: true });
+
+      const migDir = join(tempDir, 'db', 'migrations');
+      const entries = await readdir(migDir);
+      const groupDir = join(migDir, entries[0]);
+
+      const expandContent = await readFile(join(groupDir, '1_expand.sql'), 'utf-8');
+      expect(expandContent).toContain('Phase: expand');
+      expect(expandContent).toContain('SET lock_timeout');
+      expect(expandContent).toContain('RESET lock_timeout');
+
+      const backfillContent = await readFile(join(groupDir, '2_backfill.sql'), 'utf-8');
+      expect(backfillContent).toContain('Phase: backfill');
+      expect(backfillContent).toContain('SET statement_timeout');
+
+      const contractContent = await readFile(join(groupDir, '4_contract.sql'), 'utf-8');
+      expect(contractContent).toContain('Phase: contract');
+      expect(contractContent).toContain('migraguard:allow');
+    });
+
+    it('throws on invalid migration name for expand-contract', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await expect(
+        commandNew(config, 'invalid-name', { expandContract: true }),
+      ).rejects.toThrow('Invalid migration name');
+    });
   });
 });

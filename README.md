@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An incident-prevention migration tool for PostgreSQL. Enforces safe operational policies via CI gates and DB state tracking, so that common migration accidents are structurally impossible.
+PostgreSQL schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts.
 
 **Prevented accidents:**
 
@@ -161,14 +161,33 @@ Production deploy completes → all environments have S → the next migration c
 
 See [docs/state-model.md](docs/state-model.md) for detailed apply, check, resolve, and squash flows.
 
+## Expand/Contract Pattern (Class B Migrations)
+
+For long-running schema changes — column renames, type migrations, table splits — migraguard supports the **expand/contract pattern** as a first-class concept. A Migration Group is a directory containing phased SQL files (`expand` → `backfill` → `switch` → `contract`) with a dedicated state machine, deployment gate, and executor commands.
+
+```bash
+# Create a migration group
+migraguard new --expand-contract rename_username_to_handle
+
+# Check group state
+migraguard group-status
+
+# Deployment gate (CI/CD integration)
+migraguard gate --require "group:rename_username_to_handle.expand_applied"
+```
+
+See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: file structure, state machine, CI/CD integration patterns, TypeScript API, and idempotency examples.
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `new <name>` | Generate a new migration SQL file |
+| `new --expand-contract <name>` | Create an expand/contract migration group |
 | `squash` | Merge pending files into one for release |
 | `apply` | Execute pending migrations via `psql` |
 | `apply --with-drift-check` | Local: drift check → apply → dump update |
+| `apply --from-baseline` | Apply `schema.sql` baseline, then remaining migrations |
 | `resolve <file>` | Mark a failed migration as skipped (explicit judgment) |
 | `status` | Display migration status per file |
 | `editable` | List currently editable files (tail / leaf) |
@@ -179,6 +198,11 @@ See [docs/state-model.md](docs/state-model.md) for detailed apply, check, resolv
 | `diff` | Show schema diff (DB vs saved dump) |
 | `deps` | Display dependency graph |
 | `deps --html <path>` | Generate HTML dependency visualization |
+| `group-status [group]` | Show Migration Group phase states |
+| `advance <group> <phase> <status>` | Record phase state transition (executor) |
+| `apply-phase <group> <phase>` | Apply a specific phase via `psql` |
+| `gate` | Evaluate deployment gate conditions |
+| `baseline` | Squash applied migrations into `schema.sql` |
 
 See [COMMANDS.md](COMMANDS.md) for detailed usage, options, and examples.
 
@@ -382,8 +406,12 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `ban-reindex` | REINDEX (heavy locks — run as operational job) |
 | `ban-alter-system` | ALTER SYSTEM (cluster-wide config change) |
 | `ban-set-session-replication-role` | SET session_replication_role (disables triggers/FK) |
+| `expand-requires-idempotent-pattern` | CREATE without IF NOT EXISTS in expand phase *(expand only)* |
+| `backfill-requires-where-clause` | UPDATE/DELETE without WHERE in backfill phase *(backfill only)* |
+| `backfill-ban-ddl` | DDL statements in backfill phase *(backfill only)* |
+| `contract-requires-allow-directive` | DROP without migraguard:allow in contract phase *(contract only)* |
 
-Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Per-file exceptions use a comment directive:
+Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Phase-specific rules (marked above) only activate for the corresponding expand/contract phase file. Per-file exceptions use a comment directive:
 
 ```sql
 -- migraguard:allow ban-drop-column, ban-alter-column-type
@@ -399,8 +427,13 @@ project-root/
 ├── migraguard.config.json
 ├── db/
 │   ├── migrations/
-│   │   ├── 20260301_120000__create_users_table.sql
+│   │   ├── 20260301_120000__create_users_table.sql          ← Class A (single file)
 │   │   ├── 20260302_093000__add_email_index.sql
+│   │   ├── 20260315_100000__rename_username_to_handle/      ← Class B (directory)
+│   │   │   ├── 1_expand.sql
+│   │   │   ├── 2_backfill.sql
+│   │   │   ├── 3_switch.sql
+│   │   │   └── 4_contract.sql
 │   │   └── ...
 │   ├── schema.sql             # Normalized schema dump (generated)
 │   └── .migraguard/
@@ -513,3 +546,4 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 - [docs/state-model.md](docs/state-model.md) — Apply/check/resolve/squash flows, INSERT-only design, regression detection
 - [docs/dag-internals.md](docs/dag-internals.md) — Dependency analysis, explicit declarations, DAG migration compatibility
 - [docs/safe-ddl.md](docs/safe-ddl.md) — Safe DDL patterns for PostgreSQL (lock timeout, CONCURRENTLY, batch backfills)
+- [docs/expand-contract.md](docs/expand-contract.md) — Expand/contract pattern: phased migrations, state machine, CI/CD deployment gate, TypeScript API

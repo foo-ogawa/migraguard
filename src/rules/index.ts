@@ -35,6 +35,10 @@ import { banCluster } from './ban-cluster.js';
 import { banReindex } from './ban-reindex.js';
 import { banAlterSystem } from './ban-alter-system.js';
 import { banSetSessionReplicationRole } from './ban-set-session-replication-role.js';
+import { expandRequiresIdempotentPattern } from './expand-requires-idempotent-pattern.js';
+import { backfillRequiresWhereClause } from './backfill-requires-where-clause.js';
+import { backfillBanDdl } from './backfill-ban-ddl.js';
+import { contractRequiresAllowDirective } from './contract-requires-allow-directive.js';
 import type { LintRule } from './engine.js';
 
 export const ALL_RULES: LintRule[] = [
@@ -72,4 +76,8 @@ export const ALL_RULES: LintRule[] = [
   banReindex,
   banAlterSystem,
   banSetSessionReplicationRole,
+  expandRequiresIdempotentPattern,
+  backfillRequiresWhereClause,
+  backfillBanDdl,
+  contractRequiresAllowDirective,
 ];

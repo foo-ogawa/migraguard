@@ -6,10 +6,11 @@ import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
 import { MigraguardDb } from '../db.js';
-import type { MigrationRecord } from '../db.js';
+import type { MigrationRecord, InsertRecordOptions } from '../db.js';
 import { executePsqlFile } from '../psql.js';
 import { dumpSchema } from '../dumper.js';
 import { loadMetadata, isDagMode } from '../metadata.js';
+import type { MetadataJson } from '../metadata.js';
 import {
   buildDependencyGraph,
   findLeafNodes,
@@ -17,6 +18,7 @@ import {
   findTransitiveDependents,
 } from '../deps.js';
 import type { DependencyGraph } from '../deps.js';
+import { deriveAllGroupStates, isGroupOpen, canAdvanceToPhase } from '../group-state.js';
 
 export interface ApplyResult {
   applied: string[];
@@ -45,6 +47,7 @@ function getPastChecksums(records: MigrationRecord[], latestRecord: MigrationRec
 
 export interface ApplyOptions {
   withDriftCheck?: boolean;
+  fromBaseline?: boolean;
 }
 
 export async function commandApply(config: MigraguardConfig, options?: ApplyOptions): Promise<ApplyResult> {
@@ -84,11 +87,16 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     await db.ensureTable();
     await db.acquireAdvisoryLock();
 
+    if (options?.fromBaseline) {
+      await applyFromBaseline(config, db, metadata, result);
+    }
+
     const files = await scanMigrations(config);
-    if (files.length === 0) {
+    if (files.length === 0 && !options?.fromBaseline) {
       console.log(chalk.yellow('No migration files found.'));
       return result;
     }
+    if (files.length === 0) return result;
 
     const allRecords = await db.getAllRecords();
     const recordsByFile = new Map<string, MigrationRecord[]>();
@@ -110,6 +118,11 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     const latestFileName = files[files.length - 1].fileName;
     const blockedSet = new Set<string>();
 
+    const groupStates = deriveAllGroupStates(allRecords);
+    const openGroups = new Set(
+      groupStates.filter(isGroupOpen).map((gs) => gs.groupName),
+    );
+
     for (const fileName of orderedFileNames) {
       const file = fileMap.get(fileName);
       if (!file) continue;
@@ -120,6 +133,38 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
         continue;
       }
 
+      if (file.migrationClass === 'expand_contract' && file.phase === 'backfill') {
+        result.skipped.push(fileName);
+        continue;
+      }
+
+      if (file.migrationClass === 'expand_contract' && file.groupName && file.phase) {
+        if (file.phase !== 'expand') {
+          const refreshedRecords = await db.getAllRecords();
+          const refreshedStates = deriveAllGroupStates(refreshedRecords);
+          const gs = refreshedStates.find((s) => s.groupName === file.groupName);
+          if (gs && !canAdvanceToPhase(gs, file.phase)) {
+            result.skipped.push(fileName);
+            continue;
+          }
+        }
+      }
+
+      if (file.migrationClass === 'safe' && file.groupName === undefined) {
+        if (dag && graph) {
+          const deps = graph.edges.filter((e) => e.from === fileName);
+          const blockedByOpen = deps.some((e) => {
+            const depFile = fileMap.get(e.to);
+            return depFile?.groupName && openGroups.has(depFile.groupName);
+          });
+          if (blockedByOpen) {
+            result.blocked.push(fileName);
+            console.log(chalk.yellow(`  ⊘ blocked (open group): ${fileName}`));
+            continue;
+          }
+        }
+      }
+
       const fileRecords = recordsByFile.get(file.fileName) ?? [];
       const latestRecord = getLatestRecord(fileRecords);
       const currentChecksum = await checksumFile(file.filePath);
@@ -127,10 +172,15 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
         ? leafSet.has(file.fileName)
         : file.fileName === latestFileName;
 
+      const insertOpts: InsertRecordOptions | undefined =
+        file.migrationClass === 'expand_contract'
+          ? { migrationClass: 'expand_contract', phase: file.phase, groupName: file.groupName }
+          : undefined;
+
       const applyResult = await processFile(
         config, db, file.filePath, file.fileName,
         fileRecords, latestRecord, currentChecksum, isEditable,
-        result,
+        result, insertOpts,
       );
 
       if (applyResult === 'error') {
@@ -179,16 +229,17 @@ async function processFile(
   currentChecksum: string,
   isEditable: boolean,
   result: ApplyResult,
+  insertOpts?: InsertRecordOptions,
 ): Promise<FileAction> {
   if (!latestRecord) {
     const psqlResult = await executePsqlFile(config, filePath);
     if (psqlResult.success) {
-      await db.insertRecord(fileName, currentChecksum, 'applied');
+      await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
       console.log(chalk.green(`  ✓ applied: ${fileName}`));
       return 'ok';
     } else {
-      await db.insertRecord(fileName, currentChecksum, 'failed');
+      await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
       result.failed = result.failed ?? fileName;
       result.errors.push(`Failed to apply ${fileName}: ${psqlResult.stderr}`);
       console.error(chalk.red(`  ✗ failed: ${fileName}`));
@@ -208,12 +259,12 @@ async function processFile(
       console.log(chalk.yellow(`  ↻ retrying failed: ${fileName}`));
       const psqlResult = await executePsqlFile(config, filePath);
       if (psqlResult.success) {
-        await db.insertRecord(fileName, currentChecksum, 'applied');
+        await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
         result.applied.push(fileName);
         console.log(chalk.green(`  ✓ applied (retry): ${fileName}`));
         return 'ok';
       } else {
-        await db.insertRecord(fileName, currentChecksum, 'failed');
+        await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
         result.failed = result.failed ?? fileName;
         result.errors.push(`Retry failed for ${fileName}: ${psqlResult.stderr}`);
         console.error(chalk.red(`  ✗ retry failed: ${fileName}`));
@@ -230,7 +281,6 @@ async function processFile(
     }
   }
 
-  // status === 'applied'
   if (latestRecord.checksum === currentChecksum) {
     result.skipped.push(fileName);
     return 'ok';
@@ -251,12 +301,12 @@ async function processFile(
     console.log(chalk.yellow(`  ↻ re-applying (changed): ${fileName}`));
     const psqlResult = await executePsqlFile(config, filePath);
     if (psqlResult.success) {
-      await db.insertRecord(fileName, currentChecksum, 'applied');
+      await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
       console.log(chalk.green(`  ✓ applied (re-apply): ${fileName}`));
       return 'ok';
     } else {
-      await db.insertRecord(fileName, currentChecksum, 'failed');
+      await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
       result.failed = result.failed ?? fileName;
       result.errors.push(`Re-apply failed for ${fileName}: ${psqlResult.stderr}`);
       console.error(chalk.red(`  ✗ re-apply failed: ${fileName}`));
@@ -270,5 +320,38 @@ async function processFile(
     );
     console.error(chalk.red(`  ✗ tampered: ${fileName}`));
     return 'error';
+  }
+}
+
+async function applyFromBaseline(
+  config: MigraguardConfig,
+  db: MigraguardDb,
+  metadata: MetadataJson,
+  result: ApplyResult,
+): Promise<void> {
+  const schemaPath = resolveFromConfig(config, config.schemaFile);
+  if (!existsSync(schemaPath)) {
+    result.errors.push('No schema.sql found. Cannot apply from baseline.');
+    return;
+  }
+
+  console.log(chalk.blue('Applying baseline schema...'));
+  const { executePsqlFile: execPsql } = await import('../psql.js');
+  const psqlResult = await execPsql(config, schemaPath);
+  if (!psqlResult.success) {
+    result.errors.push(`Failed to apply baseline schema: ${psqlResult.stderr}`);
+    console.error(chalk.red(`  ✗ baseline schema apply failed`));
+    return;
+  }
+  console.log(chalk.green('  ✓ baseline schema applied'));
+
+  if (metadata.baselines) {
+    for (const baseline of metadata.baselines) {
+      for (const inc of baseline.includes) {
+        await db.insertRecord(inc.file, inc.checksum, 'applied');
+        result.applied.push(inc.file);
+      }
+    }
+    console.log(chalk.green(`  ✓ Recorded ${metadata.baselines.reduce((n, b) => n + b.includes.length, 0)} baselined file(s)`));
   }
 }

@@ -120,14 +120,19 @@ describe('deps — parseExplicitDepsFromSql', () => {
   it('extracts depends-on comments', () => {
     const sql = `-- migraguard:depends-on 20260301_100000__create_users.sql
 CREATE TABLE posts (id INT);`;
-    expect(parseExplicitDepsFromSql(sql)).toEqual(['20260301_100000__create_users.sql']);
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: '20260301_100000__create_users.sql' },
+    ]);
   });
 
   it('extracts multiple depends-on', () => {
     const sql = `-- migraguard:depends-on a.sql
 -- migraguard:depends-on b.sql
 SELECT 1;`;
-    expect(parseExplicitDepsFromSql(sql)).toEqual(['a.sql', 'b.sql']);
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: 'a.sql' },
+      { target: 'b.sql' },
+    ]);
   });
 
   it('returns empty when no depends-on', () => {
@@ -139,6 +144,38 @@ SELECT 1;`;
 -- migraguard:other-directive
 SELECT 1;`;
     expect(parseExplicitDepsFromSql(sql)).toEqual([]);
+  });
+
+  it('parses phase-level dependency', () => {
+    const sql = `-- migraguard:depends-on 20260315_100000__rename_user_status:expand
+SELECT 1;`;
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: '20260315_100000__rename_user_status', phase: 'expand' },
+    ]);
+  });
+
+  it('parses backfill phase dependency', () => {
+    const sql = `-- migraguard:depends-on 20260315_100000__rename_user_status:backfill
+SELECT 1;`;
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: '20260315_100000__rename_user_status', phase: 'backfill' },
+    ]);
+  });
+
+  it('parses contract phase dependency', () => {
+    const sql = `-- migraguard:depends-on 20260315_100000__rename_user_status:contract
+SELECT 1;`;
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: '20260315_100000__rename_user_status', phase: 'contract' },
+    ]);
+  });
+
+  it('does not parse invalid phase as phase dependency', () => {
+    const sql = `-- migraguard:depends-on some_file:invalid_phase
+SELECT 1;`;
+    expect(parseExplicitDepsFromSql(sql)).toEqual([
+      { target: 'some_file:invalid_phase' },
+    ]);
   });
 });
 

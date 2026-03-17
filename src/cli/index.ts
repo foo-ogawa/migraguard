@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { VERSION } from '../index.js';
+import { pkg } from '../index.js';
 import { loadConfig } from '../config.js';
 import { commandNew } from '../commands/new.js';
 import { commandCheck } from '../commands/check.js';
@@ -14,6 +14,12 @@ import { commandDump } from '../commands/dump.js';
 import { commandDiff } from '../commands/diff.js';
 import { commandVerify } from '../commands/verify.js';
 import { commandDeps } from '../commands/deps.js';
+import { commandGroupStatus } from '../commands/group-status.js';
+import { commandAdvance } from '../commands/advance.js';
+import { commandApplyPhase } from '../commands/apply-phase.js';
+import { commandGate } from '../commands/gate.js';
+import { commandBaseline } from '../commands/baseline.js';
+import type { Phase } from '../naming.js';
 
 async function run(fn: () => Promise<void>): Promise<void> {
   try {
@@ -28,25 +34,30 @@ async function run(fn: () => Promise<void>): Promise<void> {
 const program = new Command();
 
 program
-  .name('migraguard')
-  .description('PostgreSQL migration guard — idempotent SQL migrations with CI-enforced integrity checks')
-  .version(VERSION);
+  .name(pkg.name)
+  .description(pkg.description)
+  .version(pkg.version);
 
 program
   .command('new <name>')
   .description('Create a new migration SQL file with UTC timestamp')
-  .action((name: string) => run(async () => {
+  .option('--expand-contract', 'Create an expand/contract migration group (Class B)')
+  .action((name: string, opts: { expandContract?: boolean }) => run(async () => {
     const config = await loadConfig();
-    await commandNew(config, name);
+    await commandNew(config, name, { expandContract: opts.expandContract });
   }));
 
 program
   .command('apply')
   .description('Apply pending migrations via psql')
   .option('--with-drift-check', 'Check schema drift before apply and update dump after')
-  .action((opts: { withDriftCheck?: boolean }) => run(async () => {
+  .option('--from-baseline', 'Apply schema.sql first, then remaining migrations')
+  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean }) => run(async () => {
     const config = await loadConfig();
-    const result = await commandApply(config, { withDriftCheck: opts.withDriftCheck });
+    const result = await commandApply(config, {
+      withDriftCheck: opts.withDriftCheck,
+      fromBaseline: opts.fromBaseline,
+    });
     if (result.errors.length > 0) process.exit(1);
   }));
 
@@ -125,6 +136,71 @@ program
     const config = await loadConfig();
     const result = await commandVerify(config, { all: opts.all });
     if (result.failed > 0) process.exit(1);
+  }));
+
+program
+  .command('group-status [group]')
+  .description('Show migration group state (expand/contract phases)')
+  .action((group?: string) => run(async () => {
+    const config = await loadConfig();
+    await commandGroupStatus(config, group);
+  }));
+
+program
+  .command('baseline')
+  .description('Squash applied migrations into schema.sql baseline')
+  .option('--keep-since <file...>', 'Keep files from this point forward')
+  .action((opts: { keepSince?: string[] }) => run(async () => {
+    const config = await loadConfig();
+    const result = await commandBaseline(config, { keepSince: opts.keepSince });
+    if (!result.success) process.exit(1);
+  }));
+
+program
+  .command('advance <group> <phase> <status>')
+  .description('Record a phase state transition (for external executor)')
+  .action((group: string, phase: string, status: string) => run(async () => {
+    const config = await loadConfig();
+    const validPhases = ['expand', 'backfill', 'switch', 'contract'];
+    const validStatuses = ['running', 'completed', 'failed'];
+    if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
+    if (!validStatuses.includes(status)) throw new Error(`Invalid status: ${status}`);
+    const result = await commandAdvance(config, {
+      group,
+      phase: phase as Phase,
+      status: status as 'running' | 'completed' | 'failed',
+    });
+    if (!result.success) process.exit(1);
+  }));
+
+program
+  .command('apply-phase <group> <phase>')
+  .description('Apply a specific phase of a migration group via psql')
+  .action((group: string, phase: string) => run(async () => {
+    const config = await loadConfig();
+    const validPhases = ['expand', 'backfill', 'switch', 'contract'];
+    if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
+    const result = await commandApplyPhase(config, {
+      group,
+      phase: phase as Phase,
+    });
+    if (!result.success) process.exit(1);
+  }));
+
+program
+  .command('gate')
+  .description('Evaluate deployment gate conditions against migration group states')
+  .option('--require <condition...>', 'Required schema state conditions')
+  .option('--forbid <condition...>', 'Forbidden schema state conditions')
+  .option('--contract-file <path>', 'JSON file with schema requirements')
+  .action((opts: { require?: string[]; forbid?: string[]; contractFile?: string }) => run(async () => {
+    const config = await loadConfig();
+    const result = await commandGate(config, {
+      required: opts.require,
+      forbidden: opts.forbid,
+      contractFile: opts.contractFile,
+    });
+    if (!result.pass) process.exit(1);
   }));
 
 program

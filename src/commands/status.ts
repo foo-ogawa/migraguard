@@ -4,6 +4,9 @@ import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
 import { MigraguardDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
+import { loadMetadata } from '../metadata.js';
+import { deriveAllGroupStates } from '../group-state.js';
+import type { GroupState } from '../group-state.js';
 
 export type FileStatus = 'applied' | 'pending' | 'failed' | 'skipped' | 'changed';
 
@@ -16,6 +19,7 @@ export interface StatusEntry {
 
 export interface StatusResult {
   entries: StatusEntry[];
+  groups: GroupState[];
 }
 
 function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefined {
@@ -28,6 +32,7 @@ function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefine
 export async function commandStatus(config: MigraguardConfig): Promise<StatusResult> {
   const db = new MigraguardDb(config);
   const entries: StatusEntry[] = [];
+  let groups: GroupState[] = [];
 
   try {
     await db.connect();
@@ -80,11 +85,11 @@ export async function commandStatus(config: MigraguardConfig): Promise<StatusRes
         });
       }
     }
+    groups = deriveAllGroupStates(allRecords);
   } finally {
     await db.close();
   }
 
-  // Display
   const statusColors: Record<FileStatus, (s: string) => string> = {
     applied: chalk.green,
     pending: chalk.cyan,
@@ -117,5 +122,42 @@ export async function commandStatus(config: MigraguardConfig): Promise<StatusRes
   };
   console.log(`\n  Total: ${entries.length} | Applied: ${counts.applied} | Pending: ${counts.pending} | Failed: ${counts.failed} | Skipped: ${counts.skipped} | Changed: ${counts.changed}`);
 
-  return { entries };
+  if (groups.length > 0) {
+    console.log(chalk.bold('\nMigration Groups:\n'));
+    for (const gs of groups) {
+      console.log(`  ${chalk.bold(gs.groupName)}`);
+      console.log(`    state: ${formatGroupState(gs.state)}`);
+      for (const phase of ['expand', 'backfill', 'switch', 'contract'] as const) {
+        const pr = gs.phases[phase];
+        if (pr) {
+          console.log(`    ${phase.padEnd(10)} ${pr.status} (${pr.appliedAt.toISOString()})`);
+        } else {
+          console.log(`    ${phase.padEnd(10)} not_applied`);
+        }
+      }
+      console.log();
+    }
+  }
+
+  const metadata = await loadMetadata(config);
+  if (metadata.baselines && metadata.baselines.length > 0) {
+    const totalBaselined = metadata.baselines.reduce((n, b) => n + b.includes.length, 0);
+    console.log(chalk.bold(`\n  Baselined (${totalBaselined} files in schema.sql):`));
+    for (const baseline of metadata.baselines) {
+      for (const inc of baseline.includes) {
+        console.log(`    ${chalk.magenta('◆')} ${inc.file}  ${chalk.gray(`(baseline ${baseline.date.substring(0, 10)})`)}`);
+      }
+    }
+  }
+
+  return { entries, groups };
+}
+
+function formatGroupState(state: string): string {
+  switch (state) {
+    case 'contract_completed': return chalk.green(state);
+    case 'backfill_failed': return chalk.red(state);
+    case 'backfill_running': return chalk.yellow(state);
+    default: return chalk.cyan(state);
+  }
 }

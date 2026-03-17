@@ -69,7 +69,14 @@ export async function commandLint(config: MigraguardConfig): Promise<LintResult>
 
   for (const f of files) {
     const sql = await readFile(f.filePath, 'utf-8');
-    const raw = await runRules(sql, activeRules);
+
+    const fileRules = activeRules.filter((r) => {
+      if (!r.applicablePhases) return true;
+      if (!f.phase) return false;
+      return r.applicablePhases.includes(f.phase);
+    });
+
+    const raw = await runRules(sql, fileRules);
     if (raw.length === 0) continue;
 
     const violations: LintViolation[] = raw.map((v) => ({
