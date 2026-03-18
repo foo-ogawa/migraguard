@@ -204,7 +204,7 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `gate` | Evaluate deployment gate conditions |
 | `baseline` | Squash applied migrations into `schema.sql` |
 
-See [COMMANDS.md](COMMANDS.md) for detailed usage, options, and examples.
+See [docs/commands.md](docs/commands.md) for detailed usage, options, and examples.
 
 ## CI Integration
 
@@ -542,8 +542,9 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 
 ## Detailed Documentation
 
-- [COMMANDS.md](COMMANDS.md) — Full command reference with options and examples
+- [docs/commands.md](docs/commands.md) — Full command reference with options and examples
 - [docs/state-model.md](docs/state-model.md) — Apply/check/resolve/squash flows, INSERT-only design, regression detection
 - [docs/dag-internals.md](docs/dag-internals.md) — Dependency analysis, explicit declarations, DAG migration compatibility
 - [docs/safe-ddl.md](docs/safe-ddl.md) — Safe DDL patterns for PostgreSQL (lock timeout, CONCURRENTLY, batch backfills)
-- [docs/expand-contract.md](docs/expand-contract.md) — Expand/contract pattern: phased migrations, state machine, CI/CD deployment gate, TypeScript API
+- [docs/expand-contract.md](docs/expand-contract.md) — Expand/contract pattern: phased migrations, state machine, CI/CD deployment gate
+- [docs/typescript-api.md](docs/typescript-api.md) — TypeScript programmatic API: all commands as typed async functions
