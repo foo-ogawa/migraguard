@@ -4,6 +4,8 @@ import type { MigraguardConfig, RawConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
 import type { Phase } from './naming.js';
+import { analyzeGenericSql } from './generic/deps.js';
+import type { GenericDialect } from './generic/engine.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -350,9 +352,11 @@ export function parseExplicitDepsFromConfig(
 // Analyze a single migration file
 // ---------------------------------------------------------------------------
 
-export async function analyzeFile(filePath: string, fileName: string): Promise<FileDeps> {
+export async function analyzeFile(filePath: string, fileName: string, dialect?: string): Promise<FileDeps> {
   const sql = await readFile(filePath, 'utf-8');
-  const { creates, references } = await analyzeSql(sql);
+  const { creates, references } = dialect && dialect !== 'postgresql'
+    ? analyzeGenericSql(sql, dialect as GenericDialect)
+    : await analyzeSql(sql);
   return { fileName, creates, references };
 }
 
@@ -375,7 +379,7 @@ export async function buildDependencyGraphFromFiles(
   const fileDeps = new Map<string, FileDeps>();
 
   for (const file of files) {
-    const deps = await analyzeFile(file.filePath, file.fileName);
+    const deps = await analyzeFile(file.filePath, file.fileName, config.dialect);
     fileDeps.set(file.fileName, deps);
   }
 

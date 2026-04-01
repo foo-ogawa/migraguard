@@ -26,6 +26,8 @@ export interface DumpConfig {
   pgDumpCommand?: string[];
 }
 
+export type Dialect = 'postgresql' | 'mysql' | 'sqlite';
+
 export type RuleSeverity = 'error' | 'warn' | 'off';
 
 export interface LintConfig {
@@ -35,6 +37,7 @@ export interface LintConfig {
 
 export interface MigraguardConfig {
   configDir: string;
+  dialect: Dialect;
   model?: 'dag';
   migrationsDirs: string[];
   schemaFile: string;
@@ -65,46 +68,73 @@ const DEFAULT_DUMP: DumpConfig = {
   excludePrivileges: true,
 };
 
+const DEFAULT_PG_LINT_RULES: Record<string, RuleSeverity> = {
+  'require-concurrent-index': 'error',
+  'require-if-not-exists': 'error',
+  'require-lock-timeout': 'error',
+  'ban-concurrent-index-in-transaction': 'error',
+  'adding-not-nullable-field': 'error',
+  'constraint-missing-not-valid': 'error',
+  'require-analyze-after-index': 'error',
+  'require-create-or-replace-view': 'error',
+  'ban-drop-cascade': 'error',
+  'require-statement-timeout': 'error',
+  'require-reset-timeouts': 'error',
+  'ban-truncate': 'error',
+  'ban-update-without-where': 'error',
+  'ban-delete-without-where': 'error',
+  'ban-drop-column': 'error',
+  'ban-alter-column-type': 'error',
+  'require-drop-index-concurrently': 'error',
+  'require-unique-via-concurrent-index': 'error',
+  'ban-validate-constraint-same-file': 'error',
+  'ban-bare-analyze': 'error',
+  'require-if-not-exists-materialized-view': 'error',
+  'ban-refresh-materialized-view-in-migration': 'error',
+  'ban-select-star-in-view': 'error',
+  'ban-rename-column': 'error',
+  'ban-rename-table': 'error',
+  'ban-drop-table': 'error',
+  'require-pk-via-concurrent-index': 'error',
+  'ban-set-not-null': 'error',
+  'ban-alter-enum-in-transaction': 'error',
+  'ban-vacuum-full': 'error',
+  'ban-cluster': 'error',
+  'ban-reindex': 'error',
+  'ban-alter-system': 'error',
+  'ban-set-session-replication-role': 'error',
+};
+
+const DEFAULT_GENERIC_LINT_RULES: Record<string, RuleSeverity> = {
+  'require-if-not-exists': 'error',
+  'ban-drop-column': 'error',
+  'ban-alter-column-type': 'error',
+  'ban-rename-column': 'error',
+  'ban-rename-table': 'error',
+  'ban-drop-table': 'error',
+  'ban-update-without-where': 'error',
+  'ban-delete-without-where': 'error',
+  'ban-truncate': 'error',
+  'adding-not-nullable-field': 'error',
+  'require-create-or-replace-view': 'error',
+  'ban-select-star-in-view': 'error',
+  'ban-drop-cascade': 'error',
+  'backfill-requires-where-clause': 'error',
+  'backfill-ban-ddl': 'error',
+  'contract-requires-allow-directive': 'error',
+  'expand-requires-idempotent-pattern': 'error',
+};
+
+function getDefaultLintRules(dialect: Dialect): Record<string, RuleSeverity> {
+  return dialect === 'postgresql' ? DEFAULT_PG_LINT_RULES : DEFAULT_GENERIC_LINT_RULES;
+}
+
 const DEFAULT_LINT: LintConfig = {
-  rules: {
-    'require-concurrent-index': 'error',
-    'require-if-not-exists': 'error',
-    'require-lock-timeout': 'error',
-    'ban-concurrent-index-in-transaction': 'error',
-    'adding-not-nullable-field': 'error',
-    'constraint-missing-not-valid': 'error',
-    'require-analyze-after-index': 'error',
-    'require-create-or-replace-view': 'error',
-    'ban-drop-cascade': 'error',
-    'require-statement-timeout': 'error',
-    'require-reset-timeouts': 'error',
-    'ban-truncate': 'error',
-    'ban-update-without-where': 'error',
-    'ban-delete-without-where': 'error',
-    'ban-drop-column': 'error',
-    'ban-alter-column-type': 'error',
-    'require-drop-index-concurrently': 'error',
-    'require-unique-via-concurrent-index': 'error',
-    'ban-validate-constraint-same-file': 'error',
-    'ban-bare-analyze': 'error',
-    'require-if-not-exists-materialized-view': 'error',
-    'ban-refresh-materialized-view-in-migration': 'error',
-    'ban-select-star-in-view': 'error',
-    'ban-rename-column': 'error',
-    'ban-rename-table': 'error',
-    'ban-drop-table': 'error',
-    'require-pk-via-concurrent-index': 'error',
-    'ban-set-not-null': 'error',
-    'ban-alter-enum-in-transaction': 'error',
-    'ban-vacuum-full': 'error',
-    'ban-cluster': 'error',
-    'ban-reindex': 'error',
-    'ban-alter-system': 'error',
-    'ban-set-session-replication-role': 'error',
-  },
+  rules: DEFAULT_PG_LINT_RULES,
 };
 
 export interface RawConfig {
+  dialect?: Dialect;
   model?: 'dag';
   migrationsDir?: string;
   migrationsDirs?: string[];
@@ -154,13 +184,17 @@ export function findConfigFile(startDir: string): string | undefined {
 }
 
 export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig {
+  const dialect: Dialect = raw.dialect ?? 'postgresql';
   const connection: ConnectionConfig = {
     ...DEFAULT_CONNECTION,
     ...raw.connection,
   };
 
+  const defaultRules = getDefaultLintRules(dialect);
+
   return {
     configDir,
+    dialect,
     ...(raw.model ? { model: raw.model } : {}),
     migrationsDirs: resolveMigrationsDirs(raw),
     schemaFile: raw.schemaFile ?? 'db/schema.sql',
@@ -171,7 +205,7 @@ export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig
     lint: {
       ...DEFAULT_LINT,
       ...raw.lint,
-      rules: { ...DEFAULT_LINT.rules, ...raw.lint?.rules },
+      rules: { ...defaultRules, ...raw.lint?.rules },
     },
   };
 }
