@@ -4,8 +4,8 @@ import type { Phase } from '../naming.js';
 import { PHASE_ORDER } from '../naming.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
-import { MigraguardDb } from '../db.js';
-import { executePsqlFile } from '../psql.js';
+import { createDb } from '../db.js';
+import { executeSqlFile } from '../executor.js';
 import { deriveGroupState, canAdvanceToPhase } from '../group-state.js';
 
 export interface ApplyPhaseOptions {
@@ -25,7 +25,7 @@ export async function commandApplyPhase(
   options: ApplyPhaseOptions,
 ): Promise<ApplyPhaseResult> {
   const { group, phase } = options;
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();
@@ -53,7 +53,7 @@ export async function commandApplyPhase(
     }
 
     const checksum = await checksumFile(file.filePath);
-    const psqlResult = await executePsqlFile(config, file.filePath);
+    const psqlResult = await executeSqlFile(config, file.filePath);
 
     if (psqlResult.success) {
       await db.insertRecord(file.fileName, checksum, 'applied', {

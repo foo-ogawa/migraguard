@@ -55,12 +55,16 @@ const DEFAULT_NAMING: NamingConfig = {
   sortKey: 'timestamp',
 };
 
-const DEFAULT_CONNECTION: ConnectionConfig = {
-  host: 'localhost',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-};
+function getDefaultConnection(dialect: Dialect): ConnectionConfig {
+  switch (dialect) {
+    case 'mysql':
+      return { host: 'localhost', port: 3306, database: 'mysql', user: 'root' };
+    case 'sqlite':
+      return { host: '', port: 0, database: './database.sqlite3', user: '' };
+    default:
+      return { host: 'localhost', port: 5432, database: 'postgres', user: 'postgres' };
+  }
+}
 
 const DEFAULT_DUMP: DumpConfig = {
   normalize: true,
@@ -146,14 +150,30 @@ export interface RawConfig {
   lint?: Partial<LintConfig>;
 }
 
-function applyEnvOverrides(connection: ConnectionConfig): ConnectionConfig {
-  return {
-    host: process.env['PGHOST'] ?? connection.host,
-    port: process.env['PGPORT'] ? parseInt(process.env['PGPORT'], 10) : connection.port,
-    database: process.env['PGDATABASE'] ?? connection.database,
-    user: process.env['PGUSER'] ?? connection.user,
-    password: process.env['PGPASSWORD'] ?? connection.password,
-  };
+function applyEnvOverrides(connection: ConnectionConfig, dialect: Dialect): ConnectionConfig {
+  switch (dialect) {
+    case 'mysql':
+      return {
+        host: process.env['MYSQL_HOST'] ?? connection.host,
+        port: process.env['MYSQL_TCP_PORT'] ? parseInt(process.env['MYSQL_TCP_PORT'], 10) : connection.port,
+        database: process.env['MYSQL_DATABASE'] ?? connection.database,
+        user: process.env['MYSQL_USER'] ?? connection.user,
+        password: process.env['MYSQL_PWD'] ?? connection.password,
+      };
+    case 'sqlite':
+      return {
+        ...connection,
+        database: process.env['SQLITE_DATABASE'] ?? connection.database,
+      };
+    default:
+      return {
+        host: process.env['PGHOST'] ?? connection.host,
+        port: process.env['PGPORT'] ? parseInt(process.env['PGPORT'], 10) : connection.port,
+        database: process.env['PGDATABASE'] ?? connection.database,
+        user: process.env['PGUSER'] ?? connection.user,
+        password: process.env['PGPASSWORD'] ?? connection.password,
+      };
+  }
 }
 
 function resolveMigrationsDirs(raw: RawConfig): string[] {
@@ -186,7 +206,7 @@ export function findConfigFile(startDir: string): string | undefined {
 export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig {
   const dialect: Dialect = raw.dialect ?? 'postgresql';
   const connection: ConnectionConfig = {
-    ...DEFAULT_CONNECTION,
+    ...getDefaultConnection(dialect),
     ...raw.connection,
   };
 
@@ -200,7 +220,7 @@ export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig
     schemaFile: raw.schemaFile ?? 'db/schema.sql',
     metadataFile: raw.metadataFile ?? 'db/.migraguard/metadata.json',
     naming: { ...DEFAULT_NAMING, ...raw.naming },
-    connection: applyEnvOverrides(connection),
+    connection: applyEnvOverrides(connection, dialect),
     dump: { ...DEFAULT_DUMP, ...raw.dump },
     lint: {
       ...DEFAULT_LINT,

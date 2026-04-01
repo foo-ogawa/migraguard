@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 import { loadMetadata } from '../metadata.js';
 import { deriveAllGroupStates } from '../group-state.js';
@@ -30,7 +30,7 @@ function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefine
 }
 
 export async function commandStatus(config: MigraguardConfig): Promise<StatusResult> {
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
   const entries: StatusEntry[] = [];
   let groups: GroupState[] = [];
 

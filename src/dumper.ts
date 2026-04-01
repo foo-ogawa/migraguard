@@ -5,7 +5,7 @@ import type { MigraguardConfig } from './config.js';
 const execFileAsync = promisify(execFile);
 
 function buildPgDumpEnv(config: MigraguardConfig): Record<string, string> {
-  const env: Record<string, string> = { ...process.env as Record<string, string> };
+  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
   env['PGHOST'] = config.connection.host;
   env['PGPORT'] = String(config.connection.port);
   env['PGDATABASE'] = config.connection.database;
@@ -17,6 +17,17 @@ function buildPgDumpEnv(config: MigraguardConfig): Record<string, string> {
 }
 
 export async function dumpSchema(config: MigraguardConfig): Promise<string> {
+  switch (config.dialect) {
+    case 'mysql':
+      return dumpMysqlSchema(config);
+    case 'sqlite':
+      return dumpSqliteSchema(config);
+    default:
+      return dumpPgSchema(config);
+  }
+}
+
+async function dumpPgSchema(config: MigraguardConfig): Promise<string> {
   const pgDumpCmd = config.dump.pgDumpCommand;
 
   const dumpArgs = ['--schema-only'];
@@ -41,6 +52,40 @@ export async function dumpSchema(config: MigraguardConfig): Promise<string> {
   return stdout;
 }
 
+async function dumpMysqlSchema(config: MigraguardConfig): Promise<string> {
+  const args = [
+    '--no-data',
+    '--skip-comments',
+    `--host=${config.connection.host}`,
+    `--port=${config.connection.port}`,
+    `--user=${config.connection.user}`,
+    config.connection.database,
+  ];
+  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+  if (config.connection.password) {
+    env['MYSQL_PWD'] = config.connection.password;
+  }
+
+  const { stdout } = await execFileAsync('mysqldump', args, { env });
+
+  if (config.dump.normalize) {
+    return normalizeMysqlSchema(stdout);
+  }
+  return stdout;
+}
+
+async function dumpSqliteSchema(config: MigraguardConfig): Promise<string> {
+  const { stdout } = await execFileAsync('sqlite3', [
+    config.connection.database,
+    '.schema',
+  ]);
+
+  if (config.dump.normalize) {
+    return normalizeSqliteSchema(stdout);
+  }
+  return stdout;
+}
+
 export function normalizeSchema(raw: string): string {
   const lines = raw.split('\n');
   const filtered = lines.filter((line) => {
@@ -53,9 +98,34 @@ export function normalizeSchema(raw: string): string {
     return true;
   });
 
+  return collapseAndTrim(filtered);
+}
+
+function normalizeMysqlSchema(raw: string): string {
+  const lines = raw.split('\n');
+  const filtered = lines.filter((line) => {
+    if (line.startsWith('--')) return false;
+    if (line.startsWith('/*')) return false;
+    if (line.startsWith('/*!')) return false;
+    if (line.startsWith('SET ')) return false;
+    if (line.startsWith('LOCK TABLES')) return false;
+    if (line.startsWith('UNLOCK TABLES')) return false;
+    return true;
+  });
+
+  return collapseAndTrim(filtered);
+}
+
+function normalizeSqliteSchema(raw: string): string {
+  const lines = raw.split('\n');
+  const filtered = lines.filter((line) => !line.startsWith('--'));
+  return collapseAndTrim(filtered);
+}
+
+function collapseAndTrim(lines: string[]): string {
   const result: string[] = [];
   let prevBlank = false;
-  for (const line of filtered) {
+  for (const line of lines) {
     const isBlank = line.trim() === '';
     if (isBlank && prevBlank) continue;
     result.push(line);

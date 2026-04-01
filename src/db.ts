@@ -2,6 +2,8 @@ import pg from 'pg';
 import type { MigraguardConfig } from './config.js';
 import type { Phase } from './naming.js';
 import type { MigrationClass } from './scanner.js';
+import { MigraguardDbMysql } from './db-mysql.js';
+import { MigraguardDbSqlite } from './db-sqlite.js';
 
 const { Client } = pg;
 
@@ -44,7 +46,26 @@ export interface InsertRecordOptions {
   groupName?: string;
 }
 
-export class MigraguardDb {
+export interface MigraguardDbAdapter {
+  connect(): Promise<void>;
+  close(): Promise<void>;
+  ensureTable(): Promise<void>;
+  acquireAdvisoryLock(): Promise<void>;
+  releaseAdvisoryLock(): Promise<void>;
+  getAllRecords(): Promise<MigrationRecord[]>;
+  getRecordsForFile(fileName: string): Promise<MigrationRecord[]>;
+  insertRecord(fileName: string, checksum: string, status: MigrationStatus, options?: InsertRecordOptions): Promise<void>;
+}
+
+export function createDb(config: MigraguardConfig): MigraguardDbAdapter {
+  switch (config.dialect) {
+    case 'mysql': return new MigraguardDbMysql(config);
+    case 'sqlite': return new MigraguardDbSqlite(config);
+    default: return new MigraguardDb(config);
+  }
+}
+
+export class MigraguardDb implements MigraguardDbAdapter {
   private client: pg.Client;
 
   constructor(config: MigraguardConfig) {

@@ -5,9 +5,9 @@ import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
-import { MigraguardDb } from '../db.js';
-import type { MigrationRecord, InsertRecordOptions } from '../db.js';
-import { executePsqlFile } from '../psql.js';
+import { createDb } from '../db.js';
+import type { MigraguardDbAdapter, MigrationRecord, InsertRecordOptions } from '../db.js';
+import { executeSqlFile } from '../executor.js';
 import { dumpSchema } from '../dumper.js';
 import { loadMetadata, isDagMode } from '../metadata.js';
 import type { MetadataJson } from '../metadata.js';
@@ -80,7 +80,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     leafSet = new Set(findLeafNodes(graph));
   }
 
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();
@@ -221,7 +221,7 @@ type FileAction = 'ok' | 'error';
 
 async function processFile(
   config: MigraguardConfig,
-  db: MigraguardDb,
+  db: MigraguardDbAdapter,
   filePath: string,
   fileName: string,
   fileRecords: MigrationRecord[],
@@ -232,7 +232,7 @@ async function processFile(
   insertOpts?: InsertRecordOptions,
 ): Promise<FileAction> {
   if (!latestRecord) {
-    const psqlResult = await executePsqlFile(config, filePath);
+    const psqlResult = await executeSqlFile(config, filePath);
     if (psqlResult.success) {
       await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
@@ -257,7 +257,7 @@ async function processFile(
   if (latestRecord.status === 'failed') {
     if (isEditable) {
       console.log(chalk.yellow(`  ↻ retrying failed: ${fileName}`));
-      const psqlResult = await executePsqlFile(config, filePath);
+      const psqlResult = await executeSqlFile(config, filePath);
       if (psqlResult.success) {
         await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
         result.applied.push(fileName);
@@ -299,7 +299,7 @@ async function processFile(
 
   if (isEditable) {
     console.log(chalk.yellow(`  ↻ re-applying (changed): ${fileName}`));
-    const psqlResult = await executePsqlFile(config, filePath);
+    const psqlResult = await executeSqlFile(config, filePath);
     if (psqlResult.success) {
       await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
@@ -325,7 +325,7 @@ async function processFile(
 
 async function applyFromBaseline(
   config: MigraguardConfig,
-  db: MigraguardDb,
+  db: MigraguardDbAdapter,
   metadata: MetadataJson,
   result: ApplyResult,
 ): Promise<void> {
@@ -336,8 +336,8 @@ async function applyFromBaseline(
   }
 
   console.log(chalk.blue('Applying baseline schema...'));
-  const { executePsqlFile: execPsql } = await import('../psql.js');
-  const psqlResult = await execPsql(config, schemaPath);
+  const { executeSqlFile: execSql } = await import('../executor.js');
+  const psqlResult = await execSql(config, schemaPath);
   if (!psqlResult.success) {
     result.errors.push(`Failed to apply baseline schema: ${psqlResult.stderr}`);
     console.error(chalk.red(`  ✗ baseline schema apply failed`));

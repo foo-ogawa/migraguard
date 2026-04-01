@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import { deriveAllGroupStates } from '../group-state.js';
 import type { GroupState, GroupStateName } from '../group-state.js';
 
@@ -42,7 +42,7 @@ export async function commandGate(
     };
   }
 
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();

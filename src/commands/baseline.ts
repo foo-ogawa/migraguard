@@ -5,7 +5,7 @@ import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 import { dumpSchema } from '../dumper.js';
 import { loadMetadata, saveMetadata } from '../metadata.js';
@@ -32,7 +32,7 @@ export async function commandBaseline(
   config: MigraguardConfig,
   options?: BaselineOptions,
 ): Promise<BaselineResult> {
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();
