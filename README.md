@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PostgreSQL-first schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. **Optional feature-limited linting** for MySQL and SQLite uses a generic SQL parser ([node-sql-parser](https://github.com/taozhi8833998/node-sql-parser)); full rule coverage and all runtime DB features remain PostgreSQL-only.
+PostgreSQL-first schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. MySQL and SQLite are supported as secondary dialects: all DB runtime commands (`apply`, `dump`, `diff`, `verify`) work via `mysql`/`mysqldump` and `sqlite3` CLIs respectively, with 17 generic lint rules powered by [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser). PostgreSQL retains full rule coverage (38 rules) via [libpg-query](https://github.com/pganalyze/libpg-query).
 
 **Prevented accidents:**
 
@@ -12,7 +12,7 @@ PostgreSQL-first schema-aware deployment control. Idempotent SQL migrations with
 - **Concurrent apply race conditions** — parallel CI pipelines or manual executions collide
 - **Schema drift** — unauthorized manual DDL diverges the DB from expected state
 
-Execution is deliberately simple: plain SQL files executed via `psql`. migraguard focuses on **what to forbid**, not on providing a rich execution engine.
+Execution is deliberately simple: plain SQL files executed via the database's native CLI (`psql`, `mysql`, or `sqlite3`). migraguard focuses on **what to forbid**, not on providing a rich execution engine.
 
 ## Key Guarantees
 
@@ -20,14 +20,20 @@ Execution is deliberately simple: plain SQL files executed via `psql`. migraguar
 - **Regression detection** — If a hotfixed file reverts to an old checksum, `apply` raises an error immediately
 - **Failure blocking with explicit resolve** — A `failed` migration blocks all progress until a human explicitly judges and resolves it
 - **Drift gate + Idempotency proof** — two [verification mechanisms](#verification-two-distinct-mechanisms): `apply --with-drift-check` detects local schema divergence before applying; `diff` verifies post-deploy schema consistency; `verify` proves migrations are safely re-executable on a shadow DB
-- **Mutual exclusion** — `apply` uses PostgreSQL advisory locks to prevent concurrent execution
+- **Mutual exclusion** — `apply` uses advisory locks to prevent concurrent execution (PostgreSQL `pg_advisory_lock`, MySQL `GET_LOCK`, SQLite file-level locking)
 - **One release at a time** — the next migration cannot be added until the current release is deployed to all environments, ensuring the latest file is always hotfix-ready
 
 ## Quick Start
 
 ```bash
-# Install
+# Install (PostgreSQL — no extra deps needed)
 npm install --save-dev migraguard
+
+# For MySQL, also install the driver:
+npm install mysql2
+
+# For SQLite, also install the driver:
+npm install better-sqlite3
 
 # Create a new migration → edit the generated file → apply to local DB
 npx migraguard new create_users_table
@@ -45,25 +51,30 @@ npx migraguard dump
 
 ## Design Philosophy
 
-- **Plain SQL**: Migrations are SQL files executable via `psql -f`. No ORM or DSL; transaction boundaries are explicit in SQL
+- **Plain SQL**: Migrations are SQL files executable via the database's native CLI (`psql -f`, `mysql`, `sqlite3`). No ORM or DSL; transaction boundaries are explicit in SQL
 - **Forward-only**: Modifying applied migrations is prohibited by default; changes always build forward. Only the latest migration file may be overwritten and re-applied, assuming idempotency
 - **One release = one file**: Migration files are squashed into a single file before release, simplifying error recovery. In DAG mode, independent DDL can be released individually
 - **Parallel releases via dependency tree**: DDL dependencies are analyzed to build a DAG, enabling parallel releases for independent changes
 - **Shift verification left**: Linting, checksum-based tamper detection, and schema dump diffs run at the PR stage
-- **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)) for the primary PostgreSQL path. No external linter required — lint rules are built in via AST analysis. MySQL/SQLite linting adds [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) as a parallel, feature-limited engine
+- **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)) for the primary PostgreSQL path. MySQL uses `mysql` + `mysqldump` CLIs + [mysql2](https://github.com/sidorares/node-mysql2) (optional peer dep); SQLite uses `sqlite3` CLI + [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (optional peer dep). No external linter required — lint rules are built in via AST analysis. MySQL/SQLite linting uses [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) as a parallel, feature-limited engine
 
 ## Dialect support
 
 PostgreSQL remains the **primary, full-featured** target: `libpg-query` powers all built-in lint rules (38) and unchanged behavior when `dialect` is `postgresql` (default).
 
-Setting `dialect` to `mysql` or `sqlite` selects the **generic** engine (`src/generic/`), which uses **node-sql-parser** and enforces **17 generic lint rules** only. Parser coverage and PostgreSQL-specific semantics are not replicated; this mode is for teams that want migraguard’s file workflow and a subset of safety checks on non-PostgreSQL SQL, not parity with the PG toolchain.
+Setting `dialect` to `mysql` or `sqlite` switches the entire tool chain to the corresponding database engine. Lint coverage is limited to **17 generic rules** (vs 38 for PostgreSQL); PostgreSQL-specific semantics (e.g. CONCURRENTLY, advisory lock timeout rules) are not replicated. This mode is for teams that want migraguard’s file workflow and a subset of safety checks on non-PostgreSQL SQL, not parity with the PG toolchain.
 
-| Concern | `postgresql` (default) | `mysql` / `sqlite` |
-|---------|------------------------|---------------------|
-| Lint AST | libpg-query (38 rules) | node-sql-parser (17 rules) |
-| `deps` / DAG extraction | ✅ Same object/relationship extraction | ✅ Same categories (e.g. CREATE TABLE, CREATE INDEX, ALTER TABLE, CREATE VIEW, FK references) |
-| `apply`, `dump`, `diff`, `verify`, DB connection | ✅ | ❌ Not supported (PostgreSQL only) |
-| File-based commands (`check`, `new`, `squash`, `editable`, `status`, …) | ✅ | ✅ |
+| Concern | `postgresql` (default) | `mysql` | `sqlite` |
+|---------|------------------------|---------|----------|
+| Lint AST | libpg-query (38 rules) | node-sql-parser (17 rules) | node-sql-parser (17 rules) |
+| `deps` / DAG extraction | ✅ | ✅ | ✅ |
+| `apply` (SQL execution) | `psql` CLI | `mysql` CLI | `sqlite3 -bail` CLI |
+| `dump` / `diff` (schema dump) | `pg_dump --schema-only` | `mysqldump --no-data` | `sqlite3 .schema` |
+| `verify` (shadow DB) | CREATE/DROP DATABASE | CREATE/DROP DATABASE | File copy/delete |
+| State management (`schema_migrations`) | `pg` npm | `mysql2` (optional peer dep) | `better-sqlite3` (optional peer dep) |
+| Advisory locking | `pg_advisory_lock` | `GET_LOCK` / `RELEASE_LOCK` | File-level (built-in) |
+| Environment variables | `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` | `MYSQL_HOST`, `MYSQL_TCP_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PWD` | `SQLITE_DATABASE` |
+| File-based commands (`check`, `new`, `squash`, `editable`, …) | ✅ | ✅ | ✅ |
 
 Omitting `dialect` is equivalent to `"postgresql"` — existing projects require no config change.
 
@@ -76,7 +87,7 @@ migraguard separates file integrity and application state into two layers.
 | Layer | Location | Role |
 |-------|----------|------|
 | **metadata.json** (repository) | `db/.migraguard/metadata.json` | File list and checksums. Used for CI integrity checks. Environment-independent |
-| **schema_migrations** (per DB) | Each environment's PostgreSQL | Applied files and checksums per environment. Used by `apply` to determine pending migrations |
+| **schema_migrations** (per DB) | Each environment's database | Applied files and checksums per environment. Used by `apply` to determine pending migrations |
 
 metadata.json represents "which files should exist"; schema_migrations represents "what has been applied." This separation enables correct staged rollout from a single repository to multiple environments (staging, production).
 
@@ -86,7 +97,7 @@ migraguard treats **migration SQL files** as the **Single Source of Truth (SSoT)
 They capture not only the end state, but also the *intent, ordering, and operational safety tactics* required for production changes.
 
 `schema.sql` is a **derived artifact**:
-- Generated from a real database via `dump` (pg_dump), and updated locally by `apply --with-drift-check`
+- Generated from a real database via `dump` (`pg_dump`, `mysqldump`, or `sqlite3 .schema`), and updated locally by `apply --with-drift-check`
 - Used as an **expected-state snapshot** for drift detection (`diff`) and human review
 - Not intended to be hand-edited or treated as the authoritative desired state
 
@@ -103,7 +114,10 @@ Checksums are computed on **normalized SQL** (SHA-256): comments are stripped (`
 
 ### schema_migrations Table
 
+The DDL varies by dialect. Below is the PostgreSQL version; MySQL uses `BIGINT AUTO_INCREMENT` / `TIMESTAMP(6)` / `ENGINE=InnoDB`, SQLite uses `INTEGER PRIMARY KEY AUTOINCREMENT` / `TEXT` columns / `datetime('now')`.
+
 ```sql
+-- PostgreSQL
 CREATE TABLE IF NOT EXISTS schema_migrations (
     id          BIGSERIAL    PRIMARY KEY,
     file_name   VARCHAR(256) NOT NULL,
@@ -200,7 +214,7 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `new <name>` | Generate a new migration SQL file |
 | `new --expand-contract <name>` | Create an expand/contract migration group |
 | `squash` | Merge pending files into one for release |
-| `apply` | Execute pending migrations via `psql` |
+| `apply` | Execute pending migrations via native CLI (`psql` / `mysql` / `sqlite3`) |
 | `apply --with-drift-check` | Local: drift check → apply → dump update |
 | `apply --from-baseline` | Apply `schema.sql` baseline, then remaining migrations |
 | `resolve <file>` | Mark a failed migration as skipped (explicit judgment) |
@@ -215,11 +229,11 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `deps --html <path>` | Generate HTML dependency visualization |
 | `group-status [group]` | Show Migration Group phase states |
 | `advance <group> <phase> <status>` | Record phase state transition (executor) |
-| `apply-phase <group> <phase>` | Apply a specific phase via `psql` |
+| `apply-phase <group> <phase>` | Apply a specific phase via native CLI |
 | `gate` | Evaluate deployment gate conditions |
 | `baseline` | Squash applied migrations into `schema.sql` |
 
-`lint` and `deps` honor `dialect` (PostgreSQL vs generic). Commands that open a DB connection (`apply`, `dump`, `diff`, `verify`, and related) remain **PostgreSQL-only**. See [Dialect support](#dialect-support).
+All commands honor the `dialect` setting. See [Dialect support](#dialect-support) for per-dialect details.
 
 See [docs/commands.md](docs/commands.md) for detailed usage, options, and examples.
 
@@ -318,11 +332,36 @@ jobs:
 }
 ```
 
+**MySQL example** — connection defaults to `localhost:3306`:
+
+```json
+{
+  "dialect": "mysql",
+  "connection": {
+    "host": "localhost",
+    "port": 3306,
+    "database": "myapp_dev",
+    "user": "root"
+  }
+}
+```
+
+**SQLite example** — only `database` (file path) is needed:
+
+```json
+{
+  "dialect": "sqlite",
+  "connection": {
+    "database": "./db/myapp_dev.sqlite3"
+  }
+}
+```
+
 ### Model Configuration
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `dialect` | `"postgresql"` | SQL dialect for lint and dependency analysis: `"postgresql"` (libpg-query, full rules), `"mysql"` or `"sqlite"` (node-sql-parser, 17 generic rules). Omitted means `"postgresql"` |
+| `dialect` | `"postgresql"` | SQL dialect: `"postgresql"` (libpg-query, 38 rules, `psql`/`pg_dump`), `"mysql"` (node-sql-parser, 17 rules, `mysql`/`mysqldump`), or `"sqlite"` (node-sql-parser, 17 rules, `sqlite3`). Omitted means `"postgresql"` |
 | `model` | _(unset = linear)_ | Set to `"dag"` to enable DAG mode. When set in config, takes precedence over `metadata.json` |
 
 ### Naming Configuration
@@ -357,7 +396,7 @@ jobs:
 // → auth_20260301_120000__add_users_table.sql
 ```
 
-`connection` can be overridden via environment variables (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`).
+`connection` can be overridden via dialect-specific environment variables: PostgreSQL (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`), MySQL (`MYSQL_HOST`, `MYSQL_TCP_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PWD`), SQLite (`SQLITE_DATABASE`).
 
 `migrationsDirs` accepts multiple paths for monorepo setups. `new` / `squash` write to the first directory. For backward compatibility, `migrationsDir` (singular) is also accepted.
 
@@ -510,9 +549,9 @@ migraguard embeds operational policies into the tool and prevents incidents via 
 | **Parallel releases** | ✅ DAG | ❌ | ❌ | ⚠️ | ❌ |
 | **Offline CI gate** | ✅ check | ❌ | ✅ atlas.sum | ❌ | ❌ |
 | **Failure handling** | DB-recorded, explicit resolve | repair overwrites | manual fix | revert scripts | manual fix |
-| **Execution** | psql (plain SQL) | Java / JDBC | Go / DB driver | psql / sqitch | pg (Node.js) |
+| **Execution** | psql / mysql / sqlite3 (plain SQL) | Java / JDBC | Go / DB driver | psql / sqitch | pg (Node.js) |
 
-**vs Flyway / Liquibase**: migraguard adds offline CI tamper detection, regression detection, idempotency proof, and apply mutual exclusion. Trade-off: execution and verification remain PostgreSQL-oriented; optional **feature-limited** lint/`deps` for MySQL/SQLite do not imply full multi-DB runtime support. No GUI or rich generic execution engine.
+**vs Flyway / Liquibase**: migraguard adds offline CI tamper detection, regression detection, idempotency proof, and apply mutual exclusion. MySQL and SQLite are supported as secondary dialects with full DB runtime commands and 17 generic lint rules. No GUI or rich generic execution engine.
 
 **vs Atlas**: Atlas drives migration from a "desired state" declaration. migraguard focuses on preventing release-level operational incidents via explicit CI gates, plus parallel releases via DAG. Choose Atlas for declarative schema generation; choose migraguard for teams writing DDL directly with incident guardrails.
 
@@ -528,7 +567,7 @@ Nothing. Checksums are computed on [normalized SQL](#checksum-normalization) —
 
 ### What happens if two CI pipelines run `apply` concurrently?
 
-One acquires the advisory lock and proceeds; the other blocks until the first completes. No race condition occurs.
+One acquires the advisory lock and proceeds; the other blocks until the first completes. No race condition occurs. PostgreSQL uses `pg_advisory_lock`, MySQL uses `GET_LOCK`, and SQLite relies on file-level locking.
 
 ### A migration failed in production. How do I fix it?
 
@@ -546,18 +585,22 @@ See [When to Use DAG](#when-to-use-dag). In short: when multiple teams need para
 
 ### Does `verify` run against my production DB?
 
-No. `verify` creates a temporary shadow DB, applies migrations twice, then drops it. Production is never modified.
+No. `verify` creates a temporary shadow DB, applies migrations twice, then drops it. Production is never modified. For PostgreSQL and MySQL, a temporary database is created/dropped; for SQLite, a temporary file copy is used.
 
 ## Technology Stack
 
 | Component | Technology |
 |-----------|-----------|
 | Language | TypeScript (Node.js) |
-| DB execution | `psql` CLI |
-| Schema dump | `pg_dump --schema-only` |
-| SQL lint (PostgreSQL) | Built-in rules via [libpg-query](https://github.com/pganalyze/libpg-query) AST analysis (38 rules) |
-| SQL parser (PostgreSQL) | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build) |
-| SQL lint / parser (MySQL, SQLite) | [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) — generic AST, 17 rules, parallel to PG engine |
+| DB execution (PostgreSQL) | `psql` CLI |
+| DB execution (MySQL) | `mysql` CLI |
+| DB execution (SQLite) | `sqlite3` CLI |
+| Schema dump | `pg_dump` / `mysqldump` / `sqlite3 .schema` |
+| DB state management (PostgreSQL) | [pg](https://github.com/brianc/node-postgres) |
+| DB state management (MySQL) | [mysql2](https://github.com/sidorares/node-mysql2) (optional peer dep) |
+| DB state management (SQLite) | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (optional peer dep) |
+| SQL lint / parser (PostgreSQL) | [libpg-query](https://github.com/pganalyze/libpg-query) — 38 built-in rules |
+| SQL lint / parser (MySQL, SQLite) | [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) — 17 generic rules |
 | Package manager | npm |
 
 ## Detailed Documentation
