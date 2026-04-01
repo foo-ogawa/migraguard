@@ -14,7 +14,7 @@ export type { LintRule, LintViolation, RuleReport, RuleContext, NodeVisitors } f
 export { MigraguardDb } from './db.js';
 export type { MigrationRecord, MigrationStatus, InsertRecordOptions } from './db.js';
 export { loadConfig, buildConfig } from './config.js';
-export type { MigraguardConfig, RawConfig } from './config.js';
+export type { MigraguardConfig, RawConfig, Dialect } from './config.js';
 export { commandApply } from './commands/apply.js';
 export type { ApplyResult, ApplyOptions } from './commands/apply.js';
 export { commandGroupStatus } from './commands/group-status.js';

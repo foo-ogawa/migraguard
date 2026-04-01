@@ -7,6 +7,8 @@ import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { ALL_RULES, runRules } from '../rules/index.js';
 import type { LintRule, LintViolation } from '../rules/index.js';
+import { ALL_GENERIC_RULES, runGenericRules } from '../generic/rules/index.js';
+import type { GenericLintRule, GenericDialect } from '../generic/rules/index.js';
 
 export interface LintResult {
   ok: boolean;
@@ -49,6 +51,13 @@ function getSeverity(config: MigraguardConfig, ruleId: string): RuleSeverity {
 }
 
 export async function commandLint(config: MigraguardConfig): Promise<LintResult> {
+  if (config.dialect !== 'postgresql') {
+    return commandLintGeneric(config);
+  }
+  return commandLintPg(config);
+}
+
+async function commandLintPg(config: MigraguardConfig): Promise<LintResult> {
   const files = await scanMigrations(config);
   if (files.length === 0) {
     console.log(chalk.yellow('No migration files to lint.'));
@@ -92,19 +101,7 @@ export async function commandLint(config: MigraguardConfig): Promise<LintResult>
     printViolations(f.fileName, violations);
   }
 
-  if (totalErrors > 0 || totalWarnings > 0) {
-    const parts: string[] = [];
-    if (totalErrors > 0) parts.push(`${totalErrors} error(s)`);
-    if (totalWarnings > 0) parts.push(`${totalWarnings} warning(s)`);
-    const summary = parts.join(', ');
-    if (totalErrors > 0) {
-      console.error(chalk.red(`\nLint failed: ${summary}.`));
-    } else {
-      console.log(chalk.yellow(`\nLint: ${summary}.`));
-    }
-  } else {
-    console.log(chalk.green(`✓ ${files.length} file(s) passed lint.`));
-  }
+  printSummary(files.length, totalErrors, totalWarnings);
 
   return {
     ok: totalErrors === 0,
@@ -112,6 +109,77 @@ export async function commandLint(config: MigraguardConfig): Promise<LintResult>
     errors: totalErrors,
     warnings: totalWarnings,
   };
+}
+
+async function commandLintGeneric(config: MigraguardConfig): Promise<LintResult> {
+  const dialect = config.dialect as GenericDialect;
+  const files = await scanMigrations(config);
+  if (files.length === 0) {
+    console.log(chalk.yellow('No migration files to lint.'));
+    return { ok: true, filesLinted: 0, errors: 0, warnings: 0 };
+  }
+
+  const activeRules: GenericLintRule[] = ALL_GENERIC_RULES.filter(
+    (r) => getSeverity(config, r.id) !== 'off',
+  );
+
+  if (activeRules.length === 0) {
+    console.log(chalk.yellow('All lint rules are disabled.'));
+    return { ok: true, filesLinted: files.length, errors: 0, warnings: 0 };
+  }
+
+  let totalErrors = 0;
+  let totalWarnings = 0;
+
+  for (const f of files) {
+    const sql = await readFile(f.filePath, 'utf-8');
+
+    const fileRules = activeRules.filter((r) => {
+      if (!r.applicablePhases) return true;
+      if (!f.phase) return false;
+      return r.applicablePhases.includes(f.phase);
+    });
+
+    const raw = await runGenericRules(sql, fileRules, dialect);
+    if (raw.length === 0) continue;
+
+    const violations: LintViolation[] = raw.map((v) => ({
+      ...v,
+      severity: getSeverity(config, v.rule) === 'warn' ? 'warn' : 'error',
+    }));
+
+    const fileErrors = violations.filter((v) => v.severity === 'error').length;
+    const fileWarnings = violations.filter((v) => v.severity === 'warn').length;
+    totalErrors += fileErrors;
+    totalWarnings += fileWarnings;
+
+    printViolations(f.fileName, violations);
+  }
+
+  printSummary(files.length, totalErrors, totalWarnings);
+
+  return {
+    ok: totalErrors === 0,
+    filesLinted: files.length,
+    errors: totalErrors,
+    warnings: totalWarnings,
+  };
+}
+
+function printSummary(filesCount: number, errors: number, warnings: number): void {
+  if (errors > 0 || warnings > 0) {
+    const parts: string[] = [];
+    if (errors > 0) parts.push(`${errors} error(s)`);
+    if (warnings > 0) parts.push(`${warnings} warning(s)`);
+    const summary = parts.join(', ');
+    if (errors > 0) {
+      console.error(chalk.red(`\nLint failed: ${summary}.`));
+    } else {
+      console.log(chalk.yellow(`\nLint: ${summary}.`));
+    }
+  } else {
+    console.log(chalk.green(`✓ ${filesCount} file(s) passed lint.`));
+  }
 }
 
 function printViolations(fileName: string, violations: LintViolation[]): void {

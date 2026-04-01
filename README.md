@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PostgreSQL schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts.
+PostgreSQL-first schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. **Optional feature-limited linting** for MySQL and SQLite uses a generic SQL parser ([node-sql-parser](https://github.com/taozhi8833998/node-sql-parser)); full rule coverage and all runtime DB features remain PostgreSQL-only.
 
 **Prevented accidents:**
 
@@ -50,7 +50,22 @@ npx migraguard dump
 - **One release = one file**: Migration files are squashed into a single file before release, simplifying error recovery. In DAG mode, independent DDL can be released individually
 - **Parallel releases via dependency tree**: DDL dependencies are analyzed to build a DAG, enabling parallel releases for independent changes
 - **Shift verification left**: Linting, checksum-based tamper detection, and schema dump diffs run at the PR stage
-- **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)). No external linter required — lint rules are built in via AST analysis
+- **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)) for the primary PostgreSQL path. No external linter required — lint rules are built in via AST analysis. MySQL/SQLite linting adds [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) as a parallel, feature-limited engine
+
+## Dialect support
+
+PostgreSQL remains the **primary, full-featured** target: `libpg-query` powers all built-in lint rules (38) and unchanged behavior when `dialect` is `postgresql` (default).
+
+Setting `dialect` to `mysql` or `sqlite` selects the **generic** engine (`src/generic/`), which uses **node-sql-parser** and enforces **17 generic lint rules** only. Parser coverage and PostgreSQL-specific semantics are not replicated; this mode is for teams that want migraguard’s file workflow and a subset of safety checks on non-PostgreSQL SQL, not parity with the PG toolchain.
+
+| Concern | `postgresql` (default) | `mysql` / `sqlite` |
+|---------|------------------------|---------------------|
+| Lint AST | libpg-query (38 rules) | node-sql-parser (17 rules) |
+| `deps` / DAG extraction | ✅ Same object/relationship extraction | ✅ Same categories (e.g. CREATE TABLE, CREATE INDEX, ALTER TABLE, CREATE VIEW, FK references) |
+| `apply`, `dump`, `diff`, `verify`, DB connection | ✅ | ❌ Not supported (PostgreSQL only) |
+| File-based commands (`check`, `new`, `squash`, `editable`, `status`, …) | ✅ | ✅ |
+
+Omitting `dialect` is equivalent to `"postgresql"` — existing projects require no config change.
 
 ## Core Concepts
 
@@ -204,6 +219,8 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `gate` | Evaluate deployment gate conditions |
 | `baseline` | Squash applied migrations into `schema.sql` |
 
+`lint` and `deps` honor `dialect` (PostgreSQL vs generic). Commands that open a DB connection (`apply`, `dump`, `diff`, `verify`, and related) remain **PostgreSQL-only**. See [Dialect support](#dialect-support).
+
 See [docs/commands.md](docs/commands.md) for detailed usage, options, and examples.
 
 ## CI Integration
@@ -267,6 +284,7 @@ jobs:
 
 ```json
 {
+  "dialect": "postgresql",
   "model": "dag",
   "migrationsDirs": ["db/migrations"],
   "schemaFile": "db/schema.sql",
@@ -304,6 +322,7 @@ jobs:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `dialect` | `"postgresql"` | SQL dialect for lint and dependency analysis: `"postgresql"` (libpg-query, full rules), `"mysql"` or `"sqlite"` (node-sql-parser, 17 generic rules). Omitted means `"postgresql"` |
 | `model` | _(unset = linear)_ | Set to `"dag"` to enable DAG mode. When set in config, takes precedence over `metadata.json` |
 
 ### Naming Configuration
@@ -368,48 +387,48 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 UPDATE users SET status = 'active' WHERE status IS NULL;
 ```
 
-`migraguard lint` enforces these patterns with built-in rules (no external tools required):
+`migraguard lint` enforces these patterns with built-in rules (no external tools required). **Scope** indicates which `dialect` values run the rule: **Generic** — enforced for `mysql` and `sqlite` (17 rules total on the node-sql-parser path); also part of the full PostgreSQL ruleset when `dialect` is `postgresql`. **PostgreSQL** — only when `dialect` is `postgresql` (libpg-query).
 
-| Rule | Detects |
-|------|---------|
-| `require-if-not-exists` | CREATE/DROP without IF NOT EXISTS / IF EXISTS |
-| `require-concurrent-index` | CREATE INDEX without CONCURRENTLY on existing tables |
-| `require-drop-index-concurrently` | DROP INDEX without CONCURRENTLY |
-| `require-lock-timeout` | DDL without prior SET lock_timeout |
-| `require-statement-timeout` | DDL without prior SET statement_timeout |
-| `require-reset-timeouts` | SET lock/statement_timeout without RESET at end |
-| `require-analyze-after-index` | CREATE INDEX without subsequent ANALYZE \<table\> |
-| `require-create-or-replace-view` | CREATE VIEW without OR REPLACE |
-| `require-unique-via-concurrent-index` | UNIQUE constraint added directly (not via USING INDEX) |
-| `ban-concurrent-index-in-transaction` | CONCURRENTLY inside BEGIN...COMMIT |
-| `ban-drop-cascade` | DROP ... CASCADE |
-| `ban-truncate` | TRUNCATE |
-| `ban-update-without-where` | UPDATE without WHERE |
-| `ban-delete-without-where` | DELETE without WHERE |
-| `ban-drop-column` | ALTER TABLE ... DROP COLUMN |
-| `ban-alter-column-type` | ALTER TABLE ... ALTER COLUMN TYPE |
-| `ban-validate-constraint-same-file` | VALIDATE CONSTRAINT in same file as NOT VALID |
-| `ban-bare-analyze` | ANALYZE without table name |
-| `adding-not-nullable-field` | NOT NULL column without DEFAULT |
-| `constraint-missing-not-valid` | ADD CONSTRAINT (FK/CHECK) without NOT VALID |
-| `ban-select-star-in-view` | SELECT * in VIEW / MATERIALIZED VIEW definitions |
-| `require-if-not-exists-materialized-view` | CREATE MATERIALIZED VIEW without IF NOT EXISTS |
-| `ban-refresh-materialized-view-in-migration` | REFRESH MATERIALIZED VIEW in migration files |
-| `ban-rename-column` | ALTER TABLE ... RENAME COLUMN |
-| `ban-rename-table` | ALTER TABLE ... RENAME TO |
-| `ban-drop-table` | DROP TABLE |
-| `require-pk-via-concurrent-index` | PRIMARY KEY added directly (not via USING INDEX) |
-| `ban-set-not-null` | ALTER COLUMN ... SET NOT NULL (use CHECK NOT VALID pattern) |
-| `ban-alter-enum-in-transaction` | ALTER TYPE ... ADD VALUE inside BEGIN...COMMIT |
-| `ban-vacuum-full` | VACUUM FULL (table rewrite + ACCESS EXCLUSIVE lock) |
-| `ban-cluster` | CLUSTER (table rewrite + ACCESS EXCLUSIVE lock) |
-| `ban-reindex` | REINDEX (heavy locks — run as operational job) |
-| `ban-alter-system` | ALTER SYSTEM (cluster-wide config change) |
-| `ban-set-session-replication-role` | SET session_replication_role (disables triggers/FK) |
-| `expand-requires-idempotent-pattern` | CREATE without IF NOT EXISTS in expand phase *(expand only)* |
-| `backfill-requires-where-clause` | UPDATE/DELETE without WHERE in backfill phase *(backfill only)* |
-| `backfill-ban-ddl` | DDL statements in backfill phase *(backfill only)* |
-| `contract-requires-allow-directive` | DROP without migraguard:allow in contract phase *(contract only)* |
+| Rule | Scope | Detects |
+|------|-------|---------|
+| `require-if-not-exists` | Generic | CREATE/DROP without IF NOT EXISTS / IF EXISTS |
+| `require-concurrent-index` | PostgreSQL | CREATE INDEX without CONCURRENTLY on existing tables |
+| `require-drop-index-concurrently` | PostgreSQL | DROP INDEX without CONCURRENTLY |
+| `require-lock-timeout` | PostgreSQL | DDL without prior SET lock_timeout |
+| `require-statement-timeout` | PostgreSQL | DDL without prior SET statement_timeout |
+| `require-reset-timeouts` | PostgreSQL | SET lock/statement_timeout without RESET at end |
+| `require-analyze-after-index` | PostgreSQL | CREATE INDEX without subsequent ANALYZE \<table\> |
+| `require-create-or-replace-view` | Generic | CREATE VIEW without OR REPLACE |
+| `require-unique-via-concurrent-index` | PostgreSQL | UNIQUE constraint added directly (not via USING INDEX) |
+| `ban-concurrent-index-in-transaction` | PostgreSQL | CONCURRENTLY inside BEGIN...COMMIT |
+| `ban-drop-cascade` | Generic | DROP … CASCADE (generic engine: regex; parser does not model CASCADE) |
+| `ban-truncate` | Generic | TRUNCATE |
+| `ban-update-without-where` | Generic | UPDATE without WHERE |
+| `ban-delete-without-where` | Generic | DELETE without WHERE |
+| `ban-drop-column` | Generic | ALTER TABLE … DROP COLUMN |
+| `ban-alter-column-type` | Generic | ALTER TABLE … ALTER COLUMN TYPE |
+| `ban-validate-constraint-same-file` | PostgreSQL | VALIDATE CONSTRAINT in same file as NOT VALID |
+| `ban-bare-analyze` | PostgreSQL | ANALYZE without table name |
+| `adding-not-nullable-field` | Generic | NOT NULL column without DEFAULT |
+| `constraint-missing-not-valid` | PostgreSQL | ADD CONSTRAINT (FK/CHECK) without NOT VALID |
+| `ban-select-star-in-view` | Generic | SELECT * in VIEW / MATERIALIZED VIEW definitions |
+| `require-if-not-exists-materialized-view` | PostgreSQL | CREATE MATERIALIZED VIEW without IF NOT EXISTS |
+| `ban-refresh-materialized-view-in-migration` | PostgreSQL | REFRESH MATERIALIZED VIEW in migration files |
+| `ban-rename-column` | Generic | ALTER TABLE … RENAME COLUMN |
+| `ban-rename-table` | Generic | ALTER TABLE … RENAME TO |
+| `ban-drop-table` | Generic | DROP TABLE |
+| `require-pk-via-concurrent-index` | PostgreSQL | PRIMARY KEY added directly (not via USING INDEX) |
+| `ban-set-not-null` | PostgreSQL | ALTER COLUMN … SET NOT NULL (use CHECK NOT VALID pattern) |
+| `ban-alter-enum-in-transaction` | PostgreSQL | ALTER TYPE … ADD VALUE inside BEGIN…COMMIT |
+| `ban-vacuum-full` | PostgreSQL | VACUUM FULL (table rewrite + ACCESS EXCLUSIVE lock) |
+| `ban-cluster` | PostgreSQL | CLUSTER (table rewrite + ACCESS EXCLUSIVE lock) |
+| `ban-reindex` | PostgreSQL | REINDEX (heavy locks — run as operational job) |
+| `ban-alter-system` | PostgreSQL | ALTER SYSTEM (cluster-wide config change) |
+| `ban-set-session-replication-role` | PostgreSQL | SET session_replication_role (disables triggers/FK) |
+| `expand-requires-idempotent-pattern` | Generic | CREATE without IF NOT EXISTS in expand phase *(expand only)* |
+| `backfill-requires-where-clause` | Generic | UPDATE/DELETE without WHERE in backfill phase *(backfill only)* |
+| `backfill-ban-ddl` | Generic | DDL statements in backfill phase *(backfill only)* |
+| `contract-requires-allow-directive` | Generic | DROP without migraguard:allow in contract phase *(contract only)* |
 
 Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Phase-specific rules (marked above) only activate for the corresponding expand/contract phase file. Per-file exceptions use a comment directive:
 
@@ -470,7 +489,7 @@ Start with the linear model. Switch to DAG when:
 
 ### How It Works
 
-Each migration SQL is parsed into an AST via `libpg_query` to extract object creation/reference relationships and build the DAG. Auto-extraction covers `CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`, `CREATE VIEW`, and most standard DDL. For cases beyond auto-extraction (dynamic SQL, `DO` blocks, business-logic ordering), explicit dependency declarations are available:
+Each migration SQL is parsed into an AST to extract object creation/reference relationships and build the DAG: **postgresql** uses `libpg-query`; **mysql** / **sqlite** use node-sql-parser. Auto-extraction covers `CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`, `CREATE VIEW`, and FK references (exact coverage differs by dialect). For cases beyond auto-extraction (dynamic SQL, `DO` blocks, business-logic ordering), explicit dependency declarations are available:
 
 ```sql
 -- migraguard:depends-on 20260228_120000__create_users_table.sql
@@ -493,7 +512,7 @@ migraguard embeds operational policies into the tool and prevents incidents via 
 | **Failure handling** | DB-recorded, explicit resolve | repair overwrites | manual fix | revert scripts | manual fix |
 | **Execution** | psql (plain SQL) | Java / JDBC | Go / DB driver | psql / sqitch | pg (Node.js) |
 
-**vs Flyway / Liquibase**: migraguard adds offline CI tamper detection, regression detection, idempotency proof, and apply mutual exclusion. Trade-off: no multi-DB support, GUI, or rich execution engine.
+**vs Flyway / Liquibase**: migraguard adds offline CI tamper detection, regression detection, idempotency proof, and apply mutual exclusion. Trade-off: execution and verification remain PostgreSQL-oriented; optional **feature-limited** lint/`deps` for MySQL/SQLite do not imply full multi-DB runtime support. No GUI or rich generic execution engine.
 
 **vs Atlas**: Atlas drives migration from a "desired state" declaration. migraguard focuses on preventing release-level operational incidents via explicit CI gates, plus parallel releases via DAG. Choose Atlas for declarative schema generation; choose migraguard for teams writing DDL directly with incident guardrails.
 
@@ -536,8 +555,9 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 | Language | TypeScript (Node.js) |
 | DB execution | `psql` CLI |
 | Schema dump | `pg_dump --schema-only` |
-| SQL lint | Built-in rules via [libpg-query](https://github.com/pganalyze/libpg-query) AST analysis |
-| SQL parser | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build) |
+| SQL lint (PostgreSQL) | Built-in rules via [libpg-query](https://github.com/pganalyze/libpg-query) AST analysis (38 rules) |
+| SQL parser (PostgreSQL) | [libpg-query](https://github.com/pganalyze/libpg-query) (PostgreSQL real parser WASM build) |
+| SQL lint / parser (MySQL, SQLite) | [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) — generic AST, 17 rules, parallel to PG engine |
 | Package manager | npm |
 
 ## Detailed Documentation
