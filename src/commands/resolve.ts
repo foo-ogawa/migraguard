@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 
 export async function commandResolve(config: MigraguardConfig, fileName: string): Promise<void> {
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();

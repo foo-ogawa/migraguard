@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import { deriveAllGroupStates, deriveGroupState } from '../group-state.js';
 import type { GroupState, GroupStateName } from '../group-state.js';
 
@@ -12,7 +12,7 @@ export async function commandGroupStatus(
   config: MigraguardConfig,
   groupName?: string,
 ): Promise<GroupStatusResult> {
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();

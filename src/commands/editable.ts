@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { loadMetadata, isDagMode, isPreModelSince } from '../metadata.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 import { buildDependencyGraph, findLeafNodes } from '../deps.js';
 
@@ -64,7 +64,7 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
 
   let dbConnected = false;
   try {
-    const db = new MigraguardDb(config);
+    const db = createDb(config);
     await db.connect();
     dbConnected = true;
 

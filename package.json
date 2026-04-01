@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -38,6 +38,8 @@
   },
   "keywords": [
     "postgresql",
+    "mysql",
+    "sqlite",
     "migration",
     "database",
     "schema",
@@ -50,6 +52,14 @@
     "expand-contract",
     "deployment-gate"
   ],
+  "peerDependencies": {
+    "mysql2": ">=3.0.0",
+    "better-sqlite3": ">=11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mysql2": { "optional": true },
+    "better-sqlite3": { "optional": true }
+  },
   "author": "",
   "license": "MIT",
   "dependencies": {

@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import type { Phase } from '../naming.js';
 import type { MigrationStatus } from '../db.js';
-import { MigraguardDb } from '../db.js';
+import { createDb } from '../db.js';
 import { deriveGroupState, canAdvanceToPhase } from '../group-state.js';
 
 export interface AdvanceOptions {
@@ -29,7 +29,7 @@ export async function commandAdvance(
   options: AdvanceOptions,
 ): Promise<AdvanceResult> {
   const { group, phase, status } = options;
-  const db = new MigraguardDb(config);
+  const db = createDb(config);
 
   try {
     await db.connect();
