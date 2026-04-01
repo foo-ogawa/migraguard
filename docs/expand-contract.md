@@ -136,7 +136,7 @@ Validates prerequisites before allowing the transition (e.g., `expand` must be `
 
 ### `migraguard apply-phase <group> <phase>`
 
-Execute a specific phase file via `psql` and record the result. Used when fine-grained control is needed.
+Execute a specific phase file via the native CLI and record the result. Used when fine-grained control is needed.
 
 ```bash
 migraguard apply-phase 20260315_100000__rename_username_to_handle expand
@@ -596,7 +596,7 @@ RESET statement_timeout;
 
 | Concern | Owner |
 |---------|-------|
-| Phase file execution (`psql`) | migraguard (`apply`, `apply-phase`) |
+| Phase file execution (native CLI) | migraguard (`apply`, `apply-phase`) |
 | Prerequisite validation | migraguard (state machine) |
 | State recording (`schema_migrations`) | migraguard (`advance`, `apply-phase`) |
 | Advisory lock exclusion | migraguard |

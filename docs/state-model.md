@@ -47,7 +47,7 @@ Example:
 1. Fetch all records from the DB's `schema_migrations` table
 2. Sort files in `migrationsDir` by timestamp
 3. For each file, reference **the latest record for that filename** (maximum `applied_at`):
-   - No record → new file → execute via `psql -v ON_ERROR_STOP=1 -f <file>`
+   - No record → new file → execute via the native CLI (e.g. `psql -v ON_ERROR_STOP=1 -f <file>`)
    - Latest record status=`applied` + checksum match → skip
    - Latest record status=`applied` + checksum mismatch:
      - Matches a past record's checksum → immediate error (regression detection)
@@ -214,7 +214,7 @@ apply execution flow:
   2. Acquire pg_advisory_lock(hashtext('migraguard-apply'))
      → Blocks (waits) if another process is concurrently running apply
   3. Reference schema_migrations to determine pending files
-  4. Execute each file via psql, record results in schema_migrations
+  4. Execute each file via the native CLI, record results in schema_migrations
   5. Close connection (advisory lock is automatically released)
 ```
 

@@ -30,7 +30,7 @@ migraguard squash
 
 ### `migraguard apply`
 
-Apply pending migrations to the target DB via `psql`. Checks `schema_migrations` table for applied/failed/skipped status.
+Apply pending migrations to the target DB via the native CLI (`psql` for PostgreSQL, `mysql` for MySQL, `sqlite3` for SQLite). Checks `schema_migrations` table for applied/failed/skipped status.
 
 ```bash
 migraguard apply
@@ -73,7 +73,7 @@ migraguard check
 
 ### `migraguard lint`
 
-Run built-in safety rules on all migration files. Rules use libpg-query AST analysis — no external tools required.
+Run built-in safety rules on all migration files. PostgreSQL uses libpg-query AST analysis (38 rules); MySQL/SQLite use node-sql-parser (17 generic rules). No external tools required.
 
 19 rules (all enabled by default). See README for the full table. Key categories:
 
@@ -116,7 +116,7 @@ migraguard verify --all    # full: empty shadow, verify all migrations from scra
 
 ### `migraguard dump`
 
-Dump the current DB schema via `pg_dump --schema-only`, normalize it, and save as `schema.sql`.
+Dump the current DB schema (`pg_dump --schema-only` for PostgreSQL, `mysqldump --no-data` for MySQL, `sqlite3 .schema` for SQLite), normalize it, and save as `schema.sql`.
 
 ```bash
 migraguard dump
@@ -169,7 +169,7 @@ migraguard advance 20260315_100000__rename_username_to_handle backfill failed
 
 ### `migraguard apply-phase <group> <phase>`
 
-Apply a specific phase of a Migration Group via `psql`. Validates prerequisites and acquires advisory lock.
+Apply a specific phase of a Migration Group via the native CLI. Validates prerequisites and acquires advisory lock.
 
 ```bash
 migraguard apply-phase 20260315_100000__rename_username_to_handle expand
