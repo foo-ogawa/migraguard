@@ -1,4 +1,5 @@
-import { Parser } from 'node-sql-parser';
+import nodeSqlParser from 'node-sql-parser';
+const { Parser } = nodeSqlParser;
 import type { Phase } from '../naming.js';
 
 export interface GenericRuleReport {

@@ -1,4 +1,5 @@
-import { Parser } from 'node-sql-parser';
+import nodeSqlParser from 'node-sql-parser';
+const { Parser } = nodeSqlParser;
 import type { ObjectRef } from '../deps.js';
 import type { GenericDialect } from './engine.js';
 
