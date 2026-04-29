@@ -605,6 +605,8 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 
 ## Detailed Documentation
 
+- [docs/cli-reference.md](docs/cli-reference.md) — Generated CLI reference (commands, options, exit codes, AI agent policies)
+- [cli-contract.yaml](cli-contract.yaml) — Machine-readable CLI contract ([CLI Contracts](https://www.npmjs.com/package/cli-contracts) format)
 - [docs/commands.md](docs/commands.md) — Full command reference with options and examples
 - [docs/state-model.md](docs/state-model.md) — Apply/check/resolve/squash flows, INSERT-only design, regression detection
 - [docs/dag-internals.md](docs/dag-internals.md) — Dependency analysis, explicit declarations, DAG migration compatibility
