@@ -312,6 +312,7 @@ RESET statement_timeout;
         migrationClass: 'expand_contract',
         phase: null,
         groupName: null,
+        tag: null,
         ...overrides,
       };
     }

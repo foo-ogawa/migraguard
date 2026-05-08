@@ -48,6 +48,7 @@ function getPastChecksums(records: MigrationRecord[], latestRecord: MigrationRec
 export interface ApplyOptions {
   withDriftCheck?: boolean;
   fromBaseline?: boolean;
+  tag?: string;
 }
 
 export async function commandApply(config: MigraguardConfig, options?: ApplyOptions): Promise<ApplyResult> {
@@ -88,7 +89,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     await db.acquireAdvisoryLock();
 
     if (options?.fromBaseline) {
-      await applyFromBaseline(config, db, metadata, result);
+      await applyFromBaseline(config, db, metadata, result, options?.tag);
     }
 
     const files = await scanMigrations(config);
@@ -174,8 +175,8 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
 
       const insertOpts: InsertRecordOptions | undefined =
         file.migrationClass === 'expand_contract'
-          ? { migrationClass: 'expand_contract', phase: file.phase, groupName: file.groupName }
-          : undefined;
+          ? { migrationClass: 'expand_contract', phase: file.phase, groupName: file.groupName, tag: options?.tag }
+          : options?.tag ? { tag: options.tag } : undefined;
 
       const applyResult = await processFile(
         config, db, file.filePath, file.fileName,
@@ -328,6 +329,7 @@ async function applyFromBaseline(
   db: MigraguardDbAdapter,
   metadata: MetadataJson,
   result: ApplyResult,
+  tag?: string,
 ): Promise<void> {
   const schemaPath = resolveFromConfig(config, config.schemaFile);
   if (!existsSync(schemaPath)) {
@@ -346,9 +348,10 @@ async function applyFromBaseline(
   console.log(chalk.green('  ✓ baseline schema applied'));
 
   if (metadata.baselines) {
+    const insertOpts = tag ? { tag } : undefined;
     for (const baseline of metadata.baselines) {
       for (const inc of baseline.includes) {
-        await db.insertRecord(inc.file, inc.checksum, 'applied');
+        await db.insertRecord(inc.file, inc.checksum, 'applied', insertOpts);
         result.applied.push(inc.file);
       }
     }

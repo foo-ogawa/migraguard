@@ -124,7 +124,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     checksum    VARCHAR(64)  NOT NULL,
     status      VARCHAR(16)  NOT NULL DEFAULT 'applied',  -- applied / failed / skipped
     applied_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMPTZ                               -- resolution timestamp for skipped
+    resolved_at TIMESTAMPTZ,                              -- resolution timestamp for skipped
+    tag         VARCHAR(256)                              -- caller-supplied tag (e.g. commit hash, release tag)
 );
 ```
 

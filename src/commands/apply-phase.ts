@@ -11,6 +11,7 @@ import { deriveGroupState, canAdvanceToPhase } from '../group-state.js';
 export interface ApplyPhaseOptions {
   group: string;
   phase: Phase;
+  tag?: string;
 }
 
 export interface ApplyPhaseResult {
@@ -60,6 +61,7 @@ export async function commandApplyPhase(
         migrationClass: 'expand_contract',
         phase,
         groupName: group,
+        tag: options.tag,
       });
       console.log(chalk.green(`Applied phase "${phase}" for "${group}"`));
       return { success: true, group, phase };
@@ -68,6 +70,7 @@ export async function commandApplyPhase(
         migrationClass: 'expand_contract',
         phase,
         groupName: group,
+        tag: options.tag,
       });
       const msg = `Failed to apply phase "${phase}" for "${group}": ${psqlResult.stderr}`;
       console.error(chalk.red(msg));
