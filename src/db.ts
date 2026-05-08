@@ -24,7 +24,8 @@ const ALTER_TABLE_SQL = `
 ALTER TABLE schema_migrations
   ADD COLUMN IF NOT EXISTS migration_class VARCHAR(16) DEFAULT 'safe',
   ADD COLUMN IF NOT EXISTS phase VARCHAR(16),
-  ADD COLUMN IF NOT EXISTS group_name VARCHAR(256);
+  ADD COLUMN IF NOT EXISTS group_name VARCHAR(256),
+  ADD COLUMN IF NOT EXISTS tag VARCHAR(256);
 `;
 
 export type MigrationStatus = 'applied' | 'failed' | 'skipped' | 'running';
@@ -38,12 +39,14 @@ export interface MigrationRecord {
   migrationClass: MigrationClass;
   phase: Phase | null;
   groupName: string | null;
+  tag: string | null;
 }
 
 export interface InsertRecordOptions {
   migrationClass?: MigrationClass;
   phase?: Phase;
   groupName?: string;
+  tag?: string;
 }
 
 export interface MigraguardDbAdapter {
@@ -102,7 +105,7 @@ export class MigraguardDb implements MigraguardDbAdapter {
   async getAllRecords(): Promise<MigrationRecord[]> {
     const result = await this.client.query(
       `SELECT file_name, checksum, status, applied_at, resolved_at,
-              migration_class, phase, group_name
+              migration_class, phase, group_name, tag
        FROM schema_migrations
        ORDER BY applied_at ASC`,
     );
@@ -112,7 +115,7 @@ export class MigraguardDb implements MigraguardDbAdapter {
   async getRecordsForFile(fileName: string): Promise<MigrationRecord[]> {
     const result = await this.client.query(
       `SELECT file_name, checksum, status, applied_at, resolved_at,
-              migration_class, phase, group_name
+              migration_class, phase, group_name, tag
        FROM schema_migrations
        WHERE file_name = $1
        ORDER BY applied_at ASC`,
@@ -130,18 +133,19 @@ export class MigraguardDb implements MigraguardDbAdapter {
     const migrationClass = options?.migrationClass ?? 'safe';
     const phase = options?.phase ?? null;
     const groupName = options?.groupName ?? null;
+    const tag = options?.tag ?? null;
 
     if (status === 'skipped') {
       await this.client.query(
-        `INSERT INTO schema_migrations (file_name, checksum, status, resolved_at, migration_class, phase, group_name)
-         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6)`,
-        [fileName, checksum, status, migrationClass, phase, groupName],
+        `INSERT INTO schema_migrations (file_name, checksum, status, resolved_at, migration_class, phase, group_name, tag)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, $7)`,
+        [fileName, checksum, status, migrationClass, phase, groupName, tag],
       );
     } else {
       await this.client.query(
-        `INSERT INTO schema_migrations (file_name, checksum, status, migration_class, phase, group_name)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [fileName, checksum, status, migrationClass, phase, groupName],
+        `INSERT INTO schema_migrations (file_name, checksum, status, migration_class, phase, group_name, tag)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [fileName, checksum, status, migrationClass, phase, groupName, tag],
       );
     }
   }
@@ -161,5 +165,6 @@ function mapRow(row: Record<string, unknown>): MigrationRecord {
     migrationClass: (row['migration_class'] as MigrationClass | undefined) ?? 'safe',
     phase: (row['phase'] as Phase | null) ?? null,
     groupName: (row['group_name'] as string | null) ?? null,
+    tag: (row['tag'] as string | null) ?? null,
   };
 }

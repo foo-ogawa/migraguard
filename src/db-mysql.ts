@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     resolved_at     TIMESTAMP(6) NULL,
     migration_class VARCHAR(16)  DEFAULT 'safe',
     phase           VARCHAR(16)  NULL,
-    group_name      VARCHAR(256) NULL
+    group_name      VARCHAR(256) NULL,
+    tag             VARCHAR(256) NULL
 ) ENGINE=InnoDB;
 `;
 
@@ -62,6 +63,13 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
 
   async ensureTable(): Promise<void> {
     await this.exec(CREATE_TABLE_SQL);
+    const rows = await this.queryRows(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'schema_migrations' AND COLUMN_NAME = 'tag'`,
+    );
+    if (rows.length === 0) {
+      await this.exec(`ALTER TABLE schema_migrations ADD COLUMN tag VARCHAR(256) NULL`);
+    }
   }
 
   async acquireAdvisoryLock(): Promise<void> {
@@ -75,7 +83,7 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
   async getAllRecords(): Promise<MigrationRecord[]> {
     const rows = await this.queryRows(
       `SELECT file_name, checksum, status, applied_at, resolved_at,
-              migration_class, phase, group_name
+              migration_class, phase, group_name, tag
        FROM schema_migrations
        ORDER BY applied_at ASC`,
     );
@@ -85,7 +93,7 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
   async getRecordsForFile(fileName: string): Promise<MigrationRecord[]> {
     const rows = await this.queryRows(
       `SELECT file_name, checksum, status, applied_at, resolved_at,
-              migration_class, phase, group_name
+              migration_class, phase, group_name, tag
        FROM schema_migrations
        WHERE file_name = ?
        ORDER BY applied_at ASC`,
@@ -103,18 +111,19 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
     const migrationClass = options?.migrationClass ?? 'safe';
     const phase = options?.phase ?? null;
     const groupName = options?.groupName ?? null;
+    const tag = options?.tag ?? null;
 
     if (status === 'skipped') {
       await this.exec(
-        `INSERT INTO schema_migrations (file_name, checksum, status, resolved_at, migration_class, phase, group_name)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP(6), ?, ?, ?)`,
-        [fileName, checksum, status, migrationClass, phase, groupName],
+        `INSERT INTO schema_migrations (file_name, checksum, status, resolved_at, migration_class, phase, group_name, tag)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP(6), ?, ?, ?, ?)`,
+        [fileName, checksum, status, migrationClass, phase, groupName, tag],
       );
     } else {
       await this.exec(
-        `INSERT INTO schema_migrations (file_name, checksum, status, migration_class, phase, group_name)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [fileName, checksum, status, migrationClass, phase, groupName],
+        `INSERT INTO schema_migrations (file_name, checksum, status, migration_class, phase, group_name, tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [fileName, checksum, status, migrationClass, phase, groupName, tag],
       );
     }
   }
@@ -148,5 +157,6 @@ function mapRow(row: Record<string, unknown>): MigrationRecord {
     migrationClass: (row['migration_class'] as MigrationClass | undefined) ?? 'safe',
     phase: (row['phase'] as Phase | null) ?? null,
     groupName: (row['group_name'] as string | null) ?? null,
+    tag: (row['tag'] as string | null) ?? null,
   };
 }

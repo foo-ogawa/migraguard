@@ -9,6 +9,7 @@ export interface AdvanceOptions {
   group: string;
   phase: Phase;
   status: 'running' | 'completed' | 'failed';
+  tag?: string;
 }
 
 export interface AdvanceResult {
@@ -53,6 +54,7 @@ export async function commandAdvance(
       migrationClass: 'expand_contract',
       phase,
       groupName: group,
+      tag: options.tag,
     });
 
     const updatedRecords = await db.getAllRecords();

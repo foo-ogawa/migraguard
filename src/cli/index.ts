@@ -52,11 +52,13 @@ program
   .description('Apply pending migrations via psql')
   .option('--with-drift-check', 'Check schema drift before apply and update dump after')
   .option('--from-baseline', 'Apply schema.sql first, then remaining migrations')
-  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean }) => run(async () => {
+  .option('--tag <text>', 'Tag to record with applied migrations (e.g. commit hash, release tag)')
+  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean; tag?: string }) => run(async () => {
     const config = await loadConfig();
     const result = await commandApply(config, {
       withDriftCheck: opts.withDriftCheck,
       fromBaseline: opts.fromBaseline,
+      tag: opts.tag,
     });
     if (result.errors.length > 0) process.exit(1);
   }));
@@ -159,7 +161,8 @@ program
 program
   .command('advance <group> <phase> <status>')
   .description('Record a phase state transition (for external executor)')
-  .action((group: string, phase: string, status: string) => run(async () => {
+  .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
+  .action((group: string, phase: string, status: string, opts: { tag?: string }) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
     const validStatuses = ['running', 'completed', 'failed'];
@@ -169,6 +172,7 @@ program
       group,
       phase: phase as Phase,
       status: status as 'running' | 'completed' | 'failed',
+      tag: opts.tag,
     });
     if (!result.success) process.exit(1);
   }));
@@ -176,13 +180,15 @@ program
 program
   .command('apply-phase <group> <phase>')
   .description('Apply a specific phase of a migration group via psql')
-  .action((group: string, phase: string) => run(async () => {
+  .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
+  .action((group: string, phase: string, opts: { tag?: string }) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
     if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
     const result = await commandApplyPhase(config, {
       group,
       phase: phase as Phase,
+      tag: opts.tag,
     });
     if (!result.success) process.exit(1);
   }));

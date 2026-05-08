@@ -19,6 +19,7 @@ function makeRecord(
     migrationClass: 'expand_contract',
     phase: null,
     groupName: null,
+    tag: null,
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@
 
 PostgreSQL-first schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. MySQL and SQLite supported as secondary dialects.
 
-**Version:** 0.8.3
+**Version:** 0.8.4
 
 ## Table of Contents
 
@@ -116,6 +116,7 @@ migraguard apply --from-baseline
 |---|---|---|---|---|
 | `--with-drift-check` |  | No | `false` | Check schema drift before apply and update dump after. |
 | `--from-baseline` |  | No | `false` | Apply schema.sql first, then remaining migrations. |
+| `--tag` |  | No |  | Tag to record with applied migrations (e.g. commit hash, release tag). |
 
 #### Exit Codes
 
@@ -603,6 +604,12 @@ migraguard advance rename_username_to_handle backfill running
 | `phase` | Yes | Phase to advance. |
 | `status` | Yes | New status for the phase. |
 
+#### Options
+
+| Option | Aliases | Required | Default | Description |
+|---|---|---|---|---|
+| `--tag` |  | No |  | Tag to record (e.g. commit hash, release tag). |
+
 #### Exit Codes
 
 **Exit 0:** Phase state transition recorded.
@@ -647,6 +654,12 @@ migraguard apply-phase rename_username_to_handle contract
 |---|---|---|
 | `group` | Yes | Migration group name. |
 | `phase` | Yes | Phase to apply. |
+
+#### Options
+
+| Option | Aliases | Required | Default | Description |
+|---|---|---|---|---|
+| `--tag` |  | No |  | Tag to record (e.g. commit hash, release tag). |
 
 #### Exit Codes
 

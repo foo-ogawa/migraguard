@@ -35,6 +35,7 @@ Apply pending migrations to the target DB via the native CLI (`psql` for Postgre
 ```bash
 migraguard apply
 migraguard apply --with-drift-check   # check schema drift before apply, update dump after
+migraguard apply --tag "$(git rev-parse HEAD)"   # record commit hash with applied migrations
 ```
 
 ### `migraguard resolve <file>`

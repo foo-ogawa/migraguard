@@ -228,7 +228,8 @@ For long-running schema changes, the `schema_migrations` table is extended with 
 ALTER TABLE schema_migrations
   ADD COLUMN IF NOT EXISTS migration_class VARCHAR(16) DEFAULT 'safe',
   ADD COLUMN IF NOT EXISTS phase VARCHAR(16),
-  ADD COLUMN IF NOT EXISTS group_name VARCHAR(256);
+  ADD COLUMN IF NOT EXISTS group_name VARCHAR(256),
+  ADD COLUMN IF NOT EXISTS tag VARCHAR(256);
 ```
 
 These columns enable tracking the state of multi-phase Migration Groups (expand/backfill/switch/contract) while preserving full backward compatibility with existing Class A (safe/short) migrations.
