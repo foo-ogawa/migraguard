@@ -1,0 +1,98 @@
+version: 1
+system:
+  id: migraguard
+  name: Migraguard Agent System
+  default_workflow_order:
+    - migration-audit
+    - expand-contract-proposal
+    - command-explanation
+
+agents: { $ref: "./agents/" }
+tasks: { $ref: "./tasks.yaml" }
+handoff_types: { $ref: "./handoff-types.yaml" }
+
+guardrails:
+  output-schema-conformance:
+    description: >-
+      Ensure all agent outputs conform to AgentAuditResult schema.
+      Validation is performed at runtime via Zod schema in handoff definition.
+    scope:
+      agents:
+        - migration-safety-auditor
+      tasks:
+        - audit-migration-safety
+        - propose-expand-contract
+        - explain-command-result
+    rationale: >-
+      Structured output conformance is critical for CLI parsing and
+      downstream tooling integration.
+
+  no-sql-execution:
+    description: >-
+      Agent must never execute SQL or modify database state.
+      Agent operates in read-only mode for analysis only.
+    scope:
+      agents:
+        - migration-safety-auditor
+    rationale: >-
+      migration-safety-auditor is a static analysis agent.
+      It must never connect to databases or execute queries.
+
+  confidence-threshold:
+    description: >-
+      Findings with confidence below 0.5 must include an explicit
+      uncertainty disclaimer in their recommendation.
+    scope:
+      tasks:
+        - audit-migration-safety
+        - propose-expand-contract
+    rationale: >-
+      Low-confidence findings without disclaimers may mislead operators
+      into skipping necessary safety measures.
+
+guardrail_policies:
+  migration-safety-policy:
+    description: >-
+      Policy governing migration safety audit operations.
+      Groups all guardrails applicable to the migration-safety-auditor agent.
+    rules:
+      - guardrail: output-schema-conformance
+        severity: critical
+        action: block
+      - guardrail: no-sql-execution
+        severity: critical
+        action: block
+      - guardrail: confidence-threshold
+        severity: warning
+        action: warn
+
+workflow:
+  migration-audit:
+    description: Audit SQL migration files for operational safety risks
+    trigger: cli-command
+    entry_conditions:
+      - At least one migration file is provided or pending migrations exist
+    steps:
+      - type: delegate
+        task: audit-migration-safety
+        from_agent: migration-safety-auditor
+
+  expand-contract-proposal:
+    description: Propose phased expand/contract migration group from unsafe DDL
+    trigger: cli-command
+    entry_conditions:
+      - A migration file containing potentially unsafe DDL is provided
+    steps:
+      - type: delegate
+        task: propose-expand-contract
+        from_agent: migration-safety-auditor
+
+  command-explanation:
+    description: Explain migraguard command output in human-readable form
+    trigger: cli-command
+    entry_conditions:
+      - JSON output from a migraguard command is available on stdin
+    steps:
+      - type: delegate
+        task: explain-command-result
+        from_agent: migration-safety-auditor

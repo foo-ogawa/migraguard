@@ -1,0 +1,4 @@
+dsl: ./dsl/migraguard-dsl.yaml
+
+audit:
+  adapter: cursor

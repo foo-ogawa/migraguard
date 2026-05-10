@@ -30,6 +30,26 @@ commandSets:
         schema:
           type: boolean
 
+      - name: no-color
+        description: Disable ANSI color output. Also respects NO_COLOR env var.
+        schema:
+          type: boolean
+          default: false
+
+      - name: quiet
+        aliases: [q]
+        description: Suppress informational output. Does not suppress structured stdout or error messages.
+        schema:
+          type: boolean
+          default: false
+
+      - name: config
+        aliases: [c]
+        description: Path to migraguard configuration file.
+        valueName: path
+        schema:
+          type: string
+
     commands:
       # ── new ──────────────────────────────────────────
       new:
@@ -67,7 +87,7 @@ commandSets:
                 required: false
                 mediaType: application/sql
                 encoding: utf-8
-                description: Single migration file (Class A).
+                description: Single migration file (Class A). Created when --expand-contract is not set.
               - path: db/migrations/{timestamp}__{name}/1_expand.sql
                 required: false
                 mediaType: application/sql
@@ -98,6 +118,7 @@ commandSets:
           - migraguard apply
           - migraguard apply --with-drift-check
           - migraguard apply --from-baseline
+          - migraguard apply --dry-run
 
         options:
           - name: with-drift-check
@@ -117,9 +138,16 @@ commandSets:
             schema:
               type: string
 
+          - name: dry-run
+            aliases: [n]
+            description: List pending migrations and SQL that would be executed without applying.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
-            description: All pending migrations applied successfully.
+            description: All pending migrations applied successfully (or dry-run preview completed).
             stdout:
               format: text
 
@@ -134,8 +162,13 @@ commandSets:
           riskLevel: high
           requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            Migrations are not automatically reversible. Manual rollback
+            requires writing a compensating migration or restoring from backup.
           sideEffects:
             - database_write
+          safeDryRunOption: dry-run
           recommendedBeforeUse:
             - Run migraguard check to verify metadata integrity.
             - Run migraguard lint to check for unsafe DDL patterns.
@@ -175,7 +208,7 @@ commandSets:
         description: >-
           Merges pending (unapplied) migration files into a single file
           for release. Ensures one release = one file, simplifying error
-          recovery and hotfix workflows.
+          recovery and hotfix workflows. Original migration files are deleted.
         usage:
           - migraguard squash
 
@@ -198,13 +231,18 @@ commandSets:
 
         x-agent:
           riskLevel: medium
-          requiresConfirmation: false
+          requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            Deleted files can be recovered from version control (git checkout).
+            Re-run migraguard new to recreate individual files if needed.
           sideEffects:
             - file_write
             - file_delete
           recommendedBeforeUse:
             - Ensure all pending files are ready for release.
+            - Confirm no uncommitted changes to migration files.
 
       # ── lint ─────────────────────────────────────────
       lint:
@@ -217,15 +255,33 @@ commandSets:
           missing lock timeouts, and prohibited operations.
         usage:
           - migraguard lint
+          - migraguard lint --format json
+          - migraguard lint --format json | migraguard explain
+
+        options:
+          - name: format
+            description: Output format for lint results.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
 
         exits:
           '0':
             description: All lint rules passed.
             stdout:
+              format: '{options.format}'
+
+          '10':
+            description: Lint violations found.
+            stdout:
+              format: '{options.format}'
+            stderr:
               format: text
 
           '1':
-            description: Lint violations found.
+            description: Unexpected error (e.g. file parse failure).
             stderr:
               format: text
 
@@ -267,6 +323,7 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects:
+            - database_read
             - file_write
 
       # ── diff ─────────────────────────────────────────
@@ -274,27 +331,44 @@ commandSets:
         summary: Show diff between current DB schema and saved schema.sql.
         description: >-
           Dumps the current database schema, normalizes it, and compares
-          it against the saved schema.sql file. Exits with code 1 if
+          it against the saved schema.sql file. Exits with code 10 if
           differences are found, enabling CI gating for schema drift.
         usage:
           - migraguard diff
+          - migraguard diff --format json
+          - migraguard diff --format json | migraguard explain
+
+        options:
+          - name: format
+            description: Output format for diff results.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
 
         exits:
           '0':
             description: No differences found. DB schema matches schema.sql.
             stdout:
-              format: text
+              format: '{options.format}'
 
-          '1':
+          '10':
             description: Differences found between DB schema and schema.sql.
             stdout:
+              format: '{options.format}'
+
+          '1':
+            description: Unexpected error (connection error, schema.sql not found).
+            stderr:
               format: text
 
         x-agent:
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
-          sideEffects: []
+          sideEffects:
+            - database_read
 
       # ── status ───────────────────────────────────────
       status:
@@ -304,12 +378,22 @@ commandSets:
           migration files on disk to display the status of each migration.
         usage:
           - migraguard status
+          - migraguard status --format json
+
+        options:
+          - name: format
+            description: Output format for status results.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
 
         exits:
           '0':
             description: Status displayed successfully.
             stdout:
-              format: text
+              format: '{options.format}'
 
           '1':
             description: Failed to retrieve status (connection error).
@@ -320,7 +404,8 @@ commandSets:
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
-          sideEffects: []
+          sideEffects:
+            - database_read
 
       # ── resolve ──────────────────────────────────────
       resolve:
@@ -356,6 +441,10 @@ commandSets:
           riskLevel: high
           requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            A resolved (skipped) migration cannot be un-resolved.
+            Re-apply the migration manually if needed.
           sideEffects:
             - database_write
           recommendedBeforeUse:
@@ -399,6 +488,7 @@ commandSets:
         usage:
           - migraguard verify
           - migraguard verify --all
+          - migraguard verify --format json
 
         options:
           - name: all
@@ -407,11 +497,19 @@ commandSets:
               type: boolean
               default: false
 
+          - name: format
+            description: Output format for verification results.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
+
         exits:
           '0':
             description: All migrations verified as idempotent.
             stdout:
-              format: text
+              format: '{options.format}'
 
           '1':
             description: One or more migrations failed idempotency verification.
@@ -419,10 +517,11 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
+          riskLevel: medium
           requiresConfirmation: false
           idempotent: true
           sideEffects:
+            - database_read
             - database_write
           recommendedBeforeUse:
             - Ensure the database server is running and accessible.
@@ -498,6 +597,10 @@ commandSets:
           riskLevel: high
           requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            Deleted migration files can only be recovered from version control.
+            The baseline operation cannot be undone programmatically.
           sideEffects:
             - file_write
             - file_delete
@@ -564,8 +667,14 @@ commandSets:
           riskLevel: medium
           requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            State transitions cannot be undone. Use advance with the previous
+            status value to manually correct, or reset group state in the database.
           sideEffects:
             - database_write
+          recommendedBeforeUse:
+            - Run migraguard group-status <group> to verify current phase state before advancing.
 
       # ── apply-phase ──────────────────────────────────
       apply-phase:
@@ -618,6 +727,10 @@ commandSets:
           riskLevel: high
           requiresConfirmation: true
           idempotent: false
+          reversible: false
+          rollbackGuidance: >-
+            Phase execution is not automatically reversible. Write a compensating
+            migration or restore from backup if rollback is needed.
           sideEffects:
             - database_write
           recommendedBeforeUse:
@@ -629,8 +742,10 @@ commandSets:
         description: >-
           Checks whether the current migration group states satisfy
           the specified deployment gate conditions. Used in CI/CD pipelines
-          to gate deployments on schema state. Conditions can be specified
-          via CLI options or a JSON contract file.
+          to gate deployments on schema state. Conditions use the syntax
+          "group:<name>.<condition>" where condition is one of:
+          expand_applied, backfill_applied, switch_applied, contract_applied,
+          expand_pending, backfill_pending, switch_pending, contract_pending.
         usage:
           - 'migraguard gate --require "group:rename_username_to_handle.expand_applied"'
           - 'migraguard gate --forbid "group:rename_username_to_handle.contract_pending"'
@@ -638,18 +753,24 @@ commandSets:
 
         options:
           - name: require
-            description: Required schema state conditions.
+            description: >-
+              Required schema state conditions.
+              Syntax: group:<name>.<condition>
             valueName: condition
             repeatable: true
             schema:
               type: string
+              pattern: '^group:[a-z_]+\.(expand|backfill|switch|contract)_(applied|pending)$'
 
           - name: forbid
-            description: Forbidden schema state conditions.
+            description: >-
+              Forbidden schema state conditions.
+              Syntax: group:<name>.<condition>
             valueName: condition
             repeatable: true
             schema:
               type: string
+              pattern: '^group:[a-z_]+\.(expand|backfill|switch|contract)_(applied|pending)$'
 
           - name: contract-file
             description: JSON file with schema requirements.
@@ -693,7 +814,10 @@ commandSets:
 
         options:
           - name: html
-            description: Output as HTML file with interactive visualization.
+            description: >-
+              Output as HTML file with interactive visualization.
+              File is created or overwritten at the specified path.
+              Parent directory must exist.
             valueName: path
             schema:
               type: string
@@ -721,3 +845,500 @@ commandSets:
           idempotent: true
           sideEffects:
             - file_write
+
+      # ── audit ─────────────────────────────────────────
+      audit:
+        summary: Run LLM-based migration safety audit.
+        description: >-
+          Performs semantic analysis of migration SQL using LLM to identify
+          operational risks that AST-based lint cannot detect. Checks lock risks,
+          expand/contract necessity, backfill safety, deployment ordering,
+          and allow-directive validity. Requires agent-contracts-runtime as
+          an optional peer dependency.
+        usage:
+          - migraguard audit db/migrations/20260510_120000__add_user_status.sql
+          - migraguard audit db/migrations/
+          - migraguard audit --adapter gemini --dry-run
+
+        arguments:
+          - name: target
+            index: 0
+            required: false
+            description: >-
+              Migration file or directory to audit.
+              Defaults to pending migrations.
+            schema:
+              type: string
+
+        options:
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use for LLM execution.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            valueName: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: report-format
+            description: Output format for the audit report.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
+
+        exits:
+          '0':
+            description: Audit completed, no blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Configuration or input error.
+            stderr:
+              format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+          safeDryRunOption: dry-run
+
+      # ── propose-expand-contract ───────────────────────
+      propose-expand-contract:
+        path: [propose-expand-contract]
+        summary: Propose expand/contract migration group from unsafe DDL.
+        description: >-
+          Analyzes a migration file containing potentially unsafe DDL
+          (renames, type changes, drops) and proposes a phased
+          expand/contract migration group with SQL for each phase.
+          Requires agent-contracts-runtime.
+        usage:
+          - migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
+          - migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
+
+        arguments:
+          - name: file
+            index: 0
+            required: true
+            description: Migration file to decompose into expand/contract phases.
+            schema:
+              type: string
+            file:
+              mode: read
+              exists: true
+              mediaType: application/sql
+              encoding: utf-8
+
+        options:
+          - name: output-dir
+            description: Directory to write proposed phase files.
+            valueName: dir
+            schema:
+              type: string
+
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Proposal generated successfully.
+            stdout:
+              format: json
+              schema:
+                $ref: '#/components/schemas/ExpandContractProposal'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Configuration or input error (file not found, invalid SQL).
+            stderr:
+              format: text
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+            - file_write
+          safeDryRunOption: dry-run
+
+      # ── explain ───────────────────────────────────────
+      explain:
+        summary: Explain command output in human-readable form using LLM.
+        description: >-
+          Reads JSON output from another migraguard command via stdin
+          and generates a human-readable explanation suitable for PR
+          comments, release decisions, or incident communication.
+          Requires agent-contracts-runtime.
+        usage:
+          - migraguard lint --format json | migraguard explain
+          - migraguard diff --format json | migraguard explain
+          - migraguard verify --format json | migraguard explain
+
+        stdin:
+          format: json
+          description: >-
+            JSON output from a migraguard command (lint, diff, status, verify).
+            Must be valid JSON. Empty stdin or TTY input results in exit code 2.
+          encoding: utf-8
+
+        options:
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Explanation generated.
+            stdout:
+              format: json
+              schema:
+                $ref: '#/components/schemas/ExplainResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Invalid input or no stdin data (empty pipe, malformed JSON, TTY).
+            stderr:
+              format: text
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+          safeDryRunOption: dry-run
+
+components:
+  schemas:
+    # ── AI Agent Interoperability Schemas (SSoT) ─────────
+
+    AgentEvidence:
+      type: object
+      description: Evidence supporting an agent finding.
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [file, command, schema, diff, stdout, stderr, text]
+        target:
+          type: string
+          description: Target identifier (file path, command ID, schema name).
+        location:
+          type: string
+          description: Location within the target (line number, JSON pointer).
+        excerpt:
+          type: string
+          description: Relevant excerpt from the target.
+
+    AgentFinding:
+      type: object
+      description: A single finding from a migration audit.
+      required: [severity, category, message]
+      properties:
+        id:
+          type: string
+          description: Unique finding identifier.
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        category:
+          type: string
+          description: >-
+            Finding category. Migration-specific categories:
+            lock_risk, idempotency, expand_contract, backfill_safety,
+            rollback_risk, deploy_order, allow_directive.
+        target:
+          type: string
+          description: Target of the finding (file path, SQL statement).
+        location:
+          type: string
+          description: Location within the target.
+        message:
+          type: string
+        recommendation:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score (0-1) for LLM-generated findings.
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentEvidence'
+        details:
+          type: object
+          additionalProperties: true
+
+    AgentRecommendedAction:
+      type: object
+      description: A recommended action from a migration audit.
+      required: [kind, title]
+      properties:
+        kind:
+          type: string
+          enum: [run_command, edit_file, review, confirm, block, ignore]
+        title:
+          type: string
+        command:
+          type: string
+          description: CLI command to run (for run_command kind).
+        target:
+          type: string
+          description: Target file or resource.
+        rationale:
+          type: string
+
+    MigrationAuditResult:
+      type: object
+      description: >-
+        Top-level result from a migration safety audit.
+        Conforms to cli-contracts AgentAuditResult reference schema.
+      required: [summary, riskLevel, findings]
+      properties:
+        summary:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high, critical]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentFinding'
+        recommendedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRecommendedAction'
+        metadata:
+          type: object
+          properties:
+            tool:
+              type: string
+            command:
+              type: string
+            version:
+              type: string
+            generatedAt:
+              type: string
+            adapter:
+              type: string
+            model:
+              type: string
+
+    ExpandContractProposal:
+      type: object
+      description: >-
+        Result from propose-expand-contract command. Contains the proposed
+        phased migration group with SQL for each phase.
+      required: [summary, riskLevel, findings, phases]
+      properties:
+        summary:
+          type: string
+          description: Overview of the proposed decomposition.
+        riskLevel:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Risk level of the original unsafe DDL.
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentFinding'
+          description: Issues found in the original migration.
+        phases:
+          type: array
+          items:
+            type: object
+            required: [name, sql, description]
+            properties:
+              name:
+                type: string
+                enum: [expand, backfill, switch, contract]
+              sql:
+                type: string
+                description: SQL content for this phase.
+              description:
+                type: string
+                description: Human-readable description of what this phase does.
+              deploymentGate:
+                type: string
+                description: Gate condition to verify before proceeding to next phase.
+          description: Ordered list of migration phases.
+        recommendedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRecommendedAction'
+        metadata:
+          type: object
+          properties:
+            tool:
+              type: string
+            command:
+              type: string
+            version:
+              type: string
+            generatedAt:
+              type: string
+            adapter:
+              type: string
+            model:
+              type: string
+
+    ExplainResult:
+      type: object
+      description: >-
+        Result from explain command. Contains a human-readable explanation
+        of another command's output, suitable for PR comments or release decisions.
+      required: [summary, riskLevel, explanation]
+      properties:
+        summary:
+          type: string
+          description: One-line summary for quick scanning.
+        riskLevel:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Assessed urgency of the underlying issue.
+        explanation:
+          type: string
+          description: >-
+            Multi-paragraph human-readable explanation in Markdown format.
+            Written for non-DBA audiences.
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentFinding'
+          description: Key points extracted from the command output.
+        recommendedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRecommendedAction'
+          description: Concrete next steps for the reader.
+        sourceCommand:
+          type: string
+          description: The command that produced the input (e.g. "migraguard lint").
+        metadata:
+          type: object
+          properties:
+            tool:
+              type: string
+            command:
+              type: string
+            version:
+              type: string
+            generatedAt:
+              type: string
+            adapter:
+              type: string
+            model:
+              type: string

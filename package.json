@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,6 +37,7 @@
     "typecheck": "tsc --noEmit",
     "contract:validate": "npx cli-contracts validate",
     "contract:generate": "npx cli-contracts generate",
+    "dsl:generate": "npx agent-runtime generate --config dsl/agent-runtime.config.yaml",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -56,14 +57,18 @@
     "deployment-gate"
   ],
   "peerDependencies": {
-    "mysql2": ">=3.0.0",
-    "better-sqlite3": ">=11.0.0"
+    "agent-contracts-runtime": ">=0.12.0",
+    "better-sqlite3": ">=11.0.0",
+    "mysql2": ">=3.0.0"
   },
   "peerDependenciesMeta": {
     "mysql2": {
       "optional": true
     },
     "better-sqlite3": {
+      "optional": true
+    },
+    "agent-contracts-runtime": {
       "optional": true
     }
   },
@@ -76,16 +81,21 @@
     "glob": "^10.3.10",
     "libpg-query": "^17.7.3",
     "node-sql-parser": "^5.4.0",
-    "pg": "^8.19.0"
+    "pg": "^8.19.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cursor/sdk": "^1.0.12",
     "@eslint/js": "^9.39.2",
-    "cli-contracts": "^0.2.0",
+    "@openai/agents": "^0.11.1",
     "@types/diff": "^7.0.2",
     "@types/node": "^20.11.0",
     "@types/pg": "^8.18.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
+    "agent-contracts": "^0.17.1",
+    "agent-contracts-runtime": "^0.12.1",
+    "cli-contracts": "^0.2.0",
     "eslint": "^9.39.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",

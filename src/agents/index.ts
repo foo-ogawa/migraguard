@@ -1,0 +1,3 @@
+export { runAgentTask, EXIT_RUNTIME_MISSING, EXIT_ADAPTER_ERROR } from "./orchestrator.js";
+export { computeExitCode, formatResultText, formatResultJson } from "./formatter.js";
+export type { TaskId, AuditConfig, AuditOptions, AuditRunResult } from "./types.js";
