@@ -19,6 +19,9 @@ import { commandAdvance } from '../commands/advance.js';
 import { commandApplyPhase } from '../commands/apply-phase.js';
 import { commandGate } from '../commands/gate.js';
 import { commandBaseline } from '../commands/baseline.js';
+import { commandAudit } from '../commands/audit.js';
+import { commandProposeExpandContract } from '../commands/propose-expand-contract.js';
+import { commandExplain } from '../commands/explain.js';
 import type { Phase } from '../naming.js';
 
 async function run(fn: () => Promise<void>): Promise<void> {
@@ -217,6 +220,53 @@ program
     const config = await loadConfig();
     const result = await commandDeps(config, { html: opts.html });
     if (!result.ok) process.exit(1);
+  }));
+
+program
+  .command('audit [target]')
+  .description('Run LLM-based migration safety audit')
+  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
+  .option('--model <name>', 'LLM model override')
+  .option('-n, --dry-run', 'Output prompt without calling LLM')
+  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
+  .option('--report-format <fmt>', 'Output format (text, json)', 'text')
+  .action((target: string | undefined, opts: {
+    adapter?: string; model?: string; dryRun?: boolean;
+    failOn?: string; reportFormat?: string;
+  }) => run(async () => {
+    const config = await loadConfig();
+    await commandAudit(config, target, {
+      adapter: opts.adapter,
+      model: opts.model,
+      dryRun: opts.dryRun,
+      failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      reportFormat: opts.reportFormat as 'text' | 'json' | undefined,
+    });
+  }));
+
+program
+  .command('propose-expand-contract <file>')
+  .description('Propose expand/contract migration group from unsafe DDL')
+  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
+  .option('--model <name>', 'LLM model override')
+  .option('-n, --dry-run', 'Output prompt without calling LLM')
+  .option('--output-dir <dir>', 'Directory to write proposed phase files')
+  .action((file: string, opts: {
+    adapter?: string; model?: string; dryRun?: boolean; outputDir?: string;
+  }) => run(async () => {
+    const config = await loadConfig();
+    await commandProposeExpandContract(config, file, opts);
+  }));
+
+program
+  .command('explain')
+  .description('Explain command output in human-readable form using LLM')
+  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
+  .option('--model <name>', 'LLM model override')
+  .option('-n, --dry-run', 'Output prompt without calling LLM')
+  .action((opts: { adapter?: string; model?: string; dryRun?: boolean }) => run(async () => {
+    const config = await loadConfig();
+    await commandExplain(config, opts);
   }));
 
 program.parse();

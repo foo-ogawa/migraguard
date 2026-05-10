@@ -1,0 +1,8 @@
+version: 1
+system:
+  id: migraguard
+  name: Migraguard Agent System
+
+agents: { $ref: "./agents/" }
+tasks: { $ref: "./tasks.yaml" }
+handoff_types: { $ref: "./handoff-types.yaml" }

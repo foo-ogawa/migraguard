@@ -721,3 +721,387 @@ commandSets:
           idempotent: true
           sideEffects:
             - file_write
+
+      # ── audit ─────────────────────────────────────────
+      audit:
+        summary: Run LLM-based migration safety audit.
+        description: >-
+          Performs semantic analysis of migration SQL using LLM to identify
+          operational risks that AST-based lint cannot detect. Checks lock risks,
+          expand/contract necessity, backfill safety, deployment ordering,
+          and allow-directive validity. Requires agent-contracts-runtime as
+          an optional peer dependency.
+        usage:
+          - migraguard audit db/migrations/20260510_120000__add_user_status.sql
+          - migraguard audit db/migrations/
+          - migraguard audit --adapter gemini --dry-run
+
+        arguments:
+          - name: target
+            index: 0
+            required: false
+            description: >-
+              Migration file or directory to audit.
+              Defaults to pending migrations.
+            schema:
+              type: string
+
+        options:
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use for LLM execution.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            valueName: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: report-format
+            description: Output format for the audit report.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [text, json]
+              default: text
+
+        exits:
+          '0':
+            description: Audit completed, no blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Configuration or input error.
+            stderr:
+              format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+          safeDryRunOption: dry-run
+
+      # ── propose-expand-contract ───────────────────────
+      propose-expand-contract:
+        path: [propose-expand-contract]
+        summary: Propose expand/contract migration group from unsafe DDL.
+        description: >-
+          Analyzes a migration file containing potentially unsafe DDL
+          (renames, type changes, drops) and proposes a phased
+          expand/contract migration group with SQL for each phase.
+          Requires agent-contracts-runtime.
+        usage:
+          - migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
+          - migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
+
+        arguments:
+          - name: file
+            index: 0
+            required: true
+            description: Migration file to decompose into expand/contract phases.
+            schema:
+              type: string
+            file:
+              mode: read
+              exists: true
+              mediaType: application/sql
+              encoding: utf-8
+
+        options:
+          - name: output-dir
+            description: Directory to write proposed phase files.
+            valueName: dir
+            schema:
+              type: string
+
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Proposal generated successfully.
+            stdout:
+              format: json
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Configuration or input error.
+            stderr:
+              format: text
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+            - file_write
+          safeDryRunOption: dry-run
+
+      # ── explain ───────────────────────────────────────
+      explain:
+        summary: Explain command output in human-readable form using LLM.
+        description: >-
+          Reads JSON output from another migraguard command via stdin
+          and generates a human-readable explanation suitable for PR
+          comments, release decisions, or incident communication.
+          Requires agent-contracts-runtime.
+        usage:
+          - migraguard lint --json | migraguard explain
+          - migraguard diff --json | migraguard explain
+          - migraguard verify --json | migraguard explain
+
+        options:
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use.
+            valueName: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            valueName: name
+            schema:
+              type: string
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the prompt without calling LLM.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Explanation generated.
+            stdout:
+              format: json
+              schema:
+                $ref: '#/components/schemas/MigrationAuditResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '2':
+            description: Invalid input or no stdin data.
+            stderr:
+              format: text
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects:
+            - network
+          safeDryRunOption: dry-run
+
+components:
+  schemas:
+    # ── AI Agent Interoperability Schemas (SSoT) ─────────
+
+    AgentEvidence:
+      type: object
+      description: Evidence supporting an agent finding.
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [file, command, schema, diff, stdout, stderr, text]
+        target:
+          type: string
+          description: Target identifier (file path, command ID, schema name).
+        location:
+          type: string
+          description: Location within the target (line number, JSON pointer).
+        excerpt:
+          type: string
+          description: Relevant excerpt from the target.
+
+    AgentFinding:
+      type: object
+      description: A single finding from a migration audit.
+      required: [severity, category, message]
+      properties:
+        id:
+          type: string
+          description: Unique finding identifier.
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        category:
+          type: string
+          description: >-
+            Finding category. Migration-specific categories:
+            lock_risk, idempotency, expand_contract, backfill_safety,
+            rollback_risk, deploy_order, allow_directive.
+        target:
+          type: string
+          description: Target of the finding (file path, SQL statement).
+        location:
+          type: string
+          description: Location within the target.
+        message:
+          type: string
+        recommendation:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score (0-1) for LLM-generated findings.
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentEvidence'
+        details:
+          type: object
+          additionalProperties: true
+
+    AgentRecommendedAction:
+      type: object
+      description: A recommended action from a migration audit.
+      required: [kind, title]
+      properties:
+        kind:
+          type: string
+          enum: [run_command, edit_file, review, confirm, block, ignore]
+        title:
+          type: string
+        command:
+          type: string
+          description: CLI command to run (for run_command kind).
+        target:
+          type: string
+          description: Target file or resource.
+        rationale:
+          type: string
+
+    MigrationAuditResult:
+      type: object
+      description: >-
+        Top-level result from a migration audit.
+        Conforms to cli-contracts AgentAuditResult reference schema.
+      required: [summary, riskLevel, findings]
+      properties:
+        summary:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high, critical]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentFinding'
+        recommendedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRecommendedAction'
+        metadata:
+          type: object
+          properties:
+            tool:
+              type: string
+            command:
+              type: string
+            version:
+              type: string
+            generatedAt:
+              type: string
+            adapter:
+              type: string
+            model:
+              type: string

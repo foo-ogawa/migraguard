@@ -1,0 +1,2 @@
+dsl: ./migraguard-dsl.yaml
+generated_dir: ../src/generated/dsl

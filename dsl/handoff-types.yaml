@@ -1,0 +1,111 @@
+migration-audit-request:
+  version: 1
+  description: Request to execute a migration audit task
+  schema:
+    type: object
+    properties:
+      task_id:
+        type: string
+        description: Identifier of the audit task to execute
+      context:
+        type: string
+        description: Built context string from migration files
+    required:
+      - task_id
+
+migration-audit-result:
+  version: 1
+  description: >-
+    Result of a migration audit task.
+    Schema mirrors cli-contract.yaml#/components/schemas/MigrationAuditResult.
+  schema:
+    type: object
+    properties:
+      summary:
+        type: string
+      riskLevel:
+        type: string
+        enum:
+          - low
+          - medium
+          - high
+          - critical
+      findings:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            severity:
+              type: string
+              enum: [info, warning, error, critical]
+            category:
+              type: string
+            target:
+              type: string
+            location:
+              type: string
+            message:
+              type: string
+            recommendation:
+              type: string
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
+            evidence:
+              type: array
+              items:
+                type: object
+                properties:
+                  kind:
+                    type: string
+                    enum: [file, command, schema, diff, stdout, stderr, text]
+                  target:
+                    type: string
+                  location:
+                    type: string
+                  excerpt:
+                    type: string
+                required: [kind]
+            details:
+              type: object
+              additionalProperties: true
+          required: [severity, category, message]
+      recommendedActions:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum: [run_command, edit_file, review, confirm, block, ignore]
+            title:
+              type: string
+            command:
+              type: string
+            target:
+              type: string
+            rationale:
+              type: string
+          required: [kind, title]
+      metadata:
+        type: object
+        properties:
+          tool:
+            type: string
+          command:
+            type: string
+          version:
+            type: string
+          generatedAt:
+            type: string
+          adapter:
+            type: string
+          model:
+            type: string
+    required:
+      - summary
+      - riskLevel
+      - findings

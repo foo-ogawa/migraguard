@@ -1,0 +1,52 @@
+audit-migration-safety:
+  description: Audit SQL migration file(s) for operational safety
+  target_agent: migration-safety-auditor
+  allowed_from_agents:
+    - migration-safety-auditor
+  invocation_handoff: migration-audit-request
+  result_handoff: migration-audit-result
+  responsibilities:
+    - Evaluate all SQL statements for operational risks
+    - Classify findings by severity and category
+    - Determine expand/contract necessity
+    - Note deployment ordering if relevant
+  completion_criteria:
+    - All SQL statements in the target file(s) have been evaluated
+    - Findings classified by severity and category
+    - Expand/contract necessity explicitly determined
+    - Deployment notes included if app/infra ordering is relevant
+    - Output conforms to AgentAuditResult schema
+
+propose-expand-contract:
+  description: Generate expand/contract migration group proposal from unsafe DDL
+  target_agent: migration-safety-auditor
+  allowed_from_agents:
+    - migration-safety-auditor
+  invocation_handoff: migration-audit-request
+  result_handoff: migration-audit-result
+  responsibilities:
+    - Identify unsafe DDL that requires phased rollout
+    - Decompose into expand/backfill/switch/contract phases
+    - Provide valid SQL for each phase with appropriate guards
+    - Specify deployment gates between phases
+  completion_criteria:
+    - Each phase has valid SQL with appropriate guards
+    - Deployment gates between phases specified
+    - Original unsafe operation decomposed into safe steps
+    - recommendedActions include edit_file actions for each phase
+
+explain-command-result:
+  description: Explain migraguard command output in human-readable form
+  target_agent: migration-safety-auditor
+  allowed_from_agents:
+    - migration-safety-auditor
+  invocation_handoff: migration-audit-request
+  result_handoff: migration-audit-result
+  responsibilities:
+    - Summarize command output for non-DBA readers
+    - Provide concrete next steps
+    - Explain technical concepts in plain language
+  completion_criteria:
+    - Explanation accurately summarizes the command output
+    - Action items are concrete and actionable
+    - Technical terms explained for non-DBA readers
