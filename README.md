@@ -46,7 +46,8 @@ npx migraguard squash
 npx migraguard lint && npx migraguard check
 npx migraguard dump
 
-# LLM-powered safety audit (optional — requires agent-contracts-runtime)
+# LLM-powered safety audit (optional — requires agent-contracts-runtime + API key)
+npm install --save-dev agent-contracts-runtime
 npx migraguard audit --adapter openai
 
 # In PRs, CI runs lint + check (+ optionally verify + audit)
@@ -247,9 +248,11 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 |---------|-------------|
 | `audit [target]` | Semantic migration safety audit via LLM |
 | `propose-expand-contract <file>` | Generate expand/contract migration group proposal |
-| `explain` | Explain command output in human-readable form (stdin pipe) |
+| `explain` | Explain command output in human-readable form (accepts JSON or text from `lint`, `check`, `diff`, `deps`, `verify` via stdin) |
 
-LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key. All support `--dry-run` to inspect the prompt without calling the LLM.
+LLM-powered commands are read-only by default. `audit` and `explain` do not modify migration files or database state. `propose-expand-contract` produces a proposal; generated SQL should be reviewed before being written or applied. LLM commands do not replace deterministic gates — they are an additional semantic review layer on top of `lint`, `check`, `diff`, and `verify`.
+
+All LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key, and support `--dry-run` to inspect the prompt without calling the LLM.
 
 ```bash
 # Audit a migration for operational risks
@@ -287,6 +290,10 @@ jobs:
       - run: npm ci
       - run: npx migraguard lint
       - run: npx migraguard check
+      # Optional: LLM semantic audit (requires API key)
+      # - run: npx migraguard audit --adapter openai --format json --fail-on error
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 ### Automatic Apply on Merge
@@ -612,7 +619,7 @@ Domain-specific reasoning that is difficult to express as static rules is handle
 
 ### Structured findings
 
-LLM output is not free-form text. Results conform to typed schemas (`MigrationAuditResult`, `ExpandContractProposal`, `ExplainResult`) so that downstream consumers — whether human, CI pipeline, or orchestrating agent — process them uniformly.
+LLM output is not free-form text. Results conform to typed schemas such as `MigrationAuditResult`, `ExpandContractProposal`, and `ExplainResult`. Audit-style results are compatible with the common `AgentAuditResult` / `AgentFinding` shape so that higher-level workflow agents can aggregate findings across toolchains.
 
 ### Tool-owned domain knowledge
 
@@ -626,11 +633,13 @@ Tool capabilities are described in machine-readable form via [cli-contract.yaml]
 
 | Adapter | Default Model | Environment Variable |
 |---------|---------------|---------------------|
-| `cursor` | `claude-opus-4-6` | `CURSOR_API_KEY` |
-| `openai` | `o3-mini` | `OPENAI_API_KEY` |
-| `gemini` | `gemini-2.5-pro` | `GEMINI_API_KEY` |
-| `claude` | (provider default) | `ANTHROPIC_API_KEY` |
+| `cursor` | runtime default | `CURSOR_API_KEY` |
+| `openai` | runtime default | `OPENAI_API_KEY` |
+| `gemini` | runtime default | `GEMINI_API_KEY` |
+| `claude` | runtime default | `ANTHROPIC_API_KEY` |
 | `mock` | — | — |
+
+Default models are defined by `agent-contracts-runtime` and may change between releases. Use `--model` to pin a specific model.
 
 ```bash
 # Semantic safety audit
