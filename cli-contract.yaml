@@ -900,12 +900,23 @@ commandSets:
               enum: [warning, error, critical]
               default: error
 
+          - name: output
+            aliases: [o]
+            description: Write result to a file instead of stdout.
+            valueName: file
+            schema:
+              type: string
+            file:
+              mode: write
+              mediaType: application/json
+              encoding: utf-8
+
           - name: report-format
             description: Output format for the audit report.
             valueName: fmt
             schema:
               type: string
-              enum: [text, json]
+              enum: [json, text, yaml]
               default: text
 
         exits:
@@ -947,9 +958,13 @@ commandSets:
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
-          sideEffects:
-            - network
+          sideEffects: [network]
+          sideEffectNote: >-
+            Network calls to LLM provider when adapter is not mock.
+            Filesystem write only when --output is specified.
           safeDryRunOption: dry-run
+          expectedDurationMs: 120000
+          retryableExitCodes: [1, 12]
 
       # ── propose-expand-contract ───────────────────────
       propose-expand-contract:
@@ -1005,11 +1020,38 @@ commandSets:
               type: boolean
               default: false
 
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            valueName: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: output
+            aliases: [o]
+            description: Write result to a file instead of stdout.
+            valueName: file
+            schema:
+              type: string
+            file:
+              mode: write
+              mediaType: application/json
+              encoding: utf-8
+
+          - name: report-format
+            description: Output format for the proposal report.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [json, text, yaml]
+              default: json
+
         exits:
           '0':
             description: Proposal generated successfully.
             stdout:
-              format: json
+              format: '{options.report-format}'
               schema:
                 $ref: '#/components/schemas/ExpandContractProposal'
 
@@ -1022,6 +1064,13 @@ commandSets:
             description: Configuration or input error (file not found, invalid SQL).
             stderr:
               format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/ExpandContractProposal'
 
           '11':
             description: Runtime dependency missing (agent-contracts-runtime).
@@ -1037,10 +1086,13 @@ commandSets:
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
-          sideEffects:
-            - network
-            - file_write
+          sideEffects: [network, file_write]
+          sideEffectNote: >-
+            Network calls to LLM provider when adapter is not mock.
+            Filesystem write when --output or --output-dir is specified.
           safeDryRunOption: dry-run
+          expectedDurationMs: 120000
+          retryableExitCodes: [1, 12]
 
       # ── explain ───────────────────────────────────────
       explain:
@@ -1084,11 +1136,38 @@ commandSets:
               type: boolean
               default: false
 
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            valueName: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: output
+            aliases: [o]
+            description: Write result to a file instead of stdout.
+            valueName: file
+            schema:
+              type: string
+            file:
+              mode: write
+              mediaType: application/json
+              encoding: utf-8
+
+          - name: report-format
+            description: Output format for the explanation report.
+            valueName: fmt
+            schema:
+              type: string
+              enum: [json, text, yaml]
+              default: json
+
         exits:
           '0':
             description: Explanation generated.
             stdout:
-              format: json
+              format: '{options.report-format}'
               schema:
                 $ref: '#/components/schemas/ExplainResult'
 
@@ -1101,6 +1180,13 @@ commandSets:
             description: Invalid input or no stdin data (empty pipe, malformed JSON, TTY).
             stderr:
               format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/ExplainResult'
 
           '11':
             description: Runtime dependency missing (agent-contracts-runtime).
@@ -1116,9 +1202,13 @@ commandSets:
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
-          sideEffects:
-            - network
+          sideEffects: [network]
+          sideEffectNote: >-
+            Network calls to LLM provider when adapter is not mock.
+            Filesystem write only when --output is specified.
           safeDryRunOption: dry-run
+          expectedDurationMs: 120000
+          retryableExitCodes: [1, 12]
 
 components:
   schemas:

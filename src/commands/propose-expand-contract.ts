@@ -6,17 +6,20 @@ import { buildProposeExpandContractContext } from "../agents/context-builder.js"
 import {
   runAgentTask,
   computeExitCode,
-  formatResultText,
-  formatResultJson,
+  formatResult,
+  writeOutput,
   EXIT_RUNTIME_MISSING,
   EXIT_ADAPTER_ERROR,
 } from "../agents/index.js";
-import type { AuditConfig, AuditOptions } from "../agents/index.js";
+import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js";
 
 export interface CommandProposeOptions {
   adapter?: string;
   model?: string;
   dryRun?: boolean;
+  failOn?: "warning" | "error" | "critical";
+  output?: string;
+  reportFormat?: ReportFormat;
   outputDir?: string;
 }
 
@@ -34,6 +37,7 @@ export async function commandProposeExpandContract(
 
   const auditOpts: AuditOptions = {
     dryRun: opts.dryRun,
+    failOn: opts.failOn,
   };
 
   try {
@@ -43,11 +47,6 @@ export async function commandProposeExpandContract(
       auditConfig,
       auditOpts,
     );
-
-    if (result.dryRun) {
-      process.stdout.write(formatResultText(result) + "\n");
-      return;
-    }
 
     if (result.data && opts.outputDir && result.data.recommendedActions) {
       const outDir = resolve(opts.outputDir);
@@ -62,7 +61,8 @@ export async function commandProposeExpandContract(
       }
     }
 
-    process.stdout.write(formatResultJson(result) + "\n");
+    const content = formatResult(result, opts.reportFormat ?? "json");
+    await writeOutput(content, opts.output);
 
     const exitCode = computeExitCode(result, auditOpts);
     if (exitCode !== 0) process.exit(exitCode);

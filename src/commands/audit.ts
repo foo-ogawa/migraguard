@@ -4,19 +4,20 @@ import { buildAuditContext } from "../agents/context-builder.js";
 import {
   runAgentTask,
   computeExitCode,
-  formatResultText,
-  formatResultJson,
+  formatResult,
+  writeOutput,
   EXIT_RUNTIME_MISSING,
   EXIT_ADAPTER_ERROR,
 } from "../agents/index.js";
-import type { AuditConfig, AuditOptions } from "../agents/index.js";
+import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js";
 
 export interface CommandAuditOptions {
   adapter?: string;
   model?: string;
   dryRun?: boolean;
   failOn?: "warning" | "error" | "critical";
-  reportFormat?: "text" | "json";
+  output?: string;
+  reportFormat?: ReportFormat;
 }
 
 export async function commandAudit(
@@ -44,12 +45,8 @@ export async function commandAudit(
       auditOpts,
     );
 
-    const format = opts.reportFormat ?? "text";
-    if (format === "json") {
-      process.stdout.write(formatResultJson(result) + "\n");
-    } else {
-      process.stdout.write(formatResultText(result) + "\n");
-    }
+    const content = formatResult(result, opts.reportFormat ?? "text");
+    await writeOutput(content, opts.output);
 
     const exitCode = computeExitCode(result, auditOpts);
     if (exitCode !== 0) process.exit(exitCode);
