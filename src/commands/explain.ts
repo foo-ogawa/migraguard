@@ -3,17 +3,21 @@ import type { MigraguardConfig } from "../config.js";
 import { buildExplainContext } from "../agents/context-builder.js";
 import {
   runAgentTask,
-  formatResultText,
-  formatResultJson,
+  computeExitCode,
+  formatResult,
+  writeOutput,
   EXIT_RUNTIME_MISSING,
   EXIT_ADAPTER_ERROR,
 } from "../agents/index.js";
-import type { AuditConfig, AuditOptions } from "../agents/index.js";
+import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js";
 
 export interface CommandExplainOptions {
   adapter?: string;
   model?: string;
   dryRun?: boolean;
+  failOn?: "warning" | "error" | "critical";
+  output?: string;
+  reportFormat?: ReportFormat;
 }
 
 export async function commandExplain(
@@ -36,6 +40,7 @@ export async function commandExplain(
 
   const auditOpts: AuditOptions = {
     dryRun: opts.dryRun,
+    failOn: opts.failOn,
   };
 
   try {
@@ -46,11 +51,11 @@ export async function commandExplain(
       auditOpts,
     );
 
-    if (result.dryRun) {
-      process.stdout.write(formatResultText(result) + "\n");
-    } else {
-      process.stdout.write(formatResultJson(result) + "\n");
-    }
+    const content = formatResult(result, opts.reportFormat ?? "json");
+    await writeOutput(content, opts.output);
+
+    const exitCode = computeExitCode(result, auditOpts);
+    if (exitCode !== 0) process.exit(exitCode);
   } catch (err: unknown) {
     const exitCode = (err as { exitCode?: number }).exitCode;
     if (exitCode === EXIT_RUNTIME_MISSING) {

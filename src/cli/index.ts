@@ -229,10 +229,11 @@ program
   .option('--model <name>', 'LLM model override')
   .option('-n, --dry-run', 'Output prompt without calling LLM')
   .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
-  .option('--report-format <fmt>', 'Output format (text, json)', 'text')
+  .option('-o, --output <file>', 'Write result to a file instead of stdout')
+  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'text')
   .action((target: string | undefined, opts: {
     adapter?: string; model?: string; dryRun?: boolean;
-    failOn?: string; reportFormat?: string;
+    failOn?: string; output?: string; reportFormat?: string;
   }) => run(async () => {
     const config = await loadConfig();
     await commandAudit(config, target, {
@@ -240,7 +241,8 @@ program
       model: opts.model,
       dryRun: opts.dryRun,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
-      reportFormat: opts.reportFormat as 'text' | 'json' | undefined,
+      output: opts.output,
+      reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
     });
   }));
 
@@ -250,12 +252,20 @@ program
   .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
   .option('--model <name>', 'LLM model override')
   .option('-n, --dry-run', 'Output prompt without calling LLM')
+  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
+  .option('-o, --output <file>', 'Write result to a file instead of stdout')
+  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'json')
   .option('--output-dir <dir>', 'Directory to write proposed phase files')
   .action((file: string, opts: {
-    adapter?: string; model?: string; dryRun?: boolean; outputDir?: string;
+    adapter?: string; model?: string; dryRun?: boolean;
+    failOn?: string; output?: string; reportFormat?: string; outputDir?: string;
   }) => run(async () => {
     const config = await loadConfig();
-    await commandProposeExpandContract(config, file, opts);
+    await commandProposeExpandContract(config, file, {
+      ...opts,
+      failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+    });
   }));
 
 program
@@ -264,9 +274,19 @@ program
   .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
   .option('--model <name>', 'LLM model override')
   .option('-n, --dry-run', 'Output prompt without calling LLM')
-  .action((opts: { adapter?: string; model?: string; dryRun?: boolean }) => run(async () => {
+  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
+  .option('-o, --output <file>', 'Write result to a file instead of stdout')
+  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'json')
+  .action((opts: {
+    adapter?: string; model?: string; dryRun?: boolean;
+    failOn?: string; output?: string; reportFormat?: string;
+  }) => run(async () => {
     const config = await loadConfig();
-    await commandExplain(config, opts);
+    await commandExplain(config, {
+      ...opts,
+      failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+    });
   }));
 
 program.parse();

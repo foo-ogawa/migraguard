@@ -56,16 +56,22 @@ migration-audit-result:
               items:
                 type: object
                 properties:
+                  type:
+                    type: string
+                    description: Evidence type identifier
+                  content:
+                    type: string
+                    description: Evidence content or excerpt
+                  source:
+                    type: string
+                    description: Source of the evidence (file path, command, etc.)
                   kind:
                     type: string
                     enum: [file, command, schema, diff, stdout, stderr, text]
-                  target:
-                    type: string
+                    description: Migration-specific evidence kind (extends base AgentEvidence)
                   location:
                     type: string
-                  excerpt:
-                    type: string
-                required: [kind]
+                    description: Location within the source
             details:
               type: object
               additionalProperties: true
