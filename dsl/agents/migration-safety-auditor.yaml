@@ -11,6 +11,8 @@ migration-safety-auditor:
   can_execute_tools: []
   can_return_handoffs:
     - migration-audit-result
+    - expand-contract-proposal-result
+    - explain-result
   responsibilities:
     - Identify lock risks and rollout hazards in DDL statements
     - Determine whether expand/contract pattern is required

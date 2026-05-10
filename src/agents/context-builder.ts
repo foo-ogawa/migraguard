@@ -20,10 +20,28 @@ async function loadTargets(
   config: MigraguardConfig,
 ): Promise<AuditTarget[]> {
   if (targetPath) {
-    const { stat } = await import("node:fs/promises");
+    const { stat, readdir } = await import("node:fs/promises");
+    const { join } = await import("node:path");
     const info = await stat(targetPath);
 
     if (info.isDirectory()) {
+      const entries = await readdir(targetPath);
+      const sqlFiles = entries
+        .filter((e) => e.endsWith(".sql"))
+        .sort();
+
+      if (sqlFiles.length > 0) {
+        return Promise.all(
+          sqlFiles.map(async (f) => {
+            const filePath = join(targetPath, f);
+            const sql = await readFile(filePath, "utf-8");
+            const phase = f.match(/^(\d+)_(\w+)\.sql$/)?.[2];
+            const groupName = basename(targetPath);
+            return { filePath, fileName: f, sql, phase, groupName };
+          }),
+        );
+      }
+
       const files = await scanMigrations({
         ...config,
         migrationsDirs: [targetPath],
@@ -63,6 +81,57 @@ async function runLintOnTarget(
   } catch {
     return [];
   }
+}
+
+/**
+ * Extract schema sections relevant to the migration targets.
+ * Instead of dumping the entire schema, we find CREATE TABLE blocks
+ * for tables referenced (via REFERENCES, ALTER TABLE, INSERT INTO, etc.)
+ * in the migration SQL.
+ */
+function extractRelevantSchema(schema: string, targets: AuditTarget[]): string | null {
+  const allSql = targets.map((t) => t.sql).join("\n");
+
+  const tableRefs = new Set<string>();
+  const refPatterns = [
+    /REFERENCES\s+(?:public\.)?(\w+)/gi,
+    /ALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)/gi,
+    /INSERT\s+INTO\s+(?:public\.)?(\w+)/gi,
+    /UPDATE\s+(?:public\.)?(\w+)/gi,
+    /FROM\s+(?:public\.)?(\w+)/gi,
+    /JOIN\s+(?:public\.)?(\w+)/gi,
+    /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?(\w+)/gi,
+    /CREATE\s+(?:UNIQUE\s+)?INDEX\s+.*?\bON\s+(?:public\.)?(\w+)/gi,
+  ];
+
+  for (const pat of refPatterns) {
+    let m;
+    while ((m = pat.exec(allSql)) !== null) {
+      tableRefs.add(m[1].toLowerCase());
+    }
+  }
+
+  if (tableRefs.size === 0) return null;
+
+  const schemaBlocks = schema.split(/\n(?=CREATE\s)/i);
+  const relevant: string[] = [];
+
+  for (const block of schemaBlocks) {
+    const tableMatch = block.match(
+      /CREATE\s+TABLE\s+(?:public\.)?(\w+)/i,
+    );
+    if (tableMatch && tableRefs.has(tableMatch[1].toLowerCase())) {
+      relevant.push(block.trim());
+    }
+  }
+
+  if (relevant.length === 0) return null;
+
+  const result = relevant.join("\n\n");
+  if (result.length > 16000) {
+    return result.slice(0, 16000) + "\n-- (truncated, showing referenced tables only)";
+  }
+  return result;
 }
 
 export async function buildAuditContext(
@@ -105,10 +174,10 @@ export async function buildAuditContext(
   try {
     const schema = await readFile(schemaPath, "utf-8");
     if (schema.trim()) {
-      const truncated = schema.length > 8000
-        ? schema.slice(0, 8000) + "\n-- (truncated)"
-        : schema;
-      sections.push(`## Current Schema (${config.schemaFile})\n\n\`\`\`sql\n${truncated}\n\`\`\``);
+      const relevantSchema = extractRelevantSchema(schema, targets);
+      if (relevantSchema) {
+        sections.push(`## Relevant Schema Context (${config.schemaFile})\n\n\`\`\`sql\n${relevantSchema}\n\`\`\``);
+      }
     }
   } catch {
     // schema.sql not available

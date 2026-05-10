@@ -27,7 +27,7 @@ propose-expand-contract:
   workflow: expand-contract-proposal
   input_artifacts: []
   invocation_handoff: migration-audit-request
-  result_handoff: migration-audit-result
+  result_handoff: expand-contract-proposal-result
   responsibilities:
     - Identify unsafe DDL that requires phased rollout
     - Decompose into expand/backfill/switch/contract phases
@@ -47,7 +47,7 @@ explain-command-result:
   workflow: command-explanation
   input_artifacts: []
   invocation_handoff: migration-audit-request
-  result_handoff: migration-audit-result
+  result_handoff: explain-result
   responsibilities:
     - Summarize command output for non-DBA readers
     - Provide concrete next steps as recommendedActions

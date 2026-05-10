@@ -57,7 +57,7 @@ export const proposeExpandContract: TaskContract = {
 ],
   workflow: "expand-contract-proposal",
   invocation_handoff: "migration-audit-request",
-  result_handoff: "migration-audit-result",
+  result_handoff: "expand-contract-proposal-result",
   input_artifacts: [],
   responsibilities: [
   "Identify unsafe DDL that requires phased rollout",
@@ -83,7 +83,7 @@ export const explainCommandResult: TaskContract = {
 ],
   workflow: "command-explanation",
   invocation_handoff: "migration-audit-request",
-  result_handoff: "migration-audit-result",
+  result_handoff: "explain-result",
   input_artifacts: [],
   responsibilities: [
   "Summarize command output for non-DBA readers",

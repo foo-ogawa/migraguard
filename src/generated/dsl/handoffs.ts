@@ -12,7 +12,7 @@ import { z } from "zod";
 
 export const MigrationAuditRequestSchema = z.object({
   task_id: z.string(),
-  context: z.string().optional(),
+  context: z.string(),
 });
 
 export type MigrationAuditRequest = z.infer<typeof MigrationAuditRequestSchema>;
@@ -61,12 +61,84 @@ export const MigrationAuditResultSchema = z.object({
 export type MigrationAuditResult = z.infer<typeof MigrationAuditResultSchema>;
 
 // ---------------------------------------------------------------------------
+// expand-contract-proposal-result
+// ---------------------------------------------------------------------------
+
+export const ExpandContractProposalResultSchema = z.object({
+  summary: z.string(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]),
+  findings: z.array(z.object({
+  id: z.string().optional(),
+  severity: z.enum(["info", "warning", "error", "critical"]),
+  category: z.string(),
+  message: z.string(),
+  recommendation: z.string().optional(),
+})),
+  phases: z.array(z.object({
+  name: z.enum(["expand", "backfill", "switch", "contract"]),
+  sql: z.string(),
+  description: z.string(),
+  deploymentGate: z.string().optional(),
+})),
+  recommendedActions: z.array(z.object({
+  kind: z.enum(["run_command", "edit_file", "review", "confirm", "block", "ignore"]),
+  title: z.string(),
+  command: z.string().optional(),
+  target: z.string().optional(),
+  rationale: z.string().optional(),
+})).optional(),
+  metadata: z.object({
+  tool: z.string().optional(),
+  command: z.string().optional(),
+  version: z.string().optional(),
+  generatedAt: z.string().optional(),
+  adapter: z.string().optional(),
+  model: z.string().optional(),
+}).optional(),
+});
+
+export type ExpandContractProposalResult = z.infer<typeof ExpandContractProposalResultSchema>;
+
+// ---------------------------------------------------------------------------
+// explain-result
+// ---------------------------------------------------------------------------
+
+export const ExplainResultSchema = z.object({
+  summary: z.string(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]),
+  explanation: z.string(),
+  findings: z.array(z.object({
+  severity: z.enum(["info", "warning", "error", "critical"]),
+  category: z.string(),
+  message: z.string(),
+})).optional(),
+  recommendedActions: z.array(z.object({
+  kind: z.enum(["run_command", "edit_file", "review", "confirm", "block", "ignore"]),
+  title: z.string(),
+  rationale: z.string().optional(),
+})).optional(),
+  sourceCommand: z.string().optional(),
+  metadata: z.object({
+  tool: z.string().optional(),
+  command: z.string().optional(),
+  version: z.string().optional(),
+  generatedAt: z.string().optional(),
+  adapter: z.string().optional(),
+  model: z.string().optional(),
+}).optional(),
+});
+
+export type ExplainResult = z.infer<typeof ExplainResultSchema>;
+
+// ---------------------------------------------------------------------------
 // Schema registry
 // ---------------------------------------------------------------------------
 
 export const handoffSchemas = {
   "migration-audit-request": MigrationAuditRequestSchema,
   "migration-audit-result": MigrationAuditResultSchema,
+  "expand-contract-proposal-result": ExpandContractProposalResultSchema,
+  "explain-result": ExplainResultSchema,
 } as const;
 
 export type HandoffTypeId = keyof typeof handoffSchemas;
@@ -98,6 +170,20 @@ export const handoffs = {
       type: "migration-audit-result" as const,
       version: 1,
       payload: MigrationAuditResultSchema.parse(payload),
+    };
+  },
+  expandContractProposalResult(payload: ExpandContractProposalResult): HandoffEnvelope<"expand-contract-proposal-result"> {
+    return {
+      type: "expand-contract-proposal-result" as const,
+      version: 1,
+      payload: ExpandContractProposalResultSchema.parse(payload),
+    };
+  },
+  explainResult(payload: ExplainResult): HandoffEnvelope<"explain-result"> {
+    return {
+      type: "explain-result" as const,
+      version: 1,
+      payload: ExplainResultSchema.parse(payload),
     };
   },
 } as const;

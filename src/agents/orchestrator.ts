@@ -32,7 +32,7 @@ async function createAdapter(runtimePkg: string, name: string, config: AuditConf
     case "openai": {
       const mod = await import(`${runtimePkg}/adapters/openai-agents-sdk`);
       return new mod.OpenAIAgentsSdkAdapter({
-        model: config.model,
+        model: config.model ?? "o3-mini",
         maxTurns: 1,
       });
     }

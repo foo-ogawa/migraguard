@@ -43,7 +43,9 @@ export const migrationSafetyAuditor: AgentContract = {
   can_execute_tools: [],
   can_invoke_agents: [],
   can_return_handoffs: [
-  "migration-audit-result"
+  "migration-audit-result",
+  "expand-contract-proposal-result",
+  "explain-result"
 ],
   responsibilities: [
   "Identify lock risks and rollout hazards in DDL statements",
