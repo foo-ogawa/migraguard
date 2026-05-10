@@ -29,5 +29,65 @@ export interface WorkflowContract {
   readonly steps: readonly WorkflowStep[];
 }
 
+export const migrationAudit: WorkflowContract = {
+  id: "migration-audit",
+  description: "Audit SQL migration files for operational safety risks",
+  trigger: "cli-command",
+  entry_conditions: [
+  "At least one migration file is provided or pending migrations exist"
+],
+  steps: [
+    {
+      type: "delegate",
+      task: "audit-migration-safety",
+      from_agent: "migration-safety-auditor",
+      description: "",
+      optional: false,
+      max_retries: 0,
+    },
+  ],
+};
+
+export const expandContractProposal: WorkflowContract = {
+  id: "expand-contract-proposal",
+  description: "Propose phased expand/contract migration group from unsafe DDL",
+  trigger: "cli-command",
+  entry_conditions: [
+  "A migration file containing potentially unsafe DDL is provided"
+],
+  steps: [
+    {
+      type: "delegate",
+      task: "propose-expand-contract",
+      from_agent: "migration-safety-auditor",
+      description: "",
+      optional: false,
+      max_retries: 0,
+    },
+  ],
+};
+
+export const commandExplanation: WorkflowContract = {
+  id: "command-explanation",
+  description: "Explain migraguard command output in human-readable form",
+  trigger: "cli-command",
+  entry_conditions: [
+  "JSON output from a migraguard command is available on stdin"
+],
+  steps: [
+    {
+      type: "delegate",
+      task: "explain-command-result",
+      from_agent: "migration-safety-auditor",
+      description: "",
+      optional: false,
+      max_retries: 0,
+    },
+  ],
+};
+
 export const workflowRegistry: Record<string, WorkflowContract> = {
+  "migration-audit": migrationAudit,
+  "expand-contract-proposal": expandContractProposal,
+  "command-explanation": commandExplanation,
 };

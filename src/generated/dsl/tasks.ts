@@ -28,7 +28,7 @@ export const auditMigrationSafety: TaskContract = {
   allowed_from_agents: [
   "migration-safety-auditor"
 ],
-  workflow: "",
+  workflow: "migration-audit",
   invocation_handoff: "migration-audit-request",
   result_handoff: "migration-audit-result",
   input_artifacts: [],
@@ -55,7 +55,7 @@ export const proposeExpandContract: TaskContract = {
   allowed_from_agents: [
   "migration-safety-auditor"
 ],
-  workflow: "",
+  workflow: "expand-contract-proposal",
   invocation_handoff: "migration-audit-request",
   result_handoff: "migration-audit-result",
   input_artifacts: [],
@@ -66,10 +66,10 @@ export const proposeExpandContract: TaskContract = {
   "Specify deployment gates between phases"
 ],
   completion_criteria: [
-  "Each phase has valid SQL with appropriate guards",
-  "Deployment gates between phases specified",
+  "Each phase has valid SQL with IF NOT EXISTS or appropriate guards",
+  "Deployment gates between phases are specified",
   "Original unsafe operation decomposed into safe steps",
-  "recommendedActions include edit_file actions for each phase"
+  "recommendedActions include edit_file actions for each phase file"
 ],
   optional: false,
 };
@@ -81,19 +81,20 @@ export const explainCommandResult: TaskContract = {
   allowed_from_agents: [
   "migration-safety-auditor"
 ],
-  workflow: "",
+  workflow: "command-explanation",
   invocation_handoff: "migration-audit-request",
   result_handoff: "migration-audit-result",
   input_artifacts: [],
   responsibilities: [
   "Summarize command output for non-DBA readers",
-  "Provide concrete next steps",
+  "Provide concrete next steps as recommendedActions",
   "Explain technical concepts in plain language"
 ],
   completion_criteria: [
   "Explanation accurately summarizes the command output",
   "Action items are concrete and actionable",
-  "Technical terms explained for non-DBA readers"
+  "Technical terms explained for non-DBA readers",
+  "Severity reflects urgency of the underlying issue"
 ],
   optional: false,
 };

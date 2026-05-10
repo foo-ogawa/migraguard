@@ -38,11 +38,7 @@ export const migrationSafetyAuditor: AgentContract = {
   purpose: "Review SQL migrations for operational safety in production environments. Identifies risks that AST-based lint cannot detect by considering deployment context, application compatibility, and operational impact.",
   mode: "read-only",
   dispatch_only: false,
-  can_read_artifacts: [
-  "migration-source",
-  "schema-dump",
-  "lint-result"
-],
+  can_read_artifacts: [],
   can_write_artifacts: [],
   can_execute_tools: [],
   can_invoke_agents: [],
@@ -55,7 +51,9 @@ export const migrationSafetyAuditor: AgentContract = {
   "Check idempotency and re-executability from semantic perspective",
   "Evaluate backfill safety (batching, timeouts, resumability)",
   "Explain deployment order dependencies with application releases",
-  "Assess validity of migraguard:allow directives"
+  "Assess validity of migraguard:allow directives",
+  "Generate phased expand/contract SQL proposals when requested",
+  "Explain command output in human-readable form for non-DBA audiences"
 ],
   constraints: [
   "Do not claim a migration is safe without citing specific assumptions",
@@ -63,7 +61,9 @@ export const migrationSafetyAuditor: AgentContract = {
   "Prefer phased rollout for destructive or incompatible changes",
   "Reference migraguard lint rules when findings overlap",
   "Consider PostgreSQL-specific behavior (advisory locks, MVCC, WAL, replication lag)",
-  "Output must conform to AgentAuditResult schema"
+  "Output must conform to AgentAuditResult schema (summary, riskLevel, findings, recommendedActions, metadata)",
+  "Findings must use migraguard category vocabulary (lock_risk, idempotency, expand_contract, backfill_safety, rollback_risk, deploy_order, allow_directive)",
+  "Each finding must include a recommendation when severity is warning or above"
 ],
   rules: [
   {
@@ -80,11 +80,25 @@ export const migrationSafetyAuditor: AgentContract = {
     "id": "R-MIG-003",
     "description": "allow directives without explanatory comment are flagged",
     "severity": "recommended"
+  },
+  {
+    "id": "R-MIG-004",
+    "description": "DDL without lock_timeout is flagged as lock_risk",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-MIG-005",
+    "description": "Non-concurrent index creation is flagged as lock_risk",
+    "severity": "mandatory"
   }
 ],
   escalation_criteria: [
   {
     "condition": "Migration file cannot be parsed or is structurally invalid",
+    "action": "stop_and_report"
+  },
+  {
+    "condition": "Migration contains dynamic SQL that cannot be statically analyzed",
     "action": "stop_and_report"
   }
 ],

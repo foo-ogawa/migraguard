@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-05-10T11:07:48.355Z",
-  "dslHash": "f26abbcfa878d6ecc19da084c1e462edb39944516e27031fffb89a75c77dac53",
-  "generationInputHash": "f26abbcfa878d6ecc19da084c1e462edb39944516e27031fffb89a75c77dac53",
+  "generatedAt": "2026-05-10T11:32:55.962Z",
+  "dslHash": "14fbc2d4a67e07ebf1267cd1720345116172132d9cf93c0d70a1f49876385c2e",
+  "generationInputHash": "14fbc2d4a67e07ebf1267cd1720345116172132d9cf93c0d70a1f49876385c2e",
   "files": [
     "../src/generated/dsl/agents.ts",
     "../src/generated/dsl/tasks.ts",
