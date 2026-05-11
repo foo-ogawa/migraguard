@@ -337,6 +337,15 @@ Executes pg_dump (PostgreSQL), mysqldump (MySQL), or sqlite3 .schema (SQLite) to
 ```
 migraguard dump
 ```
+```
+migraguard dump --dry-run
+```
+
+#### Options
+
+| Option | Aliases | Required | Default | Description |
+|---|---|---|---|---|
+| `--dry-run` | -n | No | `false` | Output normalized schema to stdout without writing schema.sql. |
 
 #### Exit Codes
 
@@ -362,6 +371,7 @@ x-agent:
     - database_read
     - file_write
   sideEffectNote: Reads DB schema via pg_dump/mysqldump and writes normalized output to schema.sql.
+  safeDryRunOption: dry-run
   expectedDurationMs: 10000
   retryableExitCodes: 
     - 1
