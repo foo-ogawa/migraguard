@@ -72,6 +72,7 @@ RESET statement_timeout;
 
 export interface NewOptions {
   expandContract?: boolean;
+  dryRun?: boolean;
 }
 
 export async function commandNew(
@@ -90,14 +91,14 @@ export async function commandNew(
   const primaryDir = config.migrationsDirs[0];
   const migrationsDir = resolveFromConfig(config, primaryDir);
 
-  if (!existsSync(migrationsDir)) {
+  if (!options?.dryRun && !existsSync(migrationsDir)) {
     await mkdir(migrationsDir, { recursive: true });
   }
 
   if (options?.expandContract) {
-    await createExpandContractGroup(config, name, now, existingParsed, primaryDir, migrationsDir);
+    await createExpandContractGroup(config, name, now, existingParsed, primaryDir, migrationsDir, options?.dryRun);
   } else {
-    await createSingleFile(config, name, now, existingParsed, primaryDir, migrationsDir);
+    await createSingleFile(config, name, now, existingParsed, primaryDir, migrationsDir, options?.dryRun);
   }
 }
 
@@ -108,12 +109,18 @@ async function createSingleFile(
   existingParsed: import('../naming.js').ParsedFileName[],
   primaryDir: string,
   migrationsDir: string,
+  dryRun?: boolean,
 ): Promise<void> {
   const fileName = generateFileName(name, config.naming, { now, existingParsed });
   const filePath = `${migrationsDir}/${fileName}`;
 
   if (existsSync(filePath)) {
     throw new Error(`File already exists: ${filePath}`);
+  }
+
+  if (dryRun) {
+    console.log(chalk.cyan(`[dry-run] Would create: ${primaryDir}/${fileName}`));
+    return;
   }
 
   const content = TEMPLATE
@@ -131,6 +138,7 @@ async function createExpandContractGroup(
   existingParsed: import('../naming.js').ParsedFileName[],
   primaryDir: string,
   migrationsDir: string,
+  dryRun?: boolean,
 ): Promise<void> {
   const groupDir = generateGroupDirName(name, config.naming, { now, existingParsed });
   const groupPath = `${migrationsDir}/${groupDir}`;
@@ -139,9 +147,6 @@ async function createExpandContractGroup(
     throw new Error(`Directory already exists: ${groupPath}`);
   }
 
-  await mkdir(groupPath, { recursive: true });
-
-  const ts = now.toISOString();
   const phaseFiles = [
     { name: '1_expand.sql', template: EXPAND_TEMPLATE },
     { name: '2_backfill.sql', template: BACKFILL_TEMPLATE },
@@ -149,6 +154,17 @@ async function createExpandContractGroup(
     { name: '4_contract.sql', template: CONTRACT_TEMPLATE },
   ];
 
+  if (dryRun) {
+    console.log(chalk.cyan(`[dry-run] Would create migration group: ${primaryDir}/${groupDir}/`));
+    for (const pf of phaseFiles) {
+      console.log(chalk.cyan(`  ${pf.name}`));
+    }
+    return;
+  }
+
+  await mkdir(groupPath, { recursive: true });
+
+  const ts = now.toISOString();
   for (const pf of phaseFiles) {
     const content = pf.template
       .replace('{group}', groupDir)

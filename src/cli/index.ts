@@ -45,9 +45,10 @@ program
   .command('new <name>')
   .description('Create a new migration SQL file with UTC timestamp')
   .option('--expand-contract', 'Create an expand/contract migration group (Class B)')
-  .action((name: string, opts: { expandContract?: boolean }) => run(async () => {
+  .option('-n, --dry-run', 'Show what would be created without writing files')
+  .action((name: string, opts: { expandContract?: boolean; dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
-    await commandNew(config, name, { expandContract: opts.expandContract });
+    await commandNew(config, name, { expandContract: opts.expandContract, dryRun: opts.dryRun });
   }));
 
 program
@@ -56,12 +57,14 @@ program
   .option('--with-drift-check', 'Check schema drift before apply and update dump after')
   .option('--from-baseline', 'Apply schema.sql first, then remaining migrations')
   .option('--tag <text>', 'Tag to record with applied migrations (e.g. commit hash, release tag)')
-  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean; tag?: string }) => run(async () => {
+  .option('-n, --dry-run', 'List pending migrations without applying')
+  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean; tag?: string; dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
     const result = await commandApply(config, {
       withDriftCheck: opts.withDriftCheck,
       fromBaseline: opts.fromBaseline,
       tag: opts.tag,
+      dryRun: opts.dryRun,
     });
     if (result.errors.length > 0) process.exit(1);
   }));
@@ -78,9 +81,10 @@ program
 program
   .command('squash')
   .description('Squash multiple new migration files into one')
-  .action(() => run(async () => {
+  .option('-n, --dry-run', 'Show what would be squashed without writing files')
+  .action((opts: { dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
-    await commandSquash(config);
+    await commandSquash(config, { dryRun: opts.dryRun });
   }));
 
 program
@@ -120,9 +124,10 @@ program
 program
   .command('resolve <file>')
   .description('Mark a failed migration as skipped (requires human judgment)')
-  .action((file: string) => run(async () => {
+  .option('-n, --dry-run', 'Show what would be resolved without writing to DB')
+  .action((file: string, opts: { dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
-    await commandResolve(config, file);
+    await commandResolve(config, file, { dryRun: opts.dryRun });
   }));
 
 program
@@ -155,9 +160,10 @@ program
   .command('baseline')
   .description('Squash applied migrations into schema.sql baseline')
   .option('--keep-since <file...>', 'Keep files from this point forward')
-  .action((opts: { keepSince?: string[] }) => run(async () => {
+  .option('-n, --dry-run', 'Show what would be baselined without writing files')
+  .action((opts: { keepSince?: string[]; dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
-    const result = await commandBaseline(config, { keepSince: opts.keepSince });
+    const result = await commandBaseline(config, { keepSince: opts.keepSince, dryRun: opts.dryRun });
     if (!result.success) process.exit(1);
   }));
 
@@ -165,7 +171,8 @@ program
   .command('advance <group> <phase> <status>')
   .description('Record a phase state transition (for external executor)')
   .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
-  .action((group: string, phase: string, status: string, opts: { tag?: string }) => run(async () => {
+  .option('-n, --dry-run', 'Show what would be recorded without writing to DB')
+  .action((group: string, phase: string, status: string, opts: { tag?: string; dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
     const validStatuses = ['running', 'completed', 'failed'];
@@ -176,6 +183,7 @@ program
       phase: phase as Phase,
       status: status as 'running' | 'completed' | 'failed',
       tag: opts.tag,
+      dryRun: opts.dryRun,
     });
     if (!result.success) process.exit(1);
   }));
@@ -184,7 +192,8 @@ program
   .command('apply-phase <group> <phase>')
   .description('Apply a specific phase of a migration group via psql')
   .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
-  .action((group: string, phase: string, opts: { tag?: string }) => run(async () => {
+  .option('-n, --dry-run', 'Show what would be applied without executing SQL')
+  .action((group: string, phase: string, opts: { tag?: string; dryRun?: boolean }) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
     if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
@@ -192,6 +201,7 @@ program
       group,
       phase: phase as Phase,
       tag: opts.tag,
+      dryRun: opts.dryRun,
     });
     if (!result.success) process.exit(1);
   }));

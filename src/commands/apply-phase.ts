@@ -12,6 +12,7 @@ export interface ApplyPhaseOptions {
   group: string;
   phase: Phase;
   tag?: string;
+  dryRun?: boolean;
 }
 
 export interface ApplyPhaseResult {
@@ -54,6 +55,14 @@ export async function commandApplyPhase(
     }
 
     const checksum = await checksumFile(file.filePath);
+
+    if (options.dryRun) {
+      console.log(chalk.cyan(`[dry-run] Would apply phase "${phase}" for "${group}"`));
+      console.log(chalk.cyan(`  File: ${expectedFileName}`));
+      console.log(chalk.cyan(`  Checksum: ${checksum}`));
+      return { success: true, group, phase };
+    }
+
     const psqlResult = await executeSqlFile(config, file.filePath);
 
     if (psqlResult.success) {
