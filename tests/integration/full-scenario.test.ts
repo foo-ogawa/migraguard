@@ -811,8 +811,8 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
     });
     await commandApply(project.config);
 
-    // tamper with users (non-leaf)
-    const USERS_TAMPERED = USERS_SQL + '\n-- tampered\n';
+    // tamper with users (non-leaf) — must change actual SQL, not just comments
+    const USERS_TAMPERED = USERS_SQL + '\nCREATE INDEX IF NOT EXISTS idx_users_tampered ON users (is_active);\n';
     await writeMigration(project, '20260301_100000__create_users.sql', USERS_TAMPERED);
 
     const ap = await commandApply(project.config);

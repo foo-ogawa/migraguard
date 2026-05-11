@@ -77,9 +77,16 @@ commandSets:
               type: boolean
               default: false
 
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be created without writing files.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
-            description: Migration file (or group directory) created successfully.
+            description: Migration file (or group directory) created successfully (or dry-run preview completed).
             stdout:
               format: text
             files:
@@ -105,6 +112,10 @@ commandSets:
           idempotent: false
           sideEffects:
             - file_write
+          sideEffectNote: Creates migration SQL file(s) in the configured migrations directory.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 1000
+          retryableExitCodes: []
 
       # ── apply ────────────────────────────────────────
       apply:
@@ -168,7 +179,12 @@ commandSets:
             requires writing a compensating migration or restoring from backup.
           sideEffects:
             - database_write
+          sideEffectNote: >-
+            Executes SQL via native CLI and records results in schema_migrations.
+            Uses advisory lock to prevent concurrent execution.
           safeDryRunOption: dry-run
+          expectedDurationMs: 60000
+          retryableExitCodes: []
           recommendedBeforeUse:
             - Run migraguard check to verify metadata integrity.
             - Run migraguard lint to check for unsafe DDL patterns.
@@ -192,6 +208,11 @@ commandSets:
               format: text
 
           '1':
+            description: Unexpected error (file read failure, parse error).
+            stderr:
+              format: text
+
+          '10':
             description: Integrity check failed (tampered, missing, or extra files).
             stderr:
               format: text
@@ -201,6 +222,9 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects: []
+          sideEffectNote: Read-only. Compares metadata.json against files on disk.
+          expectedDurationMs: 2000
+          retryableExitCodes: []
 
       # ── squash ───────────────────────────────────────
       squash:
@@ -211,6 +235,15 @@ commandSets:
           recovery and hotfix workflows. Original migration files are deleted.
         usage:
           - migraguard squash
+          - migraguard squash --dry-run
+
+        options:
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be squashed without writing files.
+            schema:
+              type: boolean
+              default: false
 
         exits:
           '0':
@@ -240,6 +273,12 @@ commandSets:
           sideEffects:
             - file_write
             - file_delete
+          sideEffectNote: >-
+            Merges migration files into one and deletes originals.
+            Updates metadata.json.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 3000
+          retryableExitCodes: []
           recommendedBeforeUse:
             - Ensure all pending files are ready for release.
             - Confirm no uncommitted changes to migration files.
@@ -290,6 +329,9 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects: []
+          sideEffectNote: Read-only. Scans migration files against safety rules.
+          expectedDurationMs: 3000
+          retryableExitCodes: []
 
       # ── dump ─────────────────────────────────────────
       dump:
@@ -325,6 +367,11 @@ commandSets:
           sideEffects:
             - database_read
             - file_write
+          sideEffectNote: >-
+            Reads DB schema via pg_dump/mysqldump and writes normalized
+            output to schema.sql.
+          expectedDurationMs: 10000
+          retryableExitCodes: [1]
 
       # ── diff ─────────────────────────────────────────
       diff:
@@ -369,6 +416,11 @@ commandSets:
           idempotent: true
           sideEffects:
             - database_read
+          sideEffectNote: >-
+            Reads DB schema via pg_dump/mysqldump and compares with
+            saved schema.sql. No writes.
+          expectedDurationMs: 10000
+          retryableExitCodes: [1]
 
       # ── status ───────────────────────────────────────
       status:
@@ -406,6 +458,9 @@ commandSets:
           idempotent: true
           sideEffects:
             - database_read
+          sideEffectNote: Reads schema_migrations table and compares with local files.
+          expectedDurationMs: 5000
+          retryableExitCodes: [1]
 
       # ── resolve ──────────────────────────────────────
       resolve:
@@ -417,6 +472,7 @@ commandSets:
           addressed by other means.
         usage:
           - migraguard resolve 20260301_120000__create_users_table.sql
+          - migraguard resolve --dry-run 20260301_120000__create_users_table.sql
 
         arguments:
           - name: file
@@ -425,6 +481,14 @@ commandSets:
             description: Failed migration file name to resolve.
             schema:
               type: string
+
+        options:
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be resolved without writing to DB.
+            schema:
+              type: boolean
+              default: false
 
         exits:
           '0':
@@ -447,6 +511,10 @@ commandSets:
             Re-apply the migration manually if needed.
           sideEffects:
             - database_write
+          sideEffectNote: Inserts a 'skipped' record into schema_migrations for the given file.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 3000
+          retryableExitCodes: [1]
           recommendedBeforeUse:
             - Verify that the failure has been addressed by a subsequent migration or manual fix.
             - Run migraguard status to confirm the file is in failed state.
@@ -476,6 +544,9 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects: []
+          sideEffectNote: Read-only. Lists leaf/latest migration files from metadata.
+          expectedDurationMs: 1000
+          retryableExitCodes: []
 
       # ── verify ───────────────────────────────────────
       verify:
@@ -512,7 +583,14 @@ commandSets:
               format: '{options.format}'
 
           '1':
+            description: Unexpected error (connection error, file parse failure).
+            stderr:
+              format: text
+
+          '10':
             description: One or more migrations failed idempotency verification.
+            stdout:
+              format: '{options.format}'
             stderr:
               format: text
 
@@ -523,6 +601,11 @@ commandSets:
           sideEffects:
             - database_read
             - database_write
+          sideEffectNote: >-
+            Creates and destroys a temporary shadow database to verify
+            idempotency. Does not modify the primary database.
+          expectedDurationMs: 60000
+          retryableExitCodes: [1]
           recommendedBeforeUse:
             - Ensure the database server is running and accessible.
 
@@ -562,6 +645,9 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects: []
+          sideEffectNote: Read-only. Derives group state from schema_migrations records.
+          expectedDurationMs: 3000
+          retryableExitCodes: [1]
 
       # ── baseline ─────────────────────────────────────
       baseline:
@@ -573,6 +659,7 @@ commandSets:
         usage:
           - migraguard baseline
           - migraguard baseline --keep-since 20260301_120000__create_users_table.sql
+          - migraguard baseline --dry-run
 
         options:
           - name: keep-since
@@ -582,9 +669,16 @@ commandSets:
             schema:
               type: string
 
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be baselined without writing files.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
-            description: Baseline created successfully.
+            description: Baseline created successfully (or dry-run preview completed).
             stdout:
               format: text
 
@@ -604,6 +698,12 @@ commandSets:
           sideEffects:
             - file_write
             - file_delete
+          sideEffectNote: >-
+            Dumps current DB schema to schema.sql, deletes squashed migration
+            files, updates metadata.json, and rewrites depends-on references.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 30000
+          retryableExitCodes: []
           recommendedBeforeUse:
             - Ensure all migrations have been applied to all environments.
             - Back up migration files before running.
@@ -650,9 +750,16 @@ commandSets:
             schema:
               type: string
 
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be recorded without writing to DB.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
-            description: Phase state transition recorded.
+            description: Phase state transition recorded (or dry-run preview completed).
             stdout:
               format: text
 
@@ -673,6 +780,10 @@ commandSets:
             status value to manually correct, or reset group state in the database.
           sideEffects:
             - database_write
+          sideEffectNote: Inserts a phase state transition record into schema_migrations.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 5000
+          retryableExitCodes: [1]
           recommendedBeforeUse:
             - Run migraguard group-status <group> to verify current phase state before advancing.
 
@@ -710,9 +821,16 @@ commandSets:
             schema:
               type: string
 
+          - name: dry-run
+            aliases: [n]
+            description: Show what would be applied without executing SQL.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
-            description: Phase applied successfully.
+            description: Phase applied successfully (or dry-run preview completed).
             stdout:
               format: text
 
@@ -733,6 +851,12 @@ commandSets:
             migration or restore from backup if rollback is needed.
           sideEffects:
             - database_write
+          sideEffectNote: >-
+            Executes a phase SQL file via native CLI and records the
+            result in schema_migrations. Uses advisory lock.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 30000
+          retryableExitCodes: []
           recommendedBeforeUse:
             - Run migraguard group-status to verify current phase state.
 
@@ -790,6 +914,11 @@ commandSets:
               format: text
 
           '1':
+            description: Unexpected error (connection error, invalid condition syntax).
+            stderr:
+              format: text
+
+          '10':
             description: One or more gate conditions not satisfied.
             stderr:
               format: text
@@ -799,6 +928,9 @@ commandSets:
           requiresConfirmation: false
           idempotent: true
           sideEffects: []
+          sideEffectNote: Read-only. Evaluates gate conditions against schema_migrations state.
+          expectedDurationMs: 5000
+          retryableExitCodes: [1]
 
       # ── deps ─────────────────────────────────────────
       deps:
@@ -845,6 +977,11 @@ commandSets:
           idempotent: true
           sideEffects:
             - file_write
+          sideEffectNote: >-
+            Reads migration files and outputs dependency graph.
+            Writes HTML file only when --html is specified.
+          expectedDurationMs: 3000
+          retryableExitCodes: []
 
       # ── audit ─────────────────────────────────────────
       audit:
@@ -917,7 +1054,7 @@ commandSets:
             schema:
               type: string
               enum: [json, text, yaml]
-              default: text
+              default: json
 
         exits:
           '0':
@@ -964,7 +1101,7 @@ commandSets:
             Filesystem write only when --output is specified.
           safeDryRunOption: dry-run
           expectedDurationMs: 120000
-          retryableExitCodes: [1, 12]
+          retryableExitCodes: [12]
 
       # ── propose-expand-contract ───────────────────────
       propose-expand-contract:
@@ -1092,7 +1229,7 @@ commandSets:
             Filesystem write when --output or --output-dir is specified.
           safeDryRunOption: dry-run
           expectedDurationMs: 120000
-          retryableExitCodes: [1, 12]
+          retryableExitCodes: [12]
 
       # ── explain ───────────────────────────────────────
       explain:
@@ -1208,12 +1345,14 @@ commandSets:
             Filesystem write only when --output is specified.
           safeDryRunOption: dry-run
           expectedDurationMs: 120000
-          retryableExitCodes: [1, 12]
+          retryableExitCodes: [12]
 
 components:
   schemas:
     # ── AI Agent Interoperability Schemas (SSoT) ─────────
 
+    # Conforms to agent-contracts dsl_base/components.yaml#/schemas/agent-evidence.
+    # Canonical property names are kind/target/location/excerpt (NOT type/content/source).
     AgentEvidence:
       type: object
       description: Evidence supporting an agent finding.
@@ -1390,7 +1529,7 @@ components:
       description: >-
         Result from explain command. Contains a human-readable explanation
         of another command's output, suitable for PR comments or release decisions.
-      required: [summary, riskLevel, explanation]
+      required: [summary, riskLevel, findings, explanation]
       properties:
         summary:
           type: string

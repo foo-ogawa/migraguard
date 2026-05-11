@@ -3,7 +3,11 @@ import type { MigraguardConfig } from '../config.js';
 import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 
-export async function commandResolve(config: MigraguardConfig, fileName: string): Promise<void> {
+export interface ResolveOptions {
+  dryRun?: boolean;
+}
+
+export async function commandResolve(config: MigraguardConfig, fileName: string, options?: ResolveOptions): Promise<void> {
   const db = createDb(config);
 
   try {
@@ -23,6 +27,12 @@ export async function commandResolve(config: MigraguardConfig, fileName: string)
       throw new Error(
         `Cannot resolve "${fileName}": latest status is "${latestRecord.status}", expected "failed".`,
       );
+    }
+
+    if (options?.dryRun) {
+      console.log(chalk.cyan(`[dry-run] Would resolve: "${fileName}" → mark as skipped`));
+      console.log(chalk.cyan(`  Current status: ${latestRecord.status}, checksum: ${latestRecord.checksum}`));
+      return;
     }
 
     await db.insertRecord(fileName, latestRecord.checksum, 'skipped');

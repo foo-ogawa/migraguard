@@ -18,6 +18,7 @@ import { deriveAllGroupStates, isGroupOpen } from '../group-state.js';
 
 export interface BaselineOptions {
   keepSince?: string[];
+  dryRun?: boolean;
 }
 
 export interface BaselineResult {
@@ -98,6 +99,15 @@ export async function commandBaseline(
     if (squashTargets.length === 0) {
       console.log(chalk.yellow('No files to baseline.'));
       return { success: true, squashedFiles: [], remainingLeaves: [...keepSet], schemaFile: '' };
+    }
+
+    if (options?.dryRun) {
+      console.log(chalk.cyan(`[dry-run] Would baseline ${squashTargets.length} file(s) into ${config.schemaFile}:`));
+      for (const f of squashTargets) {
+        console.log(chalk.cyan(`  squash: ${f}`));
+      }
+      console.log(chalk.cyan(`  Remaining: ${[...keepSet].join(', ') || '(none)'}`));
+      return { success: true, squashedFiles: squashTargets, remainingLeaves: [...keepSet], schemaFile: config.schemaFile };
     }
 
     const schemaContent = await dumpSchema(config);

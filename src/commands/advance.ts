@@ -10,6 +10,7 @@ export interface AdvanceOptions {
   phase: Phase;
   status: 'running' | 'completed' | 'failed';
   tag?: string;
+  dryRun?: boolean;
 }
 
 export interface AdvanceResult {
@@ -49,6 +50,12 @@ export async function commandAdvance(
 
     const dbStatus = STATUS_MAP[status];
     const fileName = findPhaseFileName(group, phase, allRecords);
+
+    if (options.dryRun) {
+      console.log(chalk.cyan(`[dry-run] Would advance "${group}" ${phase} → ${status}`));
+      console.log(chalk.cyan(`  File: ${fileName}, current state: ${previousState}`));
+      return { success: true, previousState, newState: `${phase}:${status}` };
+    }
 
     await db.insertRecord(fileName, '', dbStatus, {
       migrationClass: 'expand_contract',

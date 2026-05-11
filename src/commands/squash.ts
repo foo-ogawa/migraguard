@@ -60,7 +60,11 @@ async function squashGroup(
   return updated;
 }
 
-export async function commandSquash(config: MigraguardConfig): Promise<void> {
+export interface SquashOptions {
+  dryRun?: boolean;
+}
+
+export async function commandSquash(config: MigraguardConfig, options?: SquashOptions): Promise<void> {
   const metadata = await loadMetadata(config);
   const files = await scanMigrations(config);
   const metadataFileSet = new Set(metadata.migrations.map((m) => m.file));
@@ -69,6 +73,14 @@ export async function commandSquash(config: MigraguardConfig): Promise<void> {
 
   if (newFiles.length === 0) {
     console.log(chalk.yellow('No new migration files to squash.'));
+    return;
+  }
+
+  if (options?.dryRun) {
+    console.log(chalk.cyan(`[dry-run] Would squash ${newFiles.length} file(s):`));
+    for (const f of newFiles) {
+      console.log(chalk.cyan(`  ${f.fileName}`));
+    }
     return;
   }
 

@@ -49,6 +49,7 @@ export interface ApplyOptions {
   withDriftCheck?: boolean;
   fromBaseline?: boolean;
   tag?: string;
+  dryRun?: boolean;
 }
 
 export async function commandApply(config: MigraguardConfig, options?: ApplyOptions): Promise<ApplyResult> {
@@ -116,6 +117,27 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
     }
 
     const fileMap = new Map(files.map((f) => [f.fileName, f]));
+
+    if (options?.dryRun) {
+      const pending: string[] = [];
+      for (const fileName of orderedFileNames) {
+        const fileRecords = recordsByFile.get(fileName) ?? [];
+        const latestRecord = getLatestRecord(fileRecords);
+        if (!latestRecord || latestRecord.status === 'failed') {
+          pending.push(fileName);
+        }
+      }
+      if (pending.length === 0) {
+        console.log(chalk.green('All migrations are up to date.'));
+      } else {
+        console.log(chalk.cyan(`[dry-run] ${pending.length} migration(s) would be applied:`));
+        for (const f of pending) {
+          console.log(chalk.cyan(`  ${f}`));
+        }
+      }
+      return result;
+    }
+
     const latestFileName = files[files.length - 1].fileName;
     const blockedSet = new Set<string>();
 
@@ -172,6 +194,8 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
       const isEditable = dag && leafSet
         ? leafSet.has(file.fileName)
         : file.fileName === latestFileName;
+
+
 
       const insertOpts: InsertRecordOptions | undefined =
         file.migrationClass === 'expand_contract'
