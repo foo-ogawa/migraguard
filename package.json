@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
