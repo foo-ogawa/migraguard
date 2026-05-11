@@ -4,6 +4,8 @@ import type { Phase } from './naming.js';
 import type { MigrationClass } from './scanner.js';
 
 const ADVISORY_LOCK_KEY = 'migraguard-apply';
+const CONNECTION_TIMEOUT_MS = 10_000;
+const DDL_LOCK_TIMEOUT_SEC = 5;
 
 const CREATE_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -54,6 +56,7 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
       database: this.config.connection.database,
       user: this.config.connection.user,
       password: this.config.connection.password,
+      connectTimeout: CONNECTION_TIMEOUT_MS,
     });
   }
 
@@ -62,14 +65,31 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
   }
 
   async ensureTable(): Promise<void> {
-    await this.exec(CREATE_TABLE_SQL);
+    if (await this.tableHasAllColumns()) return;
+
+    await this.exec(`SET SESSION lock_wait_timeout = ${DDL_LOCK_TIMEOUT_SEC}`);
+    try {
+      await this.exec(CREATE_TABLE_SQL);
+      const rows = await this.queryRows(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'schema_migrations' AND COLUMN_NAME = 'tag'`,
+      );
+      if (rows.length === 0) {
+        await this.exec(`ALTER TABLE schema_migrations ADD COLUMN tag VARCHAR(256) NULL`);
+      }
+    } finally {
+      await this.exec(`SET SESSION lock_wait_timeout = DEFAULT`);
+    }
+  }
+
+  private async tableHasAllColumns(): Promise<boolean> {
     const rows = await this.queryRows(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'schema_migrations' AND COLUMN_NAME = 'tag'`,
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'schema_migrations'`,
     );
-    if (rows.length === 0) {
-      await this.exec(`ALTER TABLE schema_migrations ADD COLUMN tag VARCHAR(256) NULL`);
-    }
+    if (rows.length === 0) return false;
+    const existing = new Set(rows.map((r) => r['COLUMN_NAME'] as string));
+    return ['migration_class', 'phase', 'group_name', 'tag'].every((c) => existing.has(c));
   }
 
   async acquireAdvisoryLock(): Promise<void> {

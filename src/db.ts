@@ -68,6 +68,12 @@ export function createDb(config: MigraguardConfig): MigraguardDbAdapter {
   }
 }
 
+const CONNECTION_TIMEOUT_MS = 10_000;
+const DDL_LOCK_TIMEOUT = '5s';
+const DDL_STATEMENT_TIMEOUT = '10s';
+
+const REQUIRED_COLUMNS = ['migration_class', 'phase', 'group_name', 'tag'];
+
 export class MigraguardDb implements MigraguardDbAdapter {
   private client: pg.Client;
 
@@ -78,6 +84,7 @@ export class MigraguardDb implements MigraguardDbAdapter {
       database: config.connection.database,
       user: config.connection.user,
       password: config.connection.password,
+      connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     });
   }
 
@@ -90,8 +97,28 @@ export class MigraguardDb implements MigraguardDbAdapter {
   }
 
   async ensureTable(): Promise<void> {
-    await this.client.query(CREATE_TABLE_SQL);
-    await this.client.query(ALTER_TABLE_SQL);
+    if (await this.tableHasAllColumns()) return;
+
+    await this.client.query(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`);
+    await this.client.query(`SET statement_timeout = '${DDL_STATEMENT_TIMEOUT}'`);
+    try {
+      await this.client.query(CREATE_TABLE_SQL);
+      await this.client.query(ALTER_TABLE_SQL);
+    } finally {
+      await this.client.query('RESET lock_timeout');
+      await this.client.query('RESET statement_timeout');
+    }
+  }
+
+  private async tableHasAllColumns(): Promise<boolean> {
+    const result = await this.client.query(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'schema_migrations'
+         AND table_schema = current_schema()`,
+    );
+    if (result.rows.length === 0) return false;
+    const existing = new Set(result.rows.map((r: Record<string, unknown>) => r['column_name']));
+    return REQUIRED_COLUMNS.every((c) => existing.has(c));
   }
 
   async acquireAdvisoryLock(): Promise<void> {
