@@ -299,4 +299,5 @@ program
     });
   }));
 
-program.parse();
+await program.parseAsync();
+process.exit(0);

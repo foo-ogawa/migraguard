@@ -69,6 +69,7 @@ export function createDb(config: MigraguardConfig): MigraguardDbAdapter {
 }
 
 const CONNECTION_TIMEOUT_MS = 10_000;
+const SESSION_STATEMENT_TIMEOUT_MS = 30_000;
 const DDL_LOCK_TIMEOUT = '5s';
 const DDL_STATEMENT_TIMEOUT = '10s';
 
@@ -90,6 +91,7 @@ export class MigraguardDb implements MigraguardDbAdapter {
 
   async connect(): Promise<void> {
     await this.client.connect();
+    await this.client.query(`SET statement_timeout = ${SESSION_STATEMENT_TIMEOUT_MS}`);
   }
 
   async close(): Promise<void> {
@@ -106,7 +108,7 @@ export class MigraguardDb implements MigraguardDbAdapter {
       await this.client.query(ALTER_TABLE_SQL);
     } finally {
       await this.client.query('RESET lock_timeout');
-      await this.client.query('RESET statement_timeout');
+      await this.client.query(`SET statement_timeout = ${SESSION_STATEMENT_TIMEOUT_MS}`);
     }
   }
 
