@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
-import { createDb } from '../db.js';
+import { createDb, safeGetAllRecords } from '../db.js';
 import { deriveAllGroupStates, deriveGroupState } from '../group-state.js';
 import type { GroupState, GroupStateName } from '../group-state.js';
 
@@ -16,9 +16,8 @@ export async function commandGroupStatus(
 
   try {
     await db.connect();
-    await db.ensureTable();
 
-    const allRecords = await db.getAllRecords();
+    const allRecords = await safeGetAllRecords(db);
     let groups: GroupState[];
 
     if (groupName) {

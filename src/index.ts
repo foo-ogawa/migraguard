@@ -11,7 +11,7 @@ export const pkg = require('../package.json') as {
 export const VERSION: string = pkg.version;
 export type { LintRule, LintViolation, RuleReport, RuleContext, NodeVisitors } from './rules/engine.js';
 
-export { MigraguardDb, createDb } from './db.js';
+export { MigraguardDb, createDb, safeGetAllRecords } from './db.js';
 export type { MigraguardDbAdapter, MigrationRecord, MigrationStatus, InsertRecordOptions } from './db.js';
 export { executeSqlFile } from './executor.js';
 export type { SqlExecResult } from './executor.js';

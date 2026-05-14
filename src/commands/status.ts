@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { checksumFile } from '../checksum.js';
-import { createDb } from '../db.js';
+import { createDb, safeGetAllRecords } from '../db.js';
 import type { MigrationRecord } from '../db.js';
 import { loadMetadata } from '../metadata.js';
 import { deriveAllGroupStates } from '../group-state.js';
@@ -36,10 +36,9 @@ export async function commandStatus(config: MigraguardConfig): Promise<StatusRes
 
   try {
     await db.connect();
-    await db.ensureTable();
 
     const files = await scanMigrations(config);
-    const allRecords = await db.getAllRecords();
+    const allRecords = await safeGetAllRecords(db);
 
     const recordsByFile = new Map<string, MigrationRecord[]>();
     for (const r of allRecords) {
