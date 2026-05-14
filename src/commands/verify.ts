@@ -10,7 +10,7 @@ import type { MigraguardConfig, ConnectionConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { executeSqlFile, spawnWithStdin } from '../executor.js';
 import { dumpSchema } from '../dumper.js';
-import { createDb } from '../db.js';
+import { createDb, safeGetAllRecords } from '../db.js';
 
 const { Client } = pg;
 const execFileAsync = promisify(execFile);
@@ -227,8 +227,7 @@ async function getAppliedFiles(config: MigraguardConfig): Promise<Set<string>> {
   const db = createDb(config);
   try {
     await db.connect();
-    await db.ensureTable();
-    const records = await db.getAllRecords();
+    const records = await safeGetAllRecords(db);
     return new Set(
       records
         .filter((r) => r.status === 'applied' || r.status === 'skipped')

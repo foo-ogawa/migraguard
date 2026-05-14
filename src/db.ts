@@ -68,6 +68,29 @@ export function createDb(config: MigraguardConfig): MigraguardDbAdapter {
   }
 }
 
+/**
+ * Read records without DDL — returns [] if schema_migrations does not exist.
+ * Use this for read-only commands (group-status, status, gate) that must
+ * never take ACCESS EXCLUSIVE locks.
+ */
+export async function safeGetAllRecords(db: MigraguardDbAdapter): Promise<MigrationRecord[]> {
+  try {
+    return await db.getAllRecords();
+  } catch (err: unknown) {
+    if (isTableNotFound(err)) return [];
+    throw err;
+  }
+}
+
+function isTableNotFound(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as unknown as Record<string, unknown>)['code'];
+  if (code === '42P01') return true;
+  if (code === 'ER_NO_SUCH_TABLE') return true;
+  if (err.message.includes('no such table')) return true;
+  return false;
+}
+
 const CONNECTION_TIMEOUT_MS = 10_000;
 const SESSION_STATEMENT_TIMEOUT_MS = 30_000;
 const DDL_LOCK_TIMEOUT = '5s';
