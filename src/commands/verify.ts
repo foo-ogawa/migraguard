@@ -53,8 +53,10 @@ async function createPgShadow(conn: ConnectionConfig, dbName: string): Promise<v
   const client = new Client({
     host: conn.host, port: conn.port, database: 'postgres',
     user: conn.user, password: conn.password,
+    connectionTimeoutMillis: 10_000,
   });
   await client.connect();
+  await client.query('SET statement_timeout = 30000');
   try { await client.query(`CREATE DATABASE "${dbName}"`); } finally { await client.end(); }
 }
 
@@ -62,8 +64,10 @@ async function dropPgShadow(conn: ConnectionConfig, dbName: string): Promise<voi
   const client = new Client({
     host: conn.host, port: conn.port, database: 'postgres',
     user: conn.user, password: conn.password,
+    connectionTimeoutMillis: 10_000,
   });
   await client.connect();
+  await client.query('SET statement_timeout = 30000');
   try { await client.query(`DROP DATABASE IF EXISTS "${dbName}"`); } finally { await client.end(); }
 }
 

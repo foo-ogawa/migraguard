@@ -5,6 +5,7 @@ import type { MigrationClass } from './scanner.js';
 
 const ADVISORY_LOCK_KEY = 'migraguard-apply';
 const CONNECTION_TIMEOUT_MS = 10_000;
+const SESSION_MAX_EXECUTION_TIME_MS = 30_000;
 const DDL_LOCK_TIMEOUT_SEC = 5;
 
 const CREATE_TABLE_SQL = `
@@ -58,6 +59,11 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
       password: this.config.connection.password,
       connectTimeout: CONNECTION_TIMEOUT_MS,
     });
+    try {
+      await this.exec(`SET SESSION max_execution_time = ${SESSION_MAX_EXECUTION_TIME_MS}`);
+    } catch {
+      // max_execution_time requires MySQL 5.7.8+; ignore if unsupported
+    }
   }
 
   async close(): Promise<void> {
@@ -79,6 +85,11 @@ export class MigraguardDbMysql implements MigraguardDbAdapter {
       }
     } finally {
       await this.exec(`SET SESSION lock_wait_timeout = DEFAULT`);
+      try {
+        await this.exec(`SET SESSION max_execution_time = ${SESSION_MAX_EXECUTION_TIME_MS}`);
+      } catch {
+        // max_execution_time requires MySQL 5.7.8+; ignore if unsupported
+      }
     }
   }
 
