@@ -4,7 +4,11 @@ audit-migration-safety:
   allowed_from_agents:
     - migration-safety-auditor
   workflow: migration-audit
-  input_artifacts: []
+  input_artifacts:
+    - migration-sql-input
+    - cli-contract-source
+    - lint-rules-source
+    - schema-sql-context
   invocation_handoff: migration-audit-request
   result_handoff: migration-audit-result
   responsibilities:
@@ -25,7 +29,9 @@ propose-expand-contract:
   allowed_from_agents:
     - migration-safety-auditor
   workflow: expand-contract-proposal
-  input_artifacts: []
+  input_artifacts:
+    - migration-sql-input
+    - documentation
   invocation_handoff: migration-audit-request
   result_handoff: expand-contract-proposal-result
   responsibilities:
@@ -45,7 +51,9 @@ explain-command-result:
   allowed_from_agents:
     - migration-safety-auditor
   workflow: command-explanation
-  input_artifacts: []
+  input_artifacts:
+    - command-output-json
+    - cli-contract-source
   invocation_handoff: migration-audit-request
   result_handoff: explain-result
   responsibilities:

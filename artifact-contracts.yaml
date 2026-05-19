@@ -1,0 +1,99 @@
+artifactContracts: "2026A"
+
+system:
+  id: migraguard
+  name: Migraguard
+
+artifacts:
+  cli-contract-source:
+    type: config
+    description: "CLI contract definition for migraguard commands and audit schemas"
+    authority: canonical
+    change_control: approval-required
+    path_patterns: ["cli-contract.yaml"]
+
+  migraguard-audit-config:
+    type: config
+    description: "Agent audit adapter and DSL path configuration"
+    authority: control
+    path_patterns: ["migraguard-audit.config.yaml"]
+
+  agent-dsl:
+    type: config
+    description: "Agent-contracts DSL definitions for LLM migration commands"
+    authority: canonical
+    change_control: approval-required
+    path_patterns: ["dsl/**/*.yaml"]
+
+  artifact-contracts-registry:
+    type: config
+    description: "Physical artifact registry for migraguard"
+    authority: canonical
+    change_control: approval-required
+    path_patterns: ["artifact-contracts.yaml"]
+
+  lint-rules-source:
+    type: source
+    description: "PostgreSQL and generic migration lint rule implementations"
+    authority: canonical
+    path_patterns:
+      - "src/rules/**/*.ts"
+      - "src/generic/rules/**/*.ts"
+
+  agent-integration:
+    type: source
+    description: "LLM agent orchestration, context building, and formatting"
+    authority: canonical
+    path_patterns: ["src/agents/**/*.ts"]
+
+  source-code:
+    type: source
+    description: "Core library, commands, and database adapters"
+    authority: canonical
+    path_patterns:
+      - "src/**/*.ts"
+    exclude_patterns:
+      - "src/generated/**"
+      - "src/agents/**"
+      - "src/rules/**"
+      - "src/generic/rules/**"
+
+  generated-typescript:
+    type: generated-code
+    description: "Auto-generated TypeScript from cli-contract.yaml"
+    authority: generated
+    path_patterns: ["src/generated/**/*.ts"]
+    exclude_patterns: ["src/generated/dsl/**"]
+
+  generated-dsl-runtime:
+    type: generated-code
+    description: "Auto-generated agent DSL registries from agent-contracts-runtime"
+    authority: generated
+    path_patterns: ["src/generated/dsl/**/*.ts"]
+
+  documentation:
+    type: generated-doc
+    description: "CLI reference and architecture documentation"
+    authority: derived
+    path_patterns: ["docs/**/*.md"]
+
+  readme:
+    type: document
+    description: "Project README"
+    authority: canonical
+    path_patterns: ["README.md"]
+
+  test-suite:
+    type: source
+    description: "Unit and integration tests"
+    authority: canonical
+    path_patterns:
+      - "tests/**/*.ts"
+
+  example-migrations:
+    type: config
+    description: "Example SQL migrations for documentation and testing"
+    authority: canonical
+    path_patterns:
+      - "examples/**/db/migrations/**/*.sql"
+      - "examples/**/migrations/**/*.sql"

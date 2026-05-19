@@ -10,6 +10,7 @@ system:
 agents: { $ref: "./agents/" }
 tasks: { $ref: "./tasks.yaml" }
 handoff_types: { $ref: "./handoff-types.yaml" }
+artifacts: { $ref: "./artifacts.yaml" }
 
 guardrails:
   output-schema-conformance:
