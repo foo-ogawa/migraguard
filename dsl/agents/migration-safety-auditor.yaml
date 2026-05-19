@@ -5,7 +5,14 @@ migration-safety-auditor:
     Identifies risks that AST-based lint cannot detect by considering
     deployment context, application compatibility, and operational impact.
   mode: read-only
-  can_read_artifacts: []
+  can_read_artifacts:
+    - cli-contract-source
+    - lint-rules-source
+    - documentation
+    - agent-dsl
+    - migration-sql-input
+    - schema-sql-context
+    - command-output-json
   can_write_artifacts: []
   can_invoke_agents: []
   can_execute_tools: []

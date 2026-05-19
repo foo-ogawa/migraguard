@@ -1,0 +1,20 @@
+# Physical artifacts: imported from artifact-contracts.yaml (shared registry)
+# Ephemeral artifacts: defined inline (dynamic inputs with no fixed path)
+
+$refs:
+  - "./physical-artifacts.yaml"
+
+migration-sql-input:
+  type: document
+  description: "SQL migration file(s) passed via --file or discovered from migrations dirs (ephemeral input)"
+  authority: derived
+
+schema-sql-context:
+  type: document
+  description: "Relevant schema.sql excerpts for tables referenced in migration SQL (ephemeral input)"
+  authority: derived
+
+command-output-json:
+  type: document
+  description: "JSON output from a migraguard command on stdin (ephemeral input for explain)"
+  authority: derived
