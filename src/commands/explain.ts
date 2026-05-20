@@ -14,7 +14,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandExplainOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -23,7 +23,7 @@ export interface CommandExplainOptions {
 export async function commandExplain(
   _config: MigraguardConfig,
   opts: CommandExplainOptions,
-): Promise<void> {
+): Promise<void | string> {
   const stdin = await readStdin();
   if (!stdin.trim()) {
     console.error(chalk.red("Error: No input received on stdin."));
@@ -33,13 +33,14 @@ export async function commandExplain(
 
   const context = buildExplainContext(stdin);
 
+  if (opts.showPrompt) return context;
+
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,
     model: opts.model,
   };
 
   const auditOpts: AuditOptions = {
-    dryRun: opts.dryRun,
     failOn: opts.failOn,
   };
 

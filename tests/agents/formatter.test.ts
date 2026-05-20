@@ -12,7 +12,6 @@ function makeResult(overrides: Partial<AuditRunResult> = {}): AuditRunResult {
     },
     raw: "",
     prompt: "test prompt",
-    dryRun: false,
     status: "success",
     followUpsUsed: 0,
     retriesUsed: 0,
@@ -21,11 +20,6 @@ function makeResult(overrides: Partial<AuditRunResult> = {}): AuditRunResult {
 }
 
 describe("computeExitCode", () => {
-  it("returns 0 for dry run", () => {
-    const result = makeResult({ dryRun: true });
-    expect(computeExitCode(result, {})).toBe(0);
-  });
-
   it("returns 1 for non-success status", () => {
     const result = makeResult({ status: "error", data: null });
     expect(computeExitCode(result, {})).toBe(1);
@@ -86,11 +80,6 @@ describe("computeExitCode", () => {
 });
 
 describe("formatResultText", () => {
-  it("returns prompt for dry run", () => {
-    const result = makeResult({ dryRun: true, prompt: "my prompt" });
-    expect(formatResultText(result)).toBe("my prompt");
-  });
-
   it("formats findings with severity icons", () => {
     const result = makeResult({
       data: {
@@ -121,13 +110,6 @@ describe("formatResultText", () => {
 });
 
 describe("formatResultJson", () => {
-  it("returns prompt JSON for dry run", () => {
-    const result = makeResult({ dryRun: true, prompt: "p" });
-    const json = JSON.parse(formatResultJson(result));
-    expect(json.dryRun).toBe(true);
-    expect(json.prompt).toBe("p");
-  });
-
   it("returns data JSON on success", () => {
     const result = makeResult();
     const json = JSON.parse(formatResultJson(result));

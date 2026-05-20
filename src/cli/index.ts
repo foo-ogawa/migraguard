@@ -1,7 +1,7 @@
-import { Command } from 'commander';
 import chalk from 'chalk';
 import { pkg } from '../index.js';
 import { loadConfig } from '../config.js';
+import { createProgram, type CommandHandlers } from '../generated/program.js';
 import { commandNew } from '../commands/new.js';
 import { commandCheck } from '../commands/check.js';
 import { commandSquash } from '../commands/squash.js';
@@ -24,6 +24,11 @@ import { commandProposeExpandContract } from '../commands/propose-expand-contrac
 import { commandExplain } from '../commands/explain.js';
 import type { Phase } from '../naming.js';
 
+function asArray(value: string | string[] | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
+}
+
 async function run(fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
@@ -34,31 +39,13 @@ async function run(fn: () => Promise<void>): Promise<void> {
   }
 }
 
-const program = new Command();
-
-program
-  .name(pkg.name)
-  .description(pkg.description)
-  .version(pkg.version);
-
-program
-  .command('new <name>')
-  .description('Create a new migration SQL file with UTC timestamp')
-  .option('--expand-contract', 'Create an expand/contract migration group (Class B)')
-  .option('-n, --dry-run', 'Show what would be created without writing files')
-  .action((name: string, opts: { expandContract?: boolean; dryRun?: boolean }) => run(async () => {
+const handlers: CommandHandlers = {
+  new: async (name, opts) => run(async () => {
     const config = await loadConfig();
-    await commandNew(config, name, { expandContract: opts.expandContract, dryRun: opts.dryRun });
-  }));
+    await commandNew(config, name!, { expandContract: opts.expandContract, dryRun: opts.dryRun });
+  }),
 
-program
-  .command('apply')
-  .description('Apply pending migrations via psql')
-  .option('--with-drift-check', 'Check schema drift before apply and update dump after')
-  .option('--from-baseline', 'Apply schema.sql first, then remaining migrations')
-  .option('--tag <text>', 'Tag to record with applied migrations (e.g. commit hash, release tag)')
-  .option('-n, --dry-run', 'List pending migrations without applying')
-  .action((opts: { withDriftCheck?: boolean; fromBaseline?: boolean; tag?: string; dryRun?: boolean }) => run(async () => {
+  apply: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandApply(config, {
       withDriftCheck: opts.withDriftCheck,
@@ -67,237 +54,170 @@ program
       dryRun: opts.dryRun,
     });
     if (result.errors.length > 0) process.exit(1);
-  }));
+  }),
 
-program
-  .command('check')
-  .description('Verify metadata integrity (no DB connection required)')
-  .action(() => run(async () => {
+  check: async () => run(async () => {
     const config = await loadConfig();
     const result = await commandCheck(config);
     if (!result.ok) process.exit(1);
-  }));
+  }),
 
-program
-  .command('squash')
-  .description('Squash multiple new migration files into one')
-  .option('-n, --dry-run', 'Show what would be squashed without writing files')
-  .action((opts: { dryRun?: boolean }) => run(async () => {
+  squash: async (opts) => run(async () => {
     const config = await loadConfig();
     await commandSquash(config, { dryRun: opts.dryRun });
-  }));
+  }),
 
-program
-  .command('lint')
-  .description('Run built-in safety rules on migration files')
-  .action(() => run(async () => {
+  lint: async () => run(async () => {
     const config = await loadConfig();
     const result = await commandLint(config);
     if (!result.ok) process.exit(1);
-  }));
+  }),
 
-program
-  .command('dump')
-  .description('Dump and normalize current DB schema')
-  .action(() => run(async () => {
+  dump: async () => run(async () => {
     const config = await loadConfig();
     await commandDump(config);
-  }));
+  }),
 
-program
-  .command('diff')
-  .description('Show diff between current DB schema and saved schema.sql')
-  .action(() => run(async () => {
+  diff: async () => run(async () => {
     const config = await loadConfig();
     const result = await commandDiff(config);
     if (!result.identical) process.exit(1);
-  }));
+  }),
 
-program
-  .command('status')
-  .description('Show migration status (applied / pending / failed / skipped)')
-  .action(() => run(async () => {
+  status: async () => run(async () => {
     const config = await loadConfig();
     await commandStatus(config);
-  }));
+  }),
 
-program
-  .command('resolve <file>')
-  .description('Mark a failed migration as skipped (requires human judgment)')
-  .option('-n, --dry-run', 'Show what would be resolved without writing to DB')
-  .action((file: string, opts: { dryRun?: boolean }) => run(async () => {
+  resolve: async (file, opts) => run(async () => {
     const config = await loadConfig();
-    await commandResolve(config, file, { dryRun: opts.dryRun });
-  }));
+    await commandResolve(config, file!, { dryRun: opts.dryRun });
+  }),
 
-program
-  .command('editable')
-  .description('List migration files that are currently editable (leaf nodes or latest file)')
-  .action(() => run(async () => {
+  editable: async () => run(async () => {
     const config = await loadConfig();
     await commandEditable(config);
-  }));
+  }),
 
-program
-  .command('verify')
-  .description('Verify migration idempotency using a shadow DB')
-  .option('--all', 'Verify all migrations from scratch (not just pending)')
-  .action((opts: { all?: boolean }) => run(async () => {
+  verify: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandVerify(config, { all: opts.all });
     if (result.failed > 0) process.exit(1);
-  }));
+  }),
 
-program
-  .command('group-status [group]')
-  .description('Show migration group state (expand/contract phases)')
-  .action((group?: string) => run(async () => {
+  groupStatus: async (group) => run(async () => {
     const config = await loadConfig();
     await commandGroupStatus(config, group);
-  }));
+  }),
 
-program
-  .command('baseline')
-  .description('Squash applied migrations into schema.sql baseline')
-  .option('--keep-since <file...>', 'Keep files from this point forward')
-  .option('-n, --dry-run', 'Show what would be baselined without writing files')
-  .action((opts: { keepSince?: string[]; dryRun?: boolean }) => run(async () => {
+  baseline: async (opts) => run(async () => {
     const config = await loadConfig();
-    const result = await commandBaseline(config, { keepSince: opts.keepSince, dryRun: opts.dryRun });
+    const result = await commandBaseline(config, {
+      keepSince: asArray(opts.keepSince),
+      dryRun: opts.dryRun,
+    });
     if (!result.success) process.exit(1);
-  }));
+  }),
 
-program
-  .command('advance <group> <phase> <status>')
-  .description('Record a phase state transition (for external executor)')
-  .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
-  .option('-n, --dry-run', 'Show what would be recorded without writing to DB')
-  .action((group: string, phase: string, status: string, opts: { tag?: string; dryRun?: boolean }) => run(async () => {
+  advance: async (group, phase, status, opts) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
     const validStatuses = ['running', 'completed', 'failed'];
-    if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
-    if (!validStatuses.includes(status)) throw new Error(`Invalid status: ${status}`);
+    if (!validPhases.includes(phase!)) throw new Error(`Invalid phase: ${phase}`);
+    if (!validStatuses.includes(status!)) throw new Error(`Invalid status: ${status}`);
     const result = await commandAdvance(config, {
-      group,
+      group: group!,
       phase: phase as Phase,
       status: status as 'running' | 'completed' | 'failed',
       tag: opts.tag,
       dryRun: opts.dryRun,
     });
     if (!result.success) process.exit(1);
-  }));
+  }),
 
-program
-  .command('apply-phase <group> <phase>')
-  .description('Apply a specific phase of a migration group via psql')
-  .option('--tag <text>', 'Tag to record (e.g. commit hash, release tag)')
-  .option('-n, --dry-run', 'Show what would be applied without executing SQL')
-  .action((group: string, phase: string, opts: { tag?: string; dryRun?: boolean }) => run(async () => {
+  applyPhase: async (group, phase, opts) => run(async () => {
     const config = await loadConfig();
     const validPhases = ['expand', 'backfill', 'switch', 'contract'];
-    if (!validPhases.includes(phase)) throw new Error(`Invalid phase: ${phase}`);
+    if (!validPhases.includes(phase!)) throw new Error(`Invalid phase: ${phase}`);
     const result = await commandApplyPhase(config, {
-      group,
+      group: group!,
       phase: phase as Phase,
       tag: opts.tag,
       dryRun: opts.dryRun,
     });
     if (!result.success) process.exit(1);
-  }));
+  }),
 
-program
-  .command('gate')
-  .description('Evaluate deployment gate conditions against migration group states')
-  .option('--require <condition...>', 'Required schema state conditions')
-  .option('--forbid <condition...>', 'Forbidden schema state conditions')
-  .option('--contract-file <path>', 'JSON file with schema requirements')
-  .action((opts: { require?: string[]; forbid?: string[]; contractFile?: string }) => run(async () => {
+  gate: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandGate(config, {
-      required: opts.require,
-      forbidden: opts.forbid,
+      required: asArray(opts.require),
+      forbidden: asArray(opts.forbid),
       contractFile: opts.contractFile,
     });
     if (!result.pass) process.exit(1);
-  }));
+  }),
 
-program
-  .command('deps')
-  .description('Analyze and display migration dependency graph')
-  .option('--html <path>', 'Output as HTML file with GitGraph.js visualization')
-  .action((opts: { html?: string }) => run(async () => {
+  deps: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandDeps(config, { html: opts.html });
     if (!result.ok) process.exit(1);
-  }));
+  }),
 
-program
-  .command('audit [target]')
-  .description('Run LLM-based migration safety audit')
-  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
-  .option('--model <name>', 'LLM model override')
-  .option('-n, --dry-run', 'Output prompt without calling LLM')
-  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
-  .option('-o, --output <file>', 'Write result to a file instead of stdout')
-  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'text')
-  .action((target: string | undefined, opts: {
-    adapter?: string; model?: string; dryRun?: boolean;
-    failOn?: string; output?: string; reportFormat?: string;
-  }) => run(async () => {
+  audit: async (target, opts) => {
     const config = await loadConfig();
-    await commandAudit(config, target, {
+    const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+    };
+    if (opts.showPrompt) {
+      return commandAudit(config, target, commandOpts);
+    }
+    await run(async () => {
+      await commandAudit(config, target, commandOpts);
     });
-  }));
+  },
 
-program
-  .command('propose-expand-contract <file>')
-  .description('Propose expand/contract migration group from unsafe DDL')
-  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
-  .option('--model <name>', 'LLM model override')
-  .option('-n, --dry-run', 'Output prompt without calling LLM')
-  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
-  .option('-o, --output <file>', 'Write result to a file instead of stdout')
-  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'json')
-  .option('--output-dir <dir>', 'Directory to write proposed phase files')
-  .action((file: string, opts: {
-    adapter?: string; model?: string; dryRun?: boolean;
-    failOn?: string; output?: string; reportFormat?: string; outputDir?: string;
-  }) => run(async () => {
+  proposeExpandContract: async (file, opts) => {
     const config = await loadConfig();
-    await commandProposeExpandContract(config, file, {
-      ...opts,
+    const commandOpts = {
+      adapter: opts.adapter,
+      model: opts.model,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+      outputDir: opts.outputDir,
+    };
+    if (opts.showPrompt) {
+      return commandProposeExpandContract(config, file!, commandOpts);
+    }
+    await run(async () => {
+      await commandProposeExpandContract(config, file!, commandOpts);
     });
-  }));
+  },
 
-program
-  .command('explain')
-  .description('Explain command output in human-readable form using LLM')
-  .option('-a, --adapter <name>', 'SDK adapter (cursor, claude, openai, gemini, mock)')
-  .option('--model <name>', 'LLM model override')
-  .option('-n, --dry-run', 'Output prompt without calling LLM')
-  .option('--fail-on <level>', 'Minimum severity for non-zero exit (warning, error, critical)', 'error')
-  .option('-o, --output <file>', 'Write result to a file instead of stdout')
-  .option('--report-format <fmt>', 'Output format (json, text, yaml)', 'json')
-  .action((opts: {
-    adapter?: string; model?: string; dryRun?: boolean;
-    failOn?: string; output?: string; reportFormat?: string;
-  }) => run(async () => {
+  explain: async (opts) => {
     const config = await loadConfig();
-    await commandExplain(config, {
-      ...opts,
+    const commandOpts = {
+      adapter: opts.adapter,
+      model: opts.model,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+    };
+    if (opts.showPrompt) {
+      return commandExplain(config, commandOpts);
+    }
+    await run(async () => {
+      await commandExplain(config, commandOpts);
     });
-  }));
+  },
+};
 
-await program.parseAsync();
-process.exit(0);
+createProgram(handlers, pkg.version).parse();
