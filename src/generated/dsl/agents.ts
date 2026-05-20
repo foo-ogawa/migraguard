@@ -38,7 +38,15 @@ export const migrationSafetyAuditor: AgentContract = {
   purpose: "Review SQL migrations for operational safety in production environments. Identifies risks that AST-based lint cannot detect by considering deployment context, application compatibility, and operational impact.",
   mode: "read-only",
   dispatch_only: false,
-  can_read_artifacts: [],
+  can_read_artifacts: [
+  "cli-contract-source",
+  "lint-rules-source",
+  "documentation",
+  "agent-dsl",
+  "migration-sql-input",
+  "schema-sql-context",
+  "command-output-json"
+],
   can_write_artifacts: [],
   can_execute_tools: [],
   can_invoke_agents: [],

@@ -31,7 +31,12 @@ export const auditMigrationSafety: TaskContract = {
   workflow: "migration-audit",
   invocation_handoff: "migration-audit-request",
   result_handoff: "migration-audit-result",
-  input_artifacts: [],
+  input_artifacts: [
+  "migration-sql-input",
+  "cli-contract-source",
+  "lint-rules-source",
+  "schema-sql-context"
+],
   responsibilities: [
   "Evaluate all SQL statements for operational risks",
   "Classify findings by severity and category",
@@ -58,7 +63,10 @@ export const proposeExpandContract: TaskContract = {
   workflow: "expand-contract-proposal",
   invocation_handoff: "migration-audit-request",
   result_handoff: "expand-contract-proposal-result",
-  input_artifacts: [],
+  input_artifacts: [
+  "migration-sql-input",
+  "documentation"
+],
   responsibilities: [
   "Identify unsafe DDL that requires phased rollout",
   "Decompose into expand/backfill/switch/contract phases",
@@ -84,7 +92,10 @@ export const explainCommandResult: TaskContract = {
   workflow: "command-explanation",
   invocation_handoff: "migration-audit-request",
   result_handoff: "explain-result",
-  input_artifacts: [],
+  input_artifacts: [
+  "command-output-json",
+  "cli-contract-source"
+],
   responsibilities: [
   "Summarize command output for non-DBA readers",
   "Provide concrete next steps as recommendedActions",

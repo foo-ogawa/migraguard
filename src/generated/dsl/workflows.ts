@@ -11,12 +11,14 @@ export interface DelegateStep {
   readonly description: string;
   readonly optional: boolean;
   readonly max_retries: number;
+  readonly depends_on?: readonly string[];
 }
 
 export interface GateStep {
   readonly type: "gate";
   readonly gate_kind: string;
   readonly description: string;
+  readonly depends_on?: readonly string[];
 }
 
 export type WorkflowStep = DelegateStep | GateStep;

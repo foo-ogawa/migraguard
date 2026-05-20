@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=./node_modules/cli-contracts/schemas/cli-contract.schema.json
-cliContracts: 0.1.0
+cli_contracts: 0.1.0
 
 info:
   title: migraguard CLI
-  version: 0.10.1
+  version: 0.12.0
   description: >-
     PostgreSQL-first schema-aware deployment control — idempotent SQL migrations
     with CI-enforced integrity checks, expand/contract migration orchestration,
@@ -12,12 +12,26 @@ info:
   license:
     name: MIT
 
-commandSets:
+artifact_slots:
+  migration-files:
+    direction: readwrite
+    description: SQL migration files
+  database-schema:
+    direction: read
+    description: Database schema (live connection or dump)
+  config:
+    direction: read
+    description: migraguard configuration
+  audit-report:
+    direction: write
+    description: LLM audit and analysis output
+
+command_sets:
   migraguard:
     summary: Schema-aware deployment control for SQL migrations.
     executable: migraguard
 
-    globalOptions:
+    global_options:
       - name: version
         aliases: [V]
         description: Print version and exit.
@@ -46,7 +60,7 @@ commandSets:
       - name: config
         aliases: [c]
         description: Path to migraguard configuration file.
-        valueName: path
+        value_name: path
         schema:
           type: string
 
@@ -92,12 +106,12 @@ commandSets:
             files:
               - path: db/migrations/{timestamp}__{name}.sql
                 required: false
-                mediaType: application/sql
+                media_type: application/sql
                 encoding: utf-8
                 description: Single migration file (Class A). Created when --expand-contract is not set.
               - path: db/migrations/{timestamp}__{name}/1_expand.sql
                 required: false
-                mediaType: application/sql
+                media_type: application/sql
                 encoding: utf-8
                 description: Expand phase file (Class B, with --expand-contract).
 
@@ -107,13 +121,13 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: false
-          sideEffects:
+          side_effects:
             - file_write
           sideEffectNote: Creates migration SQL file(s) in the configured migrations directory.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 1000
           retryableExitCodes: []
 
@@ -170,22 +184,22 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: high
-          requiresConfirmation: true
+          risk_level: high
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Migrations are not automatically reversible. Manual rollback
             requires writing a compensating migration or restoring from backup.
-          sideEffects:
+          side_effects:
             - database_write
           sideEffectNote: >-
             Executes SQL via native CLI and records results in schema_migrations.
             Uses advisory lock to prevent concurrent execution.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 60000
           retryableExitCodes: []
-          recommendedBeforeUse:
+          recommended_before_use:
             - Run migraguard check to verify metadata integrity.
             - Run migraguard lint to check for unsafe DDL patterns.
             - Consider running with --with-drift-check for local development.
@@ -218,10 +232,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: []
+          side_effects: []
           sideEffectNote: Read-only. Compares metadata.json against files on disk.
           expectedDurationMs: 2000
           retryableExitCodes: []
@@ -253,7 +267,7 @@ commandSets:
             files:
               - path: db/migrations/{timestamp}__{description}.sql
                 required: true
-                mediaType: application/sql
+                media_type: application/sql
                 encoding: utf-8
                 description: Squashed migration file.
 
@@ -263,23 +277,23 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: medium
-          requiresConfirmation: true
+          risk_level: medium
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Deleted files can be recovered from version control (git checkout).
             Re-run migraguard new to recreate individual files if needed.
-          sideEffects:
+          side_effects:
             - file_write
             - file_delete
           sideEffectNote: >-
             Merges migration files into one and deletes originals.
             Updates metadata.json.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 3000
           retryableExitCodes: []
-          recommendedBeforeUse:
+          recommended_before_use:
             - Ensure all pending files are ready for release.
             - Confirm no uncommitted changes to migration files.
 
@@ -300,7 +314,7 @@ commandSets:
         options:
           - name: format
             description: Output format for lint results.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [text, json]
@@ -325,10 +339,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: []
+          side_effects: []
           sideEffectNote: Read-only. Scans migration files against safety rules.
           expectedDurationMs: 3000
           retryableExitCodes: []
@@ -360,7 +374,7 @@ commandSets:
             files:
               - path: db/schema.sql
                 required: true
-                mediaType: application/sql
+                media_type: application/sql
                 encoding: utf-8
                 description: Normalized schema dump.
 
@@ -370,16 +384,16 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects:
+          side_effects:
             - database_read
             - file_write
           sideEffectNote: >-
             Reads DB schema via pg_dump/mysqldump and writes normalized
             output to schema.sql.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 10000
           retryableExitCodes: [1]
 
@@ -398,7 +412,7 @@ commandSets:
         options:
           - name: format
             description: Output format for diff results.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [text, json]
@@ -421,10 +435,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects:
+          side_effects:
             - database_read
           sideEffectNote: >-
             Reads DB schema via pg_dump/mysqldump and compares with
@@ -445,7 +459,7 @@ commandSets:
         options:
           - name: format
             description: Output format for status results.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [text, json]
@@ -463,10 +477,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects:
+          side_effects:
             - database_read
           sideEffectNote: Reads schema_migrations table and compares with local files.
           expectedDurationMs: 5000
@@ -512,20 +526,20 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: high
-          requiresConfirmation: true
+          risk_level: high
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             A resolved (skipped) migration cannot be un-resolved.
             Re-apply the migration manually if needed.
-          sideEffects:
+          side_effects:
             - database_write
           sideEffectNote: Inserts a 'skipped' record into schema_migrations for the given file.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 3000
           retryableExitCodes: [1]
-          recommendedBeforeUse:
+          recommended_before_use:
             - Verify that the failure has been addressed by a subsequent migration or manual fix.
             - Run migraguard status to confirm the file is in failed state.
 
@@ -550,10 +564,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: []
+          side_effects: []
           sideEffectNote: Read-only. Lists leaf/latest migration files from metadata.
           expectedDurationMs: 1000
           retryableExitCodes: []
@@ -580,7 +594,7 @@ commandSets:
 
           - name: format
             description: Output format for verification results.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [text, json]
@@ -605,10 +619,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: medium
-          requiresConfirmation: false
+          risk_level: medium
+          requires_confirmation: false
           idempotent: true
-          sideEffects:
+          side_effects:
             - database_read
             - database_write
           sideEffectNote: >-
@@ -616,7 +630,7 @@ commandSets:
             idempotency. Does not modify the primary database.
           expectedDurationMs: 60000
           retryableExitCodes: [1]
-          recommendedBeforeUse:
+          recommended_before_use:
             - Ensure the database server is running and accessible.
 
       # ── group-status ─────────────────────────────────
@@ -651,10 +665,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: []
+          side_effects: []
           sideEffectNote: Read-only. Derives group state from schema_migrations records.
           expectedDurationMs: 3000
           retryableExitCodes: [1]
@@ -674,7 +688,7 @@ commandSets:
         options:
           - name: keep-since
             description: Keep migration files from this point forward.
-            valueName: file
+            value_name: file
             repeatable: true
             schema:
               type: string
@@ -698,23 +712,23 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: high
-          requiresConfirmation: true
+          risk_level: high
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Deleted migration files can only be recovered from version control.
             The baseline operation cannot be undone programmatically.
-          sideEffects:
+          side_effects:
             - file_write
             - file_delete
           sideEffectNote: >-
             Dumps current DB schema to schema.sql, deletes squashed migration
             files, updates metadata.json, and rewrites depends-on references.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 30000
           retryableExitCodes: []
-          recommendedBeforeUse:
+          recommended_before_use:
             - Ensure all migrations have been applied to all environments.
             - Back up migration files before running.
 
@@ -781,20 +795,20 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: medium
-          requiresConfirmation: true
+          risk_level: medium
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             State transitions cannot be undone. Use advance with the previous
             status value to manually correct, or reset group state in the database.
-          sideEffects:
+          side_effects:
             - database_write
           sideEffectNote: Inserts a phase state transition record into schema_migrations.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 5000
           retryableExitCodes: [1]
-          recommendedBeforeUse:
+          recommended_before_use:
             - Run migraguard group-status <group> to verify current phase state before advancing.
 
       # ── apply-phase ──────────────────────────────────
@@ -852,22 +866,22 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: high
-          requiresConfirmation: true
+          risk_level: high
+          requires_confirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Phase execution is not automatically reversible. Write a compensating
             migration or restore from backup if rollback is needed.
-          sideEffects:
+          side_effects:
             - database_write
           sideEffectNote: >-
             Executes a phase SQL file via native CLI and records the
             result in schema_migrations. Uses advisory lock.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 30000
           retryableExitCodes: []
-          recommendedBeforeUse:
+          recommended_before_use:
             - Run migraguard group-status to verify current phase state.
 
       # ── gate ─────────────────────────────────────────
@@ -890,7 +904,7 @@ commandSets:
             description: >-
               Required schema state conditions.
               Syntax: group:<name>.<condition>
-            valueName: condition
+            value_name: condition
             repeatable: true
             schema:
               type: string
@@ -900,7 +914,7 @@ commandSets:
             description: >-
               Forbidden schema state conditions.
               Syntax: group:<name>.<condition>
-            valueName: condition
+            value_name: condition
             repeatable: true
             schema:
               type: string
@@ -908,13 +922,13 @@ commandSets:
 
           - name: contract-file
             description: JSON file with schema requirements.
-            valueName: path
+            value_name: path
             schema:
               type: string
             file:
               mode: read
               exists: true
-              mediaType: application/json
+              media_type: application/json
               encoding: utf-8
 
         exits:
@@ -934,10 +948,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: []
+          side_effects: []
           sideEffectNote: Read-only. Evaluates gate conditions against schema_migrations state.
           expectedDurationMs: 5000
           retryableExitCodes: [1]
@@ -960,7 +974,7 @@ commandSets:
               Output as HTML file with interactive visualization.
               File is created or overwritten at the specified path.
               Parent directory must exist.
-            valueName: path
+            value_name: path
             schema:
               type: string
 
@@ -972,7 +986,7 @@ commandSets:
             files:
               - path: '{options.html}'
                 required: false
-                mediaType: text/html
+                media_type: text/html
                 encoding: utf-8
                 description: HTML dependency visualization (when --html specified).
 
@@ -982,10 +996,10 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects:
+          side_effects:
             - file_write
           sideEffectNote: >-
             Reads migration files and outputs dependency graph.
@@ -1021,14 +1035,14 @@ commandSets:
           - name: adapter
             aliases: [a]
             description: SDK adapter to use for LLM execution.
-            valueName: name
+            value_name: name
             schema:
               type: string
               enum: [cursor, claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
-            valueName: name
+            value_name: name
             schema:
               type: string
 
@@ -1041,7 +1055,7 @@ commandSets:
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
-            valueName: level
+            value_name: level
             schema:
               type: string
               enum: [warning, error, critical]
@@ -1050,17 +1064,17 @@ commandSets:
           - name: output
             aliases: [o]
             description: Write result to a file instead of stdout.
-            valueName: file
+            value_name: file
             schema:
               type: string
             file:
               mode: write
-              mediaType: application/json
+              media_type: application/json
               encoding: utf-8
 
           - name: report-format
             description: Output format for the audit report.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [json, text, yaml]
@@ -1102,14 +1116,14 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: [network]
+          side_effects: [network]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1136,27 +1150,27 @@ commandSets:
             file:
               mode: read
               exists: true
-              mediaType: application/sql
+              media_type: application/sql
               encoding: utf-8
 
         options:
           - name: output-dir
             description: Directory to write proposed phase files.
-            valueName: dir
+            value_name: dir
             schema:
               type: string
 
           - name: adapter
             aliases: [a]
             description: SDK adapter to use.
-            valueName: name
+            value_name: name
             schema:
               type: string
               enum: [cursor, claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
-            valueName: name
+            value_name: name
             schema:
               type: string
 
@@ -1169,7 +1183,7 @@ commandSets:
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
-            valueName: level
+            value_name: level
             schema:
               type: string
               enum: [warning, error, critical]
@@ -1178,17 +1192,17 @@ commandSets:
           - name: output
             aliases: [o]
             description: Write result to a file instead of stdout.
-            valueName: file
+            value_name: file
             schema:
               type: string
             file:
               mode: write
-              mediaType: application/json
+              media_type: application/json
               encoding: utf-8
 
           - name: report-format
             description: Output format for the proposal report.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [json, text, yaml]
@@ -1230,14 +1244,14 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: [network, file_write]
+          side_effects: [network, file_write]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write when --output or --output-dir is specified.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1265,14 +1279,14 @@ commandSets:
           - name: adapter
             aliases: [a]
             description: SDK adapter to use.
-            valueName: name
+            value_name: name
             schema:
               type: string
               enum: [cursor, claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
-            valueName: name
+            value_name: name
             schema:
               type: string
 
@@ -1285,7 +1299,7 @@ commandSets:
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
-            valueName: level
+            value_name: level
             schema:
               type: string
               enum: [warning, error, critical]
@@ -1294,17 +1308,17 @@ commandSets:
           - name: output
             aliases: [o]
             description: Write result to a file instead of stdout.
-            valueName: file
+            value_name: file
             schema:
               type: string
             file:
               mode: write
-              mediaType: application/json
+              media_type: application/json
               encoding: utf-8
 
           - name: report-format
             description: Output format for the explanation report.
-            valueName: fmt
+            value_name: fmt
             schema:
               type: string
               enum: [json, text, yaml]
@@ -1346,14 +1360,14 @@ commandSets:
               format: text
 
         x-agent:
-          riskLevel: low
-          requiresConfirmation: false
+          risk_level: low
+          requires_confirmation: false
           idempotent: true
-          sideEffects: [network]
+          side_effects: [network]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safeDryRunOption: dry-run
+          safe_dry_run_option: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1384,7 +1398,7 @@ components:
             summary:
               type: string
               description: Overview of the proposed decomposition.
-            riskLevel:
+            risk_level:
               type: string
               enum: [low, medium, high, critical]
               description: Risk level of the original unsafe DDL.
@@ -1426,7 +1440,7 @@ components:
             summary:
               type: string
               description: One-line summary for quick scanning.
-            riskLevel:
+            risk_level:
               type: string
               enum: [low, medium, high, critical]
               description: Assessed urgency of the underlying issue.
