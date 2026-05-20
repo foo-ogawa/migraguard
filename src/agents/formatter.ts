@@ -5,7 +5,6 @@ import type { AuditRunResult, AuditOptions } from "./types.js";
 export type ReportFormat = "json" | "text" | "yaml";
 
 export function computeExitCode(result: AuditRunResult, options: AuditOptions): number {
-  if (result.dryRun) return 0;
   if (result.status !== "success" || !result.data) return 1;
 
   const failOn = options.failOn ?? "error";
@@ -20,10 +19,6 @@ export function computeExitCode(result: AuditRunResult, options: AuditOptions): 
 }
 
 export function formatResultText(result: AuditRunResult): string {
-  if (result.dryRun) {
-    return result.prompt;
-  }
-
   if (result.status !== "success" || !result.data) {
     return result.errorMessage ?? `Task failed with status: ${result.status}`;
   }
@@ -66,9 +61,6 @@ export function formatResultText(result: AuditRunResult): string {
 }
 
 export function formatResultJson(result: AuditRunResult): string {
-  if (result.dryRun) {
-    return JSON.stringify({ dryRun: true, prompt: result.prompt }, null, 2);
-  }
   if (!result.data) {
     return JSON.stringify({ error: result.errorMessage, status: result.status }, null, 2);
   }
@@ -76,9 +68,6 @@ export function formatResultJson(result: AuditRunResult): string {
 }
 
 export function formatResultYaml(result: AuditRunResult): string {
-  if (result.dryRun) {
-    return `dryRun: true\nprompt: |\n${indent(result.prompt)}`;
-  }
   if (!result.data) {
     return `error: ${JSON.stringify(result.errorMessage)}\nstatus: ${result.status}`;
   }

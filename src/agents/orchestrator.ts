@@ -58,19 +58,6 @@ export async function runAgentTask(
   auditConfig: AuditConfig,
   options: AuditOptions,
 ): Promise<AuditRunResult> {
-  if (options.dryRun) {
-    return {
-      taskId,
-      data: null,
-      raw: "",
-      prompt: userRequest,
-      dryRun: true,
-      status: "success",
-      followUpsUsed: 0,
-      retriesUsed: 0,
-    };
-  }
-
   const RUNTIME_PKG = ["agent-contracts", "runtime"].join("-");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,7 +72,7 @@ export async function runAgentTask(
     throw Object.assign(
       new Error(
         "agent-contracts-runtime is not installed. " +
-        "Install it to use this command, or use --dry-run to inspect the prompt.\n" +
+        "Install it to use this command, or use --show-prompt to inspect the prompt.\n" +
         "  npm install agent-contracts-runtime",
       ),
       { exitCode: EXIT_RUNTIME_MISSING },
@@ -127,7 +114,6 @@ export async function runAgentTask(
     data: outcome.status === "success" ? outcome.data : null,
     raw: (outcome.raw as string) ?? "",
     prompt: userRequest,
-    dryRun: false,
     status: outcome.status as AuditRunResult["status"],
     errorMessage:
       outcome.status === "error" ? outcome.message :

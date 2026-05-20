@@ -14,7 +14,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandAuditOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -24,8 +24,10 @@ export async function commandAudit(
   config: MigraguardConfig,
   target: string | undefined,
   opts: CommandAuditOptions,
-): Promise<void> {
+): Promise<void | string> {
   const context = await buildAuditContext(target, config);
+
+  if (opts.showPrompt) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,
@@ -33,7 +35,6 @@ export async function commandAudit(
   };
 
   const auditOpts: AuditOptions = {
-    dryRun: opts.dryRun,
     failOn: opts.failOn,
   };
 

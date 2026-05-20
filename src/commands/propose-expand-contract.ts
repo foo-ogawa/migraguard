@@ -16,7 +16,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandProposeOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -27,8 +27,10 @@ export async function commandProposeExpandContract(
   config: MigraguardConfig,
   file: string,
   opts: CommandProposeOptions,
-): Promise<void> {
+): Promise<void | string> {
   const context = await buildProposeExpandContractContext(file, config);
+
+  if (opts.showPrompt) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,
@@ -36,7 +38,6 @@ export async function commandProposeExpandContract(
   };
 
   const auditOpts: AuditOptions = {
-    dryRun: opts.dryRun,
     failOn: opts.failOn,
   };
 

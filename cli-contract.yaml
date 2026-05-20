@@ -1019,7 +1019,7 @@ command_sets:
         usage:
           - migraguard audit db/migrations/20260510_120000__add_user_status.sql
           - migraguard audit db/migrations/
-          - migraguard audit --adapter gemini --dry-run
+          - migraguard audit --adapter gemini --show-prompt
 
         arguments:
           - name: target
@@ -1045,13 +1045,6 @@ command_sets:
             value_name: name
             schema:
               type: string
-
-          - name: dry-run
-            aliases: [n]
-            description: Output the constructed prompt without calling LLM.
-            schema:
-              type: boolean
-              default: false
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
@@ -1123,7 +1116,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safe_dry_run_option: dry-run
+          safe_dry_run_option: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1138,7 +1131,7 @@ command_sets:
           Requires agent-contracts-runtime.
         usage:
           - migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
-          - migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
+          - migraguard propose-expand-contract --output-dir ./proposed/ --show-prompt
 
         arguments:
           - name: file
@@ -1173,13 +1166,6 @@ command_sets:
             value_name: name
             schema:
               type: string
-
-          - name: dry-run
-            aliases: [n]
-            description: Output the prompt without calling LLM.
-            schema:
-              type: boolean
-              default: false
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
@@ -1251,7 +1237,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write when --output or --output-dir is specified.
-          safe_dry_run_option: dry-run
+          safe_dry_run_option: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1289,13 +1275,6 @@ command_sets:
             value_name: name
             schema:
               type: string
-
-          - name: dry-run
-            aliases: [n]
-            description: Output the prompt without calling LLM.
-            schema:
-              type: boolean
-              default: false
 
           - name: fail-on
             description: Minimum severity that causes a non-zero exit.
@@ -1367,7 +1346,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safe_dry_run_option: dry-run
+          safe_dry_run_option: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 

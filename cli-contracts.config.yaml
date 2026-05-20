@@ -13,6 +13,15 @@ generators:
       includeSchemas: false
       includeExtensions: true
 
+  typescript:
+    enabled: true
+    output: ./src/generated
+    templates: builtin:typescript
+    options:
+      emitProgram: true
+      emitTypes: true
+      emitValidators: true
+
 executionProfiles:
   local:
     default: true

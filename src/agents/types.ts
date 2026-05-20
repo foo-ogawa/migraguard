@@ -12,7 +12,6 @@ export interface AuditConfig {
 }
 
 export interface AuditOptions {
-  dryRun?: boolean;
   failOn?: "warning" | "error" | "critical";
 }
 
@@ -21,7 +20,6 @@ export interface AuditRunResult {
   data: MigrationAuditResult | null;
   raw: string;
   prompt: string;
-  dryRun: boolean;
   status: "success" | "error" | "escalation" | "validation_error";
   errorMessage?: string;
   followUpsUsed: number;
