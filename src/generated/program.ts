@@ -62,7 +62,7 @@ export function createProgram(
   program
     .command("check")
     .description("Verify metadata integrity (no DB connection required).")
-    .action(async (opts, cmd) => {
+    .action(async (_opts, cmd) => {
       await handlers.check({}, cmd.optsWithGlobals());
     });
 
@@ -118,7 +118,7 @@ export function createProgram(
   program
     .command("editable")
     .description("List migration files that are currently editable.")
-    .action(async (opts, cmd) => {
+    .action(async (_opts, cmd) => {
       await handlers.editable({}, cmd.optsWithGlobals());
     });
 
@@ -135,7 +135,7 @@ export function createProgram(
     .command("group-status")
     .description("Show migration group state (expand/contract phases).")
     .argument("[group]", "Specific group name. Shows all groups if omitted.")
-    .action(async (group, opts, cmd) => {
+    .action(async (group, _opts, cmd) => {
       await handlers.groupStatus(group, {}, cmd.optsWithGlobals());
     });
 
