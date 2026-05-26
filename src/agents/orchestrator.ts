@@ -56,7 +56,7 @@ export async function runAgentTask(
   userRequest: string,
   taskId: TaskId,
   auditConfig: AuditConfig,
-  options: AuditOptions,
+  _options: AuditOptions,
 ): Promise<AuditRunResult> {
   const RUNTIME_PKG = ["agent-contracts", "runtime"].join("-");
 
