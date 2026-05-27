@@ -1,8 +1,36 @@
 services:
+  test-unit:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    network_mode: none
+    command: ["npm", "run", "test:unit"]
+
+  test-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    environment:
+      DATABASE_URL: postgres://migraguard_test:migraguard_test@postgres:5432/migraguard_test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - test-internal
+    command: ["npm", "run", "test:integration"]
+
   postgres:
     image: postgres:16
-    ports:
-      - "15432:5432"
     environment:
       POSTGRES_USER: migraguard_test
       POSTGRES_PASSWORD: migraguard_test
@@ -12,3 +40,9 @@ services:
       interval: 2s
       timeout: 5s
       retries: 10
+    networks:
+      - test-internal
+
+networks:
+  test-internal:
+    internal: true
