@@ -4,7 +4,7 @@ import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
 import { buildProposeExpandContractContext } from "../agents/context-builder.js";
 import {
-  runAgentTask,
+  runAgentWorkflow,
   computeExitCode,
   formatResult,
   writeOutput,
@@ -42,7 +42,7 @@ export async function commandProposeExpandContract(
   };
 
   try {
-    const result = await runAgentTask(
+    const result = await runAgentWorkflow(
       context,
       "propose-expand-contract",
       auditConfig,

@@ -13,6 +13,7 @@ const TASK_TO_WORKFLOW: Record<TaskId, WorkflowId> = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createAdapter(runtimePkg: string, name: string, config: AuditConfig): Promise<any> {
+  const cwd = config.cwd ?? process.cwd();
   switch (name) {
     case "mock": {
       const mod = await import(`${runtimePkg}/adapters/mock`);
@@ -27,11 +28,12 @@ async function createAdapter(runtimePkg: string, name: string, config: AuditConf
           "Get your key from: https://cursor.com/dashboard/integrations",
         );
       }
-      return mod.CursorSdkAdapter.create({ apiKey, model: config.model ?? "claude-opus-4-6" });
+      return mod.CursorSdkAdapter.create({ apiKey, cwd, model: config.model ?? "claude-opus-4-6" });
     }
     case "claude": {
       const mod = await import(`${runtimePkg}/adapters/claude-agent-sdk`);
       return new mod.ClaudeAgentSdkAdapter({
+        cwd,
         model: config.model,
         tools: ["Read", "Glob", "Grep"],
         permissionMode: "bypassPermissions",
@@ -141,8 +143,9 @@ function mapWorkflowResult(
  * and maps the WorkflowResult back to AuditRunResult.
  *
  * Never calls adapter.send() or runTask() directly (R-IMPL-002).
+ * Uses runWorkflow() from agent-contracts-runtime exclusively.
  */
-export async function runAgentTask(
+export async function runAgentWorkflow(
   userRequest: string,
   taskId: TaskId,
   auditConfig: AuditConfig,

@@ -5,7 +5,7 @@ import type { MigraguardConfig } from "../config.js";
 import { resolveFromConfig } from "../config.js";
 import { buildImplementContext } from "../agents/context-builder.js";
 import {
-  runAgentTask,
+  runAgentWorkflow,
   computeExitCode,
   formatResult,
   writeOutput,
@@ -44,7 +44,7 @@ export async function commandImplement(
   };
 
   try {
-    const result = await runAgentTask(
+    const result = await runAgentWorkflow(
       context,
       "implement-migration",
       auditConfig,
