@@ -22,6 +22,8 @@ import { commandBaseline } from '../commands/baseline.js';
 import { commandAudit } from '../commands/audit.js';
 import { commandProposeExpandContract } from '../commands/propose-expand-contract.js';
 import { commandExplain } from '../commands/explain.js';
+import { commandImplement } from '../commands/implement.js';
+import { commandAuditWorkflow } from '../commands/audit-workflow.js';
 import type { Phase } from '../naming.js';
 
 function asArray(value: string | string[] | undefined): string[] | undefined {
@@ -169,12 +171,12 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      showPrompt: opts.showPrompt,
+      dryRun: opts.dryRun,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
     };
-    if (opts.showPrompt) {
+    if (opts.dryRun) {
       return commandAudit(config, target, commandOpts);
     }
     await run(async () => {
@@ -187,13 +189,13 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      showPrompt: opts.showPrompt,
+      dryRun: opts.dryRun,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       outputDir: opts.outputDir,
     };
-    if (opts.showPrompt) {
+    if (opts.dryRun) {
       return commandProposeExpandContract(config, file!, commandOpts);
     }
     await run(async () => {
@@ -206,16 +208,53 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      showPrompt: opts.showPrompt,
+      dryRun: opts.dryRun,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
     };
-    if (opts.showPrompt) {
+    if (opts.dryRun) {
       return commandExplain(config, commandOpts);
     }
     await run(async () => {
       await commandExplain(config, commandOpts);
+    });
+  },
+
+  implement: async (description, opts) => {
+    const config = await loadConfig();
+    const commandOpts = {
+      adapter: opts.adapter,
+      model: opts.model,
+      dryRun: opts.dryRun,
+      failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      output: opts.output,
+      reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+      outputDir: opts.outputDir,
+    };
+    if (opts.dryRun) {
+      return commandImplement(config, description!, commandOpts);
+    }
+    await run(async () => {
+      await commandImplement(config, description!, commandOpts);
+    });
+  },
+
+  auditWorkflow: async (opts) => {
+    const config = await loadConfig();
+    const commandOpts = {
+      adapter: opts.adapter,
+      model: opts.model,
+      dryRun: opts.dryRun,
+      failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
+      output: opts.output,
+      reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+    };
+    if (opts.dryRun) {
+      return commandAuditWorkflow(config, commandOpts);
+    }
+    await run(async () => {
+      await commandAuditWorkflow(config, commandOpts);
     });
   },
 };

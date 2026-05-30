@@ -32,6 +32,98 @@ export interface AgentContract {
   readonly escalation_criteria: readonly EscalationCriterion[];
 }
 
+export const migrationImplementer: AgentContract = {
+  id: "migration-implementer",
+  role_name: "Migration SQL Implementer",
+  purpose: "Generate production-safe PostgreSQL migration SQL from natural language descriptions. Applies all safe DDL patterns documented in safe-ddl.md and ensures output passes migraguard's full lint rule set. Prevents recurring LLM mistakes: plain CREATE INDEX instead of CONCURRENTLY, missing ANALYZE, missing IF NOT EXISTS, missing lock_timeout/statement_timeout, inline UNIQUE instead of INDEX+CONSTRAINT, manual schema.sql edits, and skipping the lint→apply→dump workflow.",
+  mode: "read-only",
+  dispatch_only: false,
+  can_read_artifacts: [
+  "documentation",
+  "lint-rules-source",
+  "schema-sql-context",
+  "migration-sql-input"
+],
+  can_write_artifacts: [],
+  can_execute_tools: [],
+  can_invoke_agents: [],
+  can_return_handoffs: [
+  "implement-migration-result"
+],
+  responsibilities: [
+  "Generate valid PostgreSQL migration SQL from natural language descriptions",
+  "Always use CREATE INDEX CONCURRENTLY IF NOT EXISTS followed by ANALYZE",
+  "Always wrap DDL in SET lock_timeout / SET statement_timeout with RESET",
+  "Always add IF NOT EXISTS to CREATE TABLE and CREATE INDEX",
+  "Always add NOT NULL columns with a DEFAULT value",
+  "Add FK/CHECK constraints with NOT VALID; emit VALIDATE in a separate file",
+  "Implement UNIQUE constraints via CREATE UNIQUE INDEX CONCURRENTLY + ADD CONSTRAINT USING INDEX",
+  "Follow migraguard naming convention (YYYYMMDD_HHMMSS__description.sql)",
+  "Predict which lint rules would fire and include them as findings",
+  "Propose expand/contract group structure when the operation requires phased rollout",
+  "Output recommendedActions for lint, apply, and dump workflow steps"
+],
+  constraints: [
+  "Never generate CREATE INDEX without CONCURRENTLY",
+  "Never omit lock_timeout or statement_timeout for any DDL statement",
+  "Never omit IF NOT EXISTS on CREATE TABLE or CREATE INDEX",
+  "Never add a NOT NULL column without a DEFAULT value",
+  "Never add FK or CHECK constraint without NOT VALID",
+  "Never include instructions to manually edit schema.sql",
+  "Always include ANALYZE after CREATE INDEX CONCURRENTLY",
+  "Output must conform to ImplementMigrationResult schema",
+  "migrations array must contain at least one entry with fileName, sql, description",
+  "findings should be empty when all safe DDL patterns are correctly applied"
+],
+  rules: [
+  {
+    "id": "R-IMPL-001",
+    "description": "All CREATE INDEX must use CONCURRENTLY",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-002",
+    "description": "All DDL must include lock_timeout and statement_timeout with RESET",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-003",
+    "description": "All CREATE TABLE and CREATE INDEX must use IF NOT EXISTS",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-004",
+    "description": "ANALYZE must follow every CREATE INDEX CONCURRENTLY",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-005",
+    "description": "FK and CHECK constraints must use NOT VALID with VALIDATE in separate migration",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-006",
+    "description": "Migration file names must follow YYYYMMDD_HHMMSS__description.sql format",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-IMPL-007",
+    "description": "UNIQUE constraints must use CREATE UNIQUE INDEX CONCURRENTLY + ADD CONSTRAINT USING INDEX pattern",
+    "severity": "recommended"
+  }
+],
+  escalation_criteria: [
+  {
+    "condition": "Description is ambiguous and cannot be interpreted as a specific DDL operation",
+    "action": "stop_and_report"
+  },
+  {
+    "condition": "Description requests an operation that cannot be safely expressed as SQL DDL",
+    "action": "stop_and_report"
+  }
+],
+} as const;
+
 export const migrationSafetyAuditor: AgentContract = {
   id: "migration-safety-auditor",
   role_name: "Migration Safety Auditor",
@@ -114,8 +206,83 @@ export const migrationSafetyAuditor: AgentContract = {
 ],
 } as const;
 
+export const workflowAuditor: AgentContract = {
+  id: "workflow-auditor",
+  role_name: "Migration Workflow Auditor",
+  purpose: "Audit project-level migration workflow compliance for migraguard projects. Verifies that the lint → apply → dump workflow is followed, that schema.sql is machine-generated and not manually edited, that all DDL patterns are safe, and that metadata.json integrity and expand/contract group transitions are valid.",
+  mode: "read-only",
+  dispatch_only: false,
+  can_read_artifacts: [
+  "migration-sql-input",
+  "schema-sql-context",
+  "metadata-source",
+  "cli-contract-source",
+  "lint-rules-source"
+],
+  can_write_artifacts: [],
+  can_execute_tools: [],
+  can_invoke_agents: [],
+  can_return_handoffs: [
+  "workflow-audit-result"
+],
+  responsibilities: [
+  "Verify all migration files use safe DDL patterns (CONCURRENTLY, lock_timeout, IF NOT EXISTS, ANALYZE)",
+  "Determine whether schema.sql was generated by migraguard dump or manually edited",
+  "Validate metadata.json consistency against the declared migration file list",
+  "Check expand/contract group phase transitions for validity",
+  "Assess adherence to the lint → apply → dump workflow",
+  "Identify unsafe DDL patterns that bypass migraguard guardrails"
+],
+  constraints: [
+  "Do not execute SQL or connect to databases",
+  "Evaluate patterns statically from file content provided in context",
+  "Use migraguard workflow category vocabulary for finding categories",
+  "Each finding must cite specific file name and pattern violation",
+  "Output must conform to AgentAuditResult schema"
+],
+  rules: [
+  {
+    "id": "R-WF-001",
+    "description": "schema.sql must contain machine-generation header (pg_dump/mysqldump marker)",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-WF-002",
+    "description": "All migration files must use safe DDL patterns (CONCURRENTLY, lock_timeout, IF NOT EXISTS)",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-WF-003",
+    "description": "expand/contract group phases must follow valid state transitions (expand→backfill→switch→contract)",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-WF-004",
+    "description": "metadata.json must list all migration files present on disk (no missing, no extra)",
+    "severity": "mandatory"
+  },
+  {
+    "id": "R-WF-005",
+    "description": "schema.sql must not contain handwritten DML or application-level SQL",
+    "severity": "recommended"
+  }
+],
+  escalation_criteria: [
+  {
+    "condition": "Migration directory contents cannot be determined from provided context",
+    "action": "stop_and_report"
+  },
+  {
+    "condition": "Context is insufficient to determine schema.sql generation source",
+    "action": "stop_and_report"
+  }
+],
+} as const;
+
 export const agentRegistry: Record<string, AgentContract> = {
+  "migration-implementer": migrationImplementer,
   "migration-safety-auditor": migrationSafetyAuditor,
+  "workflow-auditor": workflowAuditor,
 } as const;
 
 export type AgentId = keyof typeof agentRegistry;

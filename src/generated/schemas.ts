@@ -157,6 +157,181 @@ export const schemas = {
       }
     }
   },
+  AgentAuditResult: {
+    "type": "object",
+    "description": "Top-level result from an agent audit. Canonical schema for agent interoperability across toolchains.",
+    "required": [
+      "summary",
+      "riskLevel",
+      "findings"
+    ],
+    "properties": {
+      "summary": {
+        "type": "string"
+      },
+      "riskLevel": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ]
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "A single finding from an agent audit or analysis.",
+          "required": [
+            "severity",
+            "category",
+            "message"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique finding identifier."
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "error",
+                "critical"
+              ]
+            },
+            "category": {
+              "type": "string",
+              "description": "Finding category (e.g. missing-policy, inconsistent-risk)."
+            },
+            "target": {
+              "type": "string",
+              "description": "Target of the finding (command ID, schema path)."
+            },
+            "location": {
+              "type": "string",
+              "description": "Location within the target."
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Confidence score (0-1) for LLM-generated findings."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "Evidence supporting an agent finding.",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "command",
+                      "schema",
+                      "diff",
+                      "stdout",
+                      "stderr",
+                      "text"
+                    ]
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Target identifier (file path, command ID, schema name)."
+                  },
+                  "location": {
+                    "type": "string",
+                    "description": "Location within the target (line number, JSON pointer)."
+                  },
+                  "excerpt": {
+                    "type": "string",
+                    "description": "Relevant excerpt from the target."
+                  }
+                }
+              }
+            },
+            "details": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "recommendedActions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "A recommended action from an agent audit.",
+          "required": [
+            "kind",
+            "title"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "run_command",
+                "edit_file",
+                "review",
+                "confirm",
+                "block",
+                "ignore"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string",
+              "description": "CLI command to run (for run_command kind)."
+            },
+            "target": {
+              "type": "string",
+              "description": "Target file or resource."
+            },
+            "rationale": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "adapter": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
   MigrationAuditResult: {
     "type": "object",
     "description": "Top-level result from an agent audit. Canonical schema for agent interoperability across toolchains.",
@@ -521,7 +696,7 @@ export const schemas = {
             "type": "string",
             "description": "Overview of the proposed decomposition."
           },
-          "risk_level": {
+          "riskLevel": {
             "type": "string",
             "enum": [
               "low",
@@ -661,6 +836,512 @@ export const schemas = {
         }
       }
     ]
+  },
+  ImplementMigrationResult: {
+    "type": "object",
+    "description": "Result from implement command. Contains generated migration SQL files following safe DDL patterns, predicted lint findings, and recommended workflow steps.",
+    "allOf": [
+      {
+        "type": "object",
+        "description": "Top-level result from an agent audit. Canonical schema for agent interoperability across toolchains.",
+        "required": [
+          "summary",
+          "riskLevel",
+          "findings"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A single finding from an agent audit or analysis.",
+              "required": [
+                "severity",
+                "category",
+                "message"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique finding identifier."
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warning",
+                    "error",
+                    "critical"
+                  ]
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Finding category (e.g. missing-policy, inconsistent-risk)."
+                },
+                "target": {
+                  "type": "string",
+                  "description": "Target of the finding (command ID, schema path)."
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location within the target."
+                },
+                "message": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Confidence score (0-1) for LLM-generated findings."
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "Evidence supporting an agent finding.",
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "file",
+                          "command",
+                          "schema",
+                          "diff",
+                          "stdout",
+                          "stderr",
+                          "text"
+                        ]
+                      },
+                      "target": {
+                        "type": "string",
+                        "description": "Target identifier (file path, command ID, schema name)."
+                      },
+                      "location": {
+                        "type": "string",
+                        "description": "Location within the target (line number, JSON pointer)."
+                      },
+                      "excerpt": {
+                        "type": "string",
+                        "description": "Relevant excerpt from the target."
+                      }
+                    }
+                  }
+                },
+                "details": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "recommendedActions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A recommended action from an agent audit.",
+              "required": [
+                "kind",
+                "title"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "run_command",
+                    "edit_file",
+                    "review",
+                    "confirm",
+                    "block",
+                    "ignore"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string",
+                  "description": "CLI command to run (for run_command kind)."
+                },
+                "target": {
+                  "type": "string",
+                  "description": "Target file or resource."
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "generatedAt": {
+                "type": "string"
+              },
+              "adapter": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "object",
+        "required": [
+          "migrations"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "description": "One-line summary of what the generated migration(s) will do."
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "description": "Risk level of the requested schema change."
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A single finding from an agent audit or analysis.",
+              "required": [
+                "severity",
+                "category",
+                "message"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique finding identifier."
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warning",
+                    "error",
+                    "critical"
+                  ]
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Finding category (e.g. missing-policy, inconsistent-risk)."
+                },
+                "target": {
+                  "type": "string",
+                  "description": "Target of the finding (command ID, schema path)."
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location within the target."
+                },
+                "message": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Confidence score (0-1) for LLM-generated findings."
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "Evidence supporting an agent finding.",
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "file",
+                          "command",
+                          "schema",
+                          "diff",
+                          "stdout",
+                          "stderr",
+                          "text"
+                        ]
+                      },
+                      "target": {
+                        "type": "string",
+                        "description": "Target identifier (file path, command ID, schema name)."
+                      },
+                      "location": {
+                        "type": "string",
+                        "description": "Location within the target (line number, JSON pointer)."
+                      },
+                      "excerpt": {
+                        "type": "string",
+                        "description": "Relevant excerpt from the target."
+                      }
+                    }
+                  }
+                },
+                "details": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "description": "Predicted lint violations (should be empty for correctly generated SQL)."
+          },
+          "migrations": {
+            "type": "array",
+            "description": "Generated migration files.",
+            "items": {
+              "type": "object",
+              "required": [
+                "fileName",
+                "sql",
+                "description"
+              ],
+              "properties": {
+                "fileName": {
+                  "type": "string",
+                  "description": "Migration file name following YYYYMMDD_HHMMSS__description.sql convention."
+                },
+                "sql": {
+                  "type": "string",
+                  "description": "Full SQL content of the migration file."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Human-readable description of what this migration does."
+                },
+                "phase": {
+                  "type": "string",
+                  "enum": [
+                    "expand",
+                    "backfill",
+                    "switch",
+                    "contract"
+                  ],
+                  "description": "Expand/contract phase assignment. Only set when the migration is part of a phased group."
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  WorkflowAuditResult: {
+    "type": "object",
+    "description": "Top-level result from an agent audit. Canonical schema for agent interoperability across toolchains.",
+    "required": [
+      "summary",
+      "riskLevel",
+      "findings"
+    ],
+    "properties": {
+      "summary": {
+        "type": "string"
+      },
+      "riskLevel": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ]
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "A single finding from an agent audit or analysis.",
+          "required": [
+            "severity",
+            "category",
+            "message"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique finding identifier."
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "error",
+                "critical"
+              ]
+            },
+            "category": {
+              "type": "string",
+              "description": "Finding category (e.g. missing-policy, inconsistent-risk)."
+            },
+            "target": {
+              "type": "string",
+              "description": "Target of the finding (command ID, schema path)."
+            },
+            "location": {
+              "type": "string",
+              "description": "Location within the target."
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Confidence score (0-1) for LLM-generated findings."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "Evidence supporting an agent finding.",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "command",
+                      "schema",
+                      "diff",
+                      "stdout",
+                      "stderr",
+                      "text"
+                    ]
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Target identifier (file path, command ID, schema name)."
+                  },
+                  "location": {
+                    "type": "string",
+                    "description": "Location within the target (line number, JSON pointer)."
+                  },
+                  "excerpt": {
+                    "type": "string",
+                    "description": "Relevant excerpt from the target."
+                  }
+                }
+              }
+            },
+            "details": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "recommendedActions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "A recommended action from an agent audit.",
+          "required": [
+            "kind",
+            "title"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "run_command",
+                "edit_file",
+                "review",
+                "confirm",
+                "block",
+                "ignore"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string",
+              "description": "CLI command to run (for run_command kind)."
+            },
+            "target": {
+              "type": "string",
+              "description": "Target file or resource."
+            },
+            "rationale": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "adapter": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      }
+    }
   },
   ExplainResult: {
     "type": "object",
@@ -851,7 +1532,7 @@ export const schemas = {
             "type": "string",
             "description": "One-line summary for quick scanning."
           },
-          "risk_level": {
+          "riskLevel": {
             "type": "string",
             "enum": [
               "low",
@@ -1023,6 +1704,8 @@ export const advanceExitCodes = [0, 1] as const;
 export const applyPhaseExitCodes = [0, 1] as const;
 export const gateExitCodes = [0, 1, 10] as const;
 export const depsExitCodes = [0, 1] as const;
-export const auditExitCodes = [0, 1, 2, 10, 11, 12] as const;
-export const proposeExpandContractExitCodes = [0, 1, 2, 10, 11, 12] as const;
-export const explainExitCodes = [0, 1, 2, 10, 11, 12] as const;
+export const auditExitCodes = [0, 1, 3, 10, 11, 12] as const;
+export const proposeExpandContractExitCodes = [0, 1, 3, 10, 11, 12] as const;
+export const implementExitCodes = [0, 1, 3, 10, 11, 12] as const;
+export const auditWorkflowExitCodes = [0, 1, 3, 10, 11, 12] as const;
+export const explainExitCodes = [0, 1, 3, 10, 11, 12] as const;

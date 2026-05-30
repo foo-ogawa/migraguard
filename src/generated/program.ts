@@ -19,9 +19,11 @@ export interface CommandHandlers {
   applyPhase: (group: string | undefined, phase: string | undefined, options: { tag?: string; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   gate: (options: { require?: string; forbid?: string; contractFile?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
   deps: (options: { html?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
-  audit: (target: string | undefined, options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  proposeExpandContract: (file: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  explain: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  audit: (target: string | undefined, options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  proposeExpandContract: (file: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  implement: (description: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  auditWorkflow: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  explain: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
 }
 
 export function createProgram(
@@ -62,7 +64,7 @@ export function createProgram(
   program
     .command("check")
     .description("Verify metadata integrity (no DB connection required).")
-    .action(async (_opts, cmd) => {
+    .action(async (opts, cmd) => {
       await handlers.check({}, cmd.optsWithGlobals());
     });
 
@@ -118,7 +120,7 @@ export function createProgram(
   program
     .command("editable")
     .description("List migration files that are currently editable.")
-    .action(async (_opts, cmd) => {
+    .action(async (opts, cmd) => {
       await handlers.editable({}, cmd.optsWithGlobals());
     });
 
@@ -135,7 +137,7 @@ export function createProgram(
     .command("group-status")
     .description("Show migration group state (expand/contract phases).")
     .argument("[group]", "Specific group name. Shows all groups if omitted.")
-    .action(async (group, _opts, cmd) => {
+    .action(async (group, opts, cmd) => {
       await handlers.groupStatus(group, {}, cmd.optsWithGlobals());
     });
 
@@ -198,6 +200,7 @@ export function createProgram(
     .option("--fail-on <level>", "Minimum severity that causes a non-zero exit.", "error")
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the audit report.", "json")
+    .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (target, opts, cmd) => {
       if (opts.showPrompt) {
@@ -218,6 +221,7 @@ export function createProgram(
     .option("--fail-on <level>", "Minimum severity that causes a non-zero exit.", "error")
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the proposal report.", "json")
+    .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (file, opts, cmd) => {
       if (opts.showPrompt) {
@@ -229,6 +233,46 @@ export function createProgram(
     });
 
   program
+    .command("implement")
+    .description("Generate production-safe migration SQL from a natural language description.")
+    .argument("<description>", "Natural language description of the desired schema change.")
+    .option("--output-dir <dir>", "Directory to write generated migration file(s).")
+    .option("-a, --adapter <name>", "SDK adapter to use for LLM execution.")
+    .option("--model <name>", "LLM model override.")
+    .option("--fail-on <level>", "Minimum severity that causes a non-zero exit.", "error")
+    .option("-o, --output <file>", "Write result to a file instead of stdout.")
+    .option("--report-format <fmt>", "Output format for the implementation report.", "json")
+    .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
+    .action(async (description, opts, cmd) => {
+      if (opts.showPrompt) {
+        const prompt = await handlers.implement(description, opts, cmd.optsWithGlobals());
+        if (typeof prompt === "string") process.stdout.write(prompt + "\n");
+        return;
+      }
+      await handlers.implement(description, opts, cmd.optsWithGlobals());
+    });
+
+  program
+    .command("audit-workflow")
+    .description("Audit migration workflow compliance using LLM.")
+    .option("-a, --adapter <name>", "SDK adapter to use for LLM execution.")
+    .option("--model <name>", "LLM model override.")
+    .option("--fail-on <level>", "Minimum severity that causes a non-zero exit.", "error")
+    .option("-o, --output <file>", "Write result to a file instead of stdout.")
+    .option("--report-format <fmt>", "Output format for the audit report.", "json")
+    .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
+    .action(async (opts, cmd) => {
+      if (opts.showPrompt) {
+        const prompt = await handlers.auditWorkflow(opts, cmd.optsWithGlobals());
+        if (typeof prompt === "string") process.stdout.write(prompt + "\n");
+        return;
+      }
+      await handlers.auditWorkflow(opts, cmd.optsWithGlobals());
+    });
+
+  program
     .command("explain")
     .description("Explain command output in human-readable form using LLM.")
     .option("-a, --adapter <name>", "SDK adapter to use.")
@@ -236,6 +280,7 @@ export function createProgram(
     .option("--fail-on <level>", "Minimum severity that causes a non-zero exit.", "error")
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the explanation report.", "json")
+    .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (opts, cmd) => {
       if (opts.showPrompt) {

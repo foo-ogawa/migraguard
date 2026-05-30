@@ -1,8 +1,9 @@
 import { writeFile, mkdir } from "node:fs/promises";
-import { resolve, join, basename } from "node:path";
+import { resolve, join } from "node:path";
 import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
-import { buildProposeExpandContractContext } from "../agents/context-builder.js";
+import { resolveFromConfig } from "../config.js";
+import { buildImplementContext } from "../agents/context-builder.js";
 import {
   runAgentTask,
   computeExitCode,
@@ -12,8 +13,9 @@ import {
   EXIT_ADAPTER_ERROR,
 } from "../agents/index.js";
 import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js";
+import type { ImplementMigrationResult } from "../generated/dsl/handoffs.js";
 
-export interface CommandProposeOptions {
+export interface CommandImplementOptions {
   adapter?: string;
   model?: string;
   dryRun?: boolean;
@@ -23,12 +25,12 @@ export interface CommandProposeOptions {
   outputDir?: string;
 }
 
-export async function commandProposeExpandContract(
+export async function commandImplement(
   config: MigraguardConfig,
-  file: string,
-  opts: CommandProposeOptions,
+  description: string,
+  opts: CommandImplementOptions,
 ): Promise<void | string> {
-  const context = await buildProposeExpandContractContext(file, config);
+  const context = await buildImplementContext(description, config);
 
   if (opts.dryRun) return context;
 
@@ -44,22 +46,22 @@ export async function commandProposeExpandContract(
   try {
     const result = await runAgentTask(
       context,
-      "propose-expand-contract",
+      "implement-migration",
       auditConfig,
       auditOpts,
     );
 
-    if (result.data && opts.outputDir && result.data.recommendedActions) {
-      const outDir = resolve(opts.outputDir);
-      await mkdir(outDir, { recursive: true });
+    if (result.data) {
+      const implData = result.data as ImplementMigrationResult;
+      if (implData.migrations && implData.migrations.length > 0) {
+        const outDir = opts.outputDir
+          ? resolve(opts.outputDir)
+          : resolveFromConfig(config, config.migrationsDirs[0]);
+        await mkdir(outDir, { recursive: true });
 
-      for (const action of result.data.recommendedActions) {
-        // target and command are present on most action types but not ExplainResult's
-        const target = "target" in action ? action.target : undefined;
-        const command = "command" in action ? action.command : undefined;
-        if (action.kind === "edit_file" && target && command) {
-          const outPath = join(outDir, basename(target));
-          await writeFile(outPath, command, "utf-8");
+        for (const migration of implData.migrations) {
+          const outPath = join(outDir, migration.fileName);
+          await writeFile(outPath, migration.sql, "utf-8");
           console.log(chalk.green(`  Created: ${outPath}`));
         }
       }

@@ -14,7 +14,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandAuditOptions {
   adapter?: string;
   model?: string;
-  showPrompt?: boolean;
+  dryRun?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -27,7 +27,7 @@ export async function commandAudit(
 ): Promise<void | string> {
   const context = await buildAuditContext(target, config);
 
-  if (opts.showPrompt) return context;
+  if (opts.dryRun) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,

@@ -408,6 +408,7 @@ export async function migraguardAudit(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
+    if (options.dryRun) cmdArgs.push("--dry-run");
   }
 
   try {
@@ -437,6 +438,64 @@ export async function migraguardProposeExpandContract(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
+    if (options.dryRun) cmdArgs.push("--dry-run");
+  }
+
+  try {
+    const result = await execFileAsync(executable, cmdArgs);
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (err: unknown) {
+    const e = err as { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof e.code === 'number' ? e.code : 1,
+      stdout: e.stdout ?? '',
+      stderr: e.stderr ?? '',
+    };
+  }
+}
+
+export async function migraguardImplement(
+  executable: string,
+  args: import("./types.js").ImplementArgs,
+  options?: Partial<import("./types.js").ImplementOptions>,
+): Promise<ExecResult> {
+  const cmdArgs: string[] = ["implement"];
+  if (args.description !== undefined) cmdArgs.push(String(args.description));
+  if (options) {
+    if (options.outputDir !== undefined) cmdArgs.push("--output-dir", String(options.outputDir));
+    if (options.adapter !== undefined) cmdArgs.push("--adapter", String(options.adapter));
+    if (options.model !== undefined) cmdArgs.push("--model", String(options.model));
+    if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
+    if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
+    if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
+    if (options.dryRun) cmdArgs.push("--dry-run");
+  }
+
+  try {
+    const result = await execFileAsync(executable, cmdArgs);
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (err: unknown) {
+    const e = err as { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof e.code === 'number' ? e.code : 1,
+      stdout: e.stdout ?? '',
+      stderr: e.stderr ?? '',
+    };
+  }
+}
+
+export async function migraguardAuditWorkflow(
+  executable: string,
+  options?: Partial<import("./types.js").AuditWorkflowOptions>,
+): Promise<ExecResult> {
+  const cmdArgs: string[] = ["audit-workflow"];
+  if (options) {
+    if (options.adapter !== undefined) cmdArgs.push("--adapter", String(options.adapter));
+    if (options.model !== undefined) cmdArgs.push("--model", String(options.model));
+    if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
+    if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
+    if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
+    if (options.dryRun) cmdArgs.push("--dry-run");
   }
 
   try {
@@ -463,6 +522,7 @@ export async function migraguardExplain(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
+    if (options.dryRun) cmdArgs.push("--dry-run");
   }
 
   try {

@@ -196,6 +196,180 @@ expand-contract-proposal-result:
       - findings
       - phases
 
+implement-migration-result:
+  version: 1
+  description: >-
+    Result of implement-migration task.
+    Extends AgentAuditResult with a migrations array.
+    # SSoT: cli-contract.yaml#/components/schemas/ImplementMigrationResult
+  schema:
+    type: object
+    properties:
+      summary:
+        type: string
+      riskLevel:
+        type: string
+        enum: [low, medium, high, critical]
+      findings:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            severity:
+              type: string
+              enum: [info, warning, error, critical]
+            category:
+              type: string
+            target:
+              type: string
+            location:
+              type: string
+            message:
+              type: string
+            recommendation:
+              type: string
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
+          required: [severity, category, message]
+      migrations:
+        type: array
+        description: Generated migration files
+        items:
+          type: object
+          properties:
+            fileName:
+              type: string
+              description: File name following YYYYMMDD_HHMMSS__description.sql convention
+            sql:
+              type: string
+              description: Full SQL content of the migration file
+            description:
+              type: string
+              description: Human-readable description of what this migration does
+            phase:
+              type: string
+              enum: [expand, backfill, switch, contract]
+              description: Expand/contract phase (only set when part of a group)
+          required: [fileName, sql, description]
+      recommendedActions:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum: [run_command, edit_file, review, confirm, block, ignore]
+            title:
+              type: string
+            command:
+              type: string
+            target:
+              type: string
+            rationale:
+              type: string
+          required: [kind, title]
+      metadata:
+        type: object
+        properties:
+          tool:
+            type: string
+          command:
+            type: string
+          version:
+            type: string
+          generatedAt:
+            type: string
+          adapter:
+            type: string
+          model:
+            type: string
+    required:
+      - summary
+      - riskLevel
+      - findings
+      - migrations
+
+workflow-audit-result:
+  version: 1
+  description: >-
+    Result of audit-workflow-compliance task.
+    Standard AgentAuditResult shape.
+    # SSoT: cli-contract.yaml#/components/schemas/WorkflowAuditResult
+    # Using inline schema as cli-contract.yaml WorkflowAuditResult aliases agent-audit-result.
+  schema:
+    type: object
+    properties:
+      summary:
+        type: string
+      riskLevel:
+        type: string
+        enum: [low, medium, high, critical]
+      findings:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            severity:
+              type: string
+              enum: [info, warning, error, critical]
+            category:
+              type: string
+            target:
+              type: string
+            location:
+              type: string
+            message:
+              type: string
+            recommendation:
+              type: string
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
+          required: [severity, category, message]
+      recommendedActions:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum: [run_command, edit_file, review, confirm, block, ignore]
+            title:
+              type: string
+            command:
+              type: string
+            target:
+              type: string
+            rationale:
+              type: string
+          required: [kind, title]
+      metadata:
+        type: object
+        properties:
+          tool:
+            type: string
+          command:
+            type: string
+          version:
+            type: string
+          generatedAt:
+            type: string
+          adapter:
+            type: string
+          model:
+            type: string
+    required:
+      - summary
+      - riskLevel
+      - findings
+
 explain-result:
   version: 1
   description: >-
