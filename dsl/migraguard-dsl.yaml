@@ -6,6 +6,8 @@ system:
     - migration-audit
     - expand-contract-proposal
     - command-explanation
+    - migration-implementation
+    - workflow-audit
 
 agents: { $ref: "./agents/" }
 tasks: { $ref: "./tasks.yaml" }
@@ -20,10 +22,14 @@ guardrails:
     scope:
       agents:
         - migration-safety-auditor
+        - migration-implementer
+        - workflow-auditor
       tasks:
         - audit-migration-safety
         - propose-expand-contract
         - explain-command-result
+        - implement-migration
+        - audit-workflow-compliance
     rationale: >-
       Structured output conformance is critical for CLI parsing and
       downstream tooling integration.
@@ -31,13 +37,15 @@ guardrails:
   no-sql-execution:
     description: >-
       Agent must never execute SQL or modify database state.
-      Agent operates in read-only mode for analysis only.
+      All agents operate in read-only mode for analysis only.
     scope:
       agents:
         - migration-safety-auditor
+        - migration-implementer
+        - workflow-auditor
     rationale: >-
-      migration-safety-auditor is a static analysis agent.
-      It must never connect to databases or execute queries.
+      All migraguard agents are static analysis agents.
+      They must never connect to databases or execute queries.
 
   confidence-threshold:
     description: >-
@@ -47,15 +55,62 @@ guardrails:
       tasks:
         - audit-migration-safety
         - propose-expand-contract
+        - implement-migration
+        - audit-workflow-compliance
     rationale: >-
       Low-confidence findings without disclaimers may mislead operators
       into skipping necessary safety measures.
+
+  safe-ddl-enforcement:
+    description: >-
+      migration-implementer must never generate SQL that violates safe DDL
+      patterns (missing CONCURRENTLY, missing lock_timeout, missing IF NOT EXISTS).
+    scope:
+      agents:
+        - migration-implementer
+      tasks:
+        - implement-migration
+    rationale: >-
+      The purpose of implement is to generate correct migrations.
+      Generating unsafe SQL defeats the purpose and could cause production incidents.
 
 guardrail_policies:
   migration-safety-policy:
     description: >-
       Policy governing migration safety audit operations.
       Groups all guardrails applicable to the migration-safety-auditor agent.
+    rules:
+      - guardrail: output-schema-conformance
+        severity: critical
+        action: block
+      - guardrail: no-sql-execution
+        severity: critical
+        action: block
+      - guardrail: confidence-threshold
+        severity: warning
+        action: warn
+
+  migration-implementation-policy:
+    description: >-
+      Policy governing migration SQL generation.
+      Ensures generated SQL follows safe DDL patterns.
+    rules:
+      - guardrail: output-schema-conformance
+        severity: critical
+        action: block
+      - guardrail: no-sql-execution
+        severity: critical
+        action: block
+      - guardrail: safe-ddl-enforcement
+        severity: critical
+        action: block
+      - guardrail: confidence-threshold
+        severity: warning
+        action: warn
+
+  workflow-audit-policy:
+    description: >-
+      Policy governing workflow compliance audit operations.
     rules:
       - guardrail: output-schema-conformance
         severity: critical
@@ -97,3 +152,23 @@ workflow:
       - type: delegate
         task: explain-command-result
         from_agent: migration-safety-auditor
+
+  migration-implementation:
+    description: Generate production-safe migration SQL from natural language description
+    trigger: cli-command
+    entry_conditions:
+      - Natural language description of the desired schema change is provided
+    steps:
+      - type: delegate
+        task: implement-migration
+        from_agent: migration-implementer
+
+  workflow-audit:
+    description: Audit project migration workflow compliance
+    trigger: cli-command
+    entry_conditions:
+      - Migration files are present in the configured migrations directory
+    steps:
+      - type: delegate
+        task: audit-workflow-compliance
+        from_agent: workflow-auditor

@@ -18,3 +18,8 @@ command-output-json:
   type: document
   description: "JSON output from a migraguard command on stdin (ephemeral input for explain)"
   authority: derived
+
+metadata-source:
+  type: document
+  description: "migraguard metadata.json file content for workflow compliance verification (ephemeral input)"
+  authority: derived

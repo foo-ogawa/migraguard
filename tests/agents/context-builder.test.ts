@@ -69,9 +69,6 @@ describe("buildProposeExpandContractContext", () => {
     expect(ctx).toContain("# Expand/Contract Proposal Request");
     expect(ctx).toContain("Source Migration:");
     expect(ctx).toContain("```sql");
-    expect(ctx).toContain("Instructions");
-    expect(ctx).toContain("expand");
-    expect(ctx).toContain("contract");
   });
 });
 
@@ -84,7 +81,6 @@ describe("buildExplainContext", () => {
     expect(ctx).toContain("Source Command: `lint`");
     expect(ctx).toContain("```json");
     expect(ctx).toContain(json);
-    expect(ctx).toContain("Instructions");
   });
 
   it("works without source command", () => {

@@ -88,8 +88,48 @@ export const commandExplanation: WorkflowContract = {
   ],
 };
 
+export const migrationImplementation: WorkflowContract = {
+  id: "migration-implementation",
+  description: "Generate production-safe migration SQL from natural language description",
+  trigger: "cli-command",
+  entry_conditions: [
+  "Natural language description of the desired schema change is provided"
+],
+  steps: [
+    {
+      type: "delegate",
+      task: "implement-migration",
+      from_agent: "migration-implementer",
+      description: "",
+      optional: false,
+      max_retries: 0,
+    },
+  ],
+};
+
+export const workflowAudit: WorkflowContract = {
+  id: "workflow-audit",
+  description: "Audit project migration workflow compliance",
+  trigger: "cli-command",
+  entry_conditions: [
+  "Migration files are present in the configured migrations directory"
+],
+  steps: [
+    {
+      type: "delegate",
+      task: "audit-workflow-compliance",
+      from_agent: "workflow-auditor",
+      description: "",
+      optional: false,
+      max_retries: 0,
+    },
+  ],
+};
+
 export const workflowRegistry: Record<string, WorkflowContract> = {
   "migration-audit": migrationAudit,
   "expand-contract-proposal": expandContractProposal,
   "command-explanation": commandExplanation,
+  "migration-implementation": migrationImplementation,
+  "workflow-audit": workflowAudit,
 };

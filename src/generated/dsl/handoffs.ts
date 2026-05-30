@@ -101,6 +101,84 @@ export const ExpandContractProposalResultSchema = z.object({
 export type ExpandContractProposalResult = z.infer<typeof ExpandContractProposalResultSchema>;
 
 // ---------------------------------------------------------------------------
+// implement-migration-result
+// ---------------------------------------------------------------------------
+
+export const ImplementMigrationResultSchema = z.object({
+  summary: z.string(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]),
+  findings: z.array(z.object({
+  id: z.string().optional(),
+  severity: z.enum(["info", "warning", "error", "critical"]),
+  category: z.string(),
+  target: z.string().optional(),
+  location: z.string().optional(),
+  message: z.string(),
+  recommendation: z.string().optional(),
+  confidence: z.number().optional(),
+})),
+  migrations: z.array(z.object({
+  fileName: z.string(),
+  sql: z.string(),
+  description: z.string(),
+  phase: z.enum(["expand", "backfill", "switch", "contract"]).optional(),
+})),
+  recommendedActions: z.array(z.object({
+  kind: z.enum(["run_command", "edit_file", "review", "confirm", "block", "ignore"]),
+  title: z.string(),
+  command: z.string().optional(),
+  target: z.string().optional(),
+  rationale: z.string().optional(),
+})).optional(),
+  metadata: z.object({
+  tool: z.string().optional(),
+  command: z.string().optional(),
+  version: z.string().optional(),
+  generatedAt: z.string().optional(),
+  adapter: z.string().optional(),
+  model: z.string().optional(),
+}).optional(),
+});
+
+export type ImplementMigrationResult = z.infer<typeof ImplementMigrationResultSchema>;
+
+// ---------------------------------------------------------------------------
+// workflow-audit-result
+// ---------------------------------------------------------------------------
+
+export const WorkflowAuditResultSchema = z.object({
+  summary: z.string(),
+  riskLevel: z.enum(["low", "medium", "high", "critical"]),
+  findings: z.array(z.object({
+  id: z.string().optional(),
+  severity: z.enum(["info", "warning", "error", "critical"]),
+  category: z.string(),
+  target: z.string().optional(),
+  location: z.string().optional(),
+  message: z.string(),
+  recommendation: z.string().optional(),
+  confidence: z.number().optional(),
+})),
+  recommendedActions: z.array(z.object({
+  kind: z.enum(["run_command", "edit_file", "review", "confirm", "block", "ignore"]),
+  title: z.string(),
+  command: z.string().optional(),
+  target: z.string().optional(),
+  rationale: z.string().optional(),
+})).optional(),
+  metadata: z.object({
+  tool: z.string().optional(),
+  command: z.string().optional(),
+  version: z.string().optional(),
+  generatedAt: z.string().optional(),
+  adapter: z.string().optional(),
+  model: z.string().optional(),
+}).optional(),
+});
+
+export type WorkflowAuditResult = z.infer<typeof WorkflowAuditResultSchema>;
+
+// ---------------------------------------------------------------------------
 // explain-result
 // ---------------------------------------------------------------------------
 
@@ -139,6 +217,8 @@ export const handoffSchemas = {
   "migration-audit-request": MigrationAuditRequestSchema,
   "migration-audit-result": MigrationAuditResultSchema,
   "expand-contract-proposal-result": ExpandContractProposalResultSchema,
+  "implement-migration-result": ImplementMigrationResultSchema,
+  "workflow-audit-result": WorkflowAuditResultSchema,
   "explain-result": ExplainResultSchema,
 } as const;
 
@@ -178,6 +258,20 @@ export const handoffs = {
       type: "expand-contract-proposal-result" as const,
       version: 1,
       payload: ExpandContractProposalResultSchema.parse(payload),
+    };
+  },
+  implementMigrationResult(payload: ImplementMigrationResult): HandoffEnvelope<"implement-migration-result"> {
+    return {
+      type: "implement-migration-result" as const,
+      version: 1,
+      payload: ImplementMigrationResultSchema.parse(payload),
+    };
+  },
+  workflowAuditResult(payload: WorkflowAuditResult): HandoffEnvelope<"workflow-audit-result"> {
+    return {
+      type: "workflow-audit-result" as const,
+      version: 1,
+      payload: WorkflowAuditResultSchema.parse(payload),
     };
   },
   explainResult(payload: ExplainResult): HandoffEnvelope<"explain-result"> {

@@ -1,8 +1,6 @@
-import { writeFile, mkdir } from "node:fs/promises";
-import { resolve, join, basename } from "node:path";
 import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
-import { buildProposeExpandContractContext } from "../agents/context-builder.js";
+import { buildAuditWorkflowContext } from "../agents/context-builder.js";
 import {
   runAgentTask,
   computeExitCode,
@@ -13,22 +11,20 @@ import {
 } from "../agents/index.js";
 import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js";
 
-export interface CommandProposeOptions {
+export interface CommandAuditWorkflowOptions {
   adapter?: string;
   model?: string;
   dryRun?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
-  outputDir?: string;
 }
 
-export async function commandProposeExpandContract(
+export async function commandAuditWorkflow(
   config: MigraguardConfig,
-  file: string,
-  opts: CommandProposeOptions,
+  opts: CommandAuditWorkflowOptions,
 ): Promise<void | string> {
-  const context = await buildProposeExpandContractContext(file, config);
+  const context = await buildAuditWorkflowContext(config);
 
   if (opts.dryRun) return context;
 
@@ -44,26 +40,10 @@ export async function commandProposeExpandContract(
   try {
     const result = await runAgentTask(
       context,
-      "propose-expand-contract",
+      "audit-workflow-compliance",
       auditConfig,
       auditOpts,
     );
-
-    if (result.data && opts.outputDir && result.data.recommendedActions) {
-      const outDir = resolve(opts.outputDir);
-      await mkdir(outDir, { recursive: true });
-
-      for (const action of result.data.recommendedActions) {
-        // target and command are present on most action types but not ExplainResult's
-        const target = "target" in action ? action.target : undefined;
-        const command = "command" in action ? action.command : undefined;
-        if (action.kind === "edit_file" && target && command) {
-          const outPath = join(outDir, basename(target));
-          await writeFile(outPath, command, "utf-8");
-          console.log(chalk.green(`  Created: ${outPath}`));
-        }
-      }
-    }
 
     const content = formatResult(result, opts.reportFormat ?? "json");
     await writeOutput(content, opts.output);

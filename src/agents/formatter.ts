@@ -1,17 +1,18 @@
 import { writeFile } from "node:fs/promises";
-import type { MigrationAuditResult } from "../generated/dsl/handoffs.js";
 import type { AuditRunResult, AuditOptions } from "./types.js";
 
 export type ReportFormat = "json" | "text" | "yaml";
 
 export function computeExitCode(result: AuditRunResult, options: AuditOptions): number {
+  if (result.dryRun) return 0;
   if (result.status !== "success" || !result.data) return 1;
 
   const failOn = options.failOn ?? "error";
   const severityOrder = ["info", "warning", "error", "critical"] as const;
   const threshold = severityOrder.indexOf(failOn);
 
-  const hasBlocking = result.data.findings.some(
+  const findings = result.data.findings ?? [];
+  const hasBlocking = findings.some(
     (f) => severityOrder.indexOf(f.severity) >= threshold,
   );
 
@@ -30,17 +31,18 @@ export function formatResultText(result: AuditRunResult): string {
   lines.push(`Summary: ${data.summary}`);
   lines.push("");
 
-  if (data.findings.length > 0) {
-    lines.push(`Findings (${data.findings.length}):`);
+  const findings = data.findings ?? [];
+  if (findings.length > 0) {
+    lines.push(`Findings (${findings.length}):`);
     lines.push("");
 
-    for (const finding of data.findings) {
+    for (const finding of findings) {
       const prefix = severityIcon(finding.severity);
       lines.push(`  ${prefix} [${finding.category}] ${finding.message}`);
-      if (finding.location) {
+      if ("location" in finding && finding.location) {
         lines.push(`    Location: ${finding.location}`);
       }
-      if (finding.recommendation) {
+      if ("recommendation" in finding && finding.recommendation) {
         lines.push(`    Recommendation: ${finding.recommendation}`);
       }
       lines.push("");
@@ -51,7 +53,7 @@ export function formatResultText(result: AuditRunResult): string {
     lines.push("Recommended Actions:");
     for (const action of data.recommendedActions) {
       lines.push(`  - [${action.kind}] ${action.title}`);
-      if (action.command) {
+      if ("command" in action && action.command) {
         lines.push(`    $ ${action.command}`);
       }
     }
@@ -90,12 +92,12 @@ export async function writeOutput(content: string, outputPath?: string): Promise
   }
 }
 
-function severityIcon(severity: MigrationAuditResult["findings"][number]["severity"]): string {
+function severityIcon(severity: "info" | "warning" | "error" | "critical"): string {
   switch (severity) {
-    case "critical": return "✖";
-    case "error": return "✖";
-    case "warning": return "⚠";
-    case "info": return "ℹ";
+    case "critical": return "\u2716";
+    case "error": return "\u2716";
+    case "warning": return "\u26A0";
+    case "info": return "\u2139";
   }
 }
 

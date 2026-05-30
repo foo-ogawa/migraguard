@@ -2,9 +2,19 @@
 
 [![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PostgreSQL-first schema-aware deployment control. Idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. MySQL and SQLite are supported as secondary dialects: all DB runtime commands (`apply`, `dump`, `diff`, `verify`) work via `mysql`/`mysqldump` and `sqlite3` CLIs respectively, with 17 generic lint rules powered by [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser). PostgreSQL retains full rule coverage (38 rules) via [libpg-query](https://github.com/pganalyze/libpg-query).
+PostgreSQL-first, schema-aware deployment control with built-in LLM agents. Generates production-safe migration SQL, audits operational risks, enforces the lint → apply → dump workflow, and explains command output — all from the CLI. Deterministic gates (38 AST-based lint rules, checksum tamper detection, schema drift detection, idempotency proof) run alongside LLM-powered semantic analysis, so domain expertise is encapsulated inside the tool rather than scattered across agent prompts.
 
-**Prevented accidents:**
+MySQL and SQLite are supported as secondary dialects with 17 generic lint rules.
+
+**What the LLM agents do:**
+
+- **`implement`** — Describe a schema change in natural language; migration SQL files are written to the configured `migrationsDirs` with `CREATE INDEX CONCURRENTLY`, `ANALYZE`, `IF NOT EXISTS`, `lock_timeout`, `NOT VALID` + `VALIDATE` separation, and `UNIQUE USING INDEX` already applied
+- **`audit`** — Semantic safety audit: lock risk under concurrent load, expand/contract necessity, backfill safety, deployment ordering, `migraguard:allow` directive validity
+- **`audit-workflow`** — Verify the project follows the lint → apply → dump workflow, schema.sql is machine-generated, metadata.json is consistent, and expand/contract transitions are valid
+- **`propose-expand-contract`** — Decompose unsafe DDL into phased expand/backfill/switch/contract SQL with deployment gates
+- **`explain`** — Translate lint/diff/verify output into human-readable explanations for PR comments or release decisions
+
+**What the deterministic gates prevent:**
 
 - **Past file tampering** — edits to applied migrations detected and rejected in CI (no DB required)
 - **Hotfix reversion** — a fixed migration silently reverts to the old version via git revert, branch switch, or merge mistake
@@ -35,10 +45,29 @@ npm install mysql2
 # For SQLite, also install the driver:
 npm install better-sqlite3
 
+# Enable LLM features (optional — requires an API key for your chosen adapter)
+npm install --save-dev agent-contracts-runtime
+```
+
+### Generate migration SQL from natural language
+
+```bash
+# Generate migration SQL — files are written to the configured migrationsDirs
+npx migraguard implement "add email verification token to users table" --adapter claude
+# → Created: db/migrations/20260530_120000__add_email_verification_token.sql
+
+# Then follow the standard workflow
+npx migraguard lint && npx migraguard apply && npx migraguard dump
+
+# Preview the prompt without calling the LLM
+npx migraguard implement "add email verification token to users table" --dry-run
+```
+
+### Traditional workflow
+
+```bash
 # Create a new migration → edit the generated file → apply to local DB
 npx migraguard new create_users_table
-# → Created: db/migrations/20260301_120000__create_users_table.sql
-# Edit the file shown above, then:
 npx migraguard apply
 
 # Before release: squash → lint + check → update dump
@@ -46,11 +75,14 @@ npx migraguard squash
 npx migraguard lint && npx migraguard check
 npx migraguard dump
 
-# LLM-powered safety audit (optional — requires agent-contracts-runtime + API key)
-npm install --save-dev agent-contracts-runtime
+# LLM-powered safety audit
 npx migraguard audit --adapter openai
 
-# In PRs, CI runs lint + check (+ optionally verify + audit)
+# Audit workflow compliance
+npx migraguard audit-workflow --adapter claude
+
+# Explain lint output for a PR comment
+npx migraguard lint --format json | npx migraguard explain --adapter openai
 ```
 
 ## Design Philosophy
@@ -246,17 +278,25 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 
 | Command | Description |
 |---------|-------------|
+| `implement <description>` | Generate production-safe migration SQL from natural language (auto-writes to migrationsDirs) |
 | `audit [target]` | Semantic migration safety audit via LLM |
+| `audit-workflow` | Audit migration workflow compliance (lint → apply → dump, schema.sql integrity, metadata consistency) |
 | `propose-expand-contract <file>` | Generate expand/contract migration group proposal |
 | `explain` | Explain command output in human-readable form (accepts JSON or text from `lint`, `check`, `diff`, `deps`, `verify` via stdin) |
 
-LLM-powered commands are read-only by default. `audit` and `explain` do not modify migration files or database state. `propose-expand-contract` produces a proposal; generated SQL should be reviewed before being written or applied. LLM commands do not replace deterministic gates — they are an additional semantic review layer on top of `lint`, `check`, `diff`, and `verify`.
+LLM-powered commands are read-only by default. `implement` generates SQL but writes files only when `--output-dir` is specified. All commands return structured results (`AgentAuditResult` / `AgentFinding` shape) consumable by CI systems and higher-level workflow agents.
 
 All LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key, and support `--dry-run` to inspect the prompt without calling the LLM.
 
 ```bash
+# Generate migration SQL from natural language
+npx migraguard implement "add email verification token to users table" --adapter claude
+
 # Audit a migration for operational risks
 npx migraguard audit db/migrations/20260510__add_user_status.sql --adapter openai
+
+# Audit project workflow compliance
+npx migraguard audit-workflow --adapter claude
 
 # Propose expand/contract decomposition for unsafe DDL
 npx migraguard propose-expand-contract db/migrations/20260510__rename_column.sql --adapter cursor
@@ -585,7 +625,7 @@ migraguard embeds operational policies into the tool and prevents incidents via 
 | **Parallel releases** | ✅ DAG | ❌ | ❌ | ⚠️ | ❌ |
 | **Offline CI gate** | ✅ check | ❌ | ✅ atlas.sum | ❌ | ❌ |
 | **Failure handling** | DB-recorded, explicit resolve | repair overwrites | manual fix | revert scripts | manual fix |
-| **LLM semantic audit** | ✅ audit, propose-expand-contract, explain | ❌ | ❌ | ❌ | ❌ |
+| **LLM agents** | ✅ implement, audit, audit-workflow, propose-expand-contract, explain | ❌ | ❌ | ❌ | ❌ |
 | **Agent-readable contract** | ✅ cli-contract.yaml + DSL | ❌ | ❌ | ❌ | ❌ |
 | **Execution** | psql / mysql / sqlite3 (plain SQL) | Java / JDBC | Go / DB driver | psql / sqitch | pg (Node.js) |
 
@@ -609,11 +649,13 @@ migraguard takes a different approach: it encapsulates domain-specific semantic 
 
 Anything that can be validated mechanically is validated deterministically: AST-based lint rules (38 for PostgreSQL), checksum-based tamper detection, schema drift comparison, idempotency verification on shadow databases, and expand/contract phase enforcement.
 
-### Semantic audit inside the toolchain
+### Semantic audit and code generation inside the toolchain
 
 Domain-specific reasoning that is difficult to express as static rules is handled by LLM-based commands:
 
+- **`implement`** — Generate production-safe migration SQL from natural language descriptions, applying all safe DDL patterns (`CREATE INDEX CONCURRENTLY`, `ANALYZE`, `IF NOT EXISTS`, `lock_timeout`/`statement_timeout`, `NOT VALID` + `VALIDATE` separation, `UNIQUE USING INDEX`) and predicting lint results
 - **`audit`** — Lock risk assessment under concurrent load, expand/contract necessity, backfill safety (batching, timeouts, resumability), deployment ordering with application releases, validity of `migraguard:allow` directives
+- **`audit-workflow`** — Verify the project follows the prescribed lint → apply → dump workflow, schema.sql is machine-generated by `migraguard dump`, metadata.json is consistent with migration files, and expand/contract transitions are valid
 - **`propose-expand-contract`** — Decompose unsafe DDL into phased expand/backfill/switch/contract SQL with deployment gates
 - **`explain`** — Translate machine output into human-readable explanations for PR comments and release decisions
 
@@ -642,8 +684,14 @@ Tool capabilities are described in machine-readable form via [cli-contract.yaml]
 Default models are defined by `agent-contracts-runtime` and may change between releases. Use `--model` to pin a specific model.
 
 ```bash
+# Generate migration SQL — written to configured migrationsDirs
+npx migraguard implement "add status column to orders" --adapter claude
+
 # Semantic safety audit
 npx migraguard audit --adapter openai --model gpt-4o
+
+# Audit workflow compliance
+npx migraguard audit-workflow --adapter claude
 
 # Propose expand/contract decomposition
 npx migraguard propose-expand-contract migration.sql --adapter cursor
@@ -652,7 +700,7 @@ npx migraguard propose-expand-contract migration.sql --adapter cursor
 npx migraguard lint --format json | npx migraguard explain --adapter openai
 
 # Inspect the prompt without calling the LLM
-npx migraguard audit --dry-run
+npx migraguard implement "add status column" --dry-run
 ```
 
 Install the runtime dependency to enable LLM features:

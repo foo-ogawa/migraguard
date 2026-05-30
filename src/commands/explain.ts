@@ -14,7 +14,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandExplainOptions {
   adapter?: string;
   model?: string;
-  showPrompt?: boolean;
+  dryRun?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -28,12 +28,12 @@ export async function commandExplain(
   if (!stdin.trim()) {
     console.error(chalk.red("Error: No input received on stdin."));
     console.error("Usage: migraguard lint --json | migraguard explain");
-    process.exit(2);
+    process.exit(3);
   }
 
   const context = buildExplainContext(stdin);
 
-  if (opts.showPrompt) return context;
+  if (opts.dryRun) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,

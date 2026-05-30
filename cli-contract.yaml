@@ -121,13 +121,13 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: false
-          side_effects:
+          sideEffects:
             - file_write
           sideEffectNote: Creates migration SQL file(s) in the configured migrations directory.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 1000
           retryableExitCodes: []
 
@@ -184,22 +184,22 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: high
-          requires_confirmation: true
+          riskLevel: high
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Migrations are not automatically reversible. Manual rollback
             requires writing a compensating migration or restoring from backup.
-          side_effects:
+          sideEffects:
             - database_write
           sideEffectNote: >-
             Executes SQL via native CLI and records results in schema_migrations.
             Uses advisory lock to prevent concurrent execution.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 60000
           retryableExitCodes: []
-          recommended_before_use:
+          recommendedBeforeUse:
             - Run migraguard check to verify metadata integrity.
             - Run migraguard lint to check for unsafe DDL patterns.
             - Consider running with --with-drift-check for local development.
@@ -232,10 +232,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: []
+          sideEffects: []
           sideEffectNote: Read-only. Compares metadata.json against files on disk.
           expectedDurationMs: 2000
           retryableExitCodes: []
@@ -277,23 +277,23 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: medium
-          requires_confirmation: true
+          riskLevel: medium
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Deleted files can be recovered from version control (git checkout).
             Re-run migraguard new to recreate individual files if needed.
-          side_effects:
+          sideEffects:
             - file_write
             - file_delete
           sideEffectNote: >-
             Merges migration files into one and deletes originals.
             Updates metadata.json.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 3000
           retryableExitCodes: []
-          recommended_before_use:
+          recommendedBeforeUse:
             - Ensure all pending files are ready for release.
             - Confirm no uncommitted changes to migration files.
 
@@ -339,10 +339,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: []
+          sideEffects: []
           sideEffectNote: Read-only. Scans migration files against safety rules.
           expectedDurationMs: 3000
           retryableExitCodes: []
@@ -384,16 +384,16 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects:
+          sideEffects:
             - database_read
             - file_write
           sideEffectNote: >-
             Reads DB schema via pg_dump/mysqldump and writes normalized
             output to schema.sql.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 10000
           retryableExitCodes: [1]
 
@@ -435,10 +435,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects:
+          sideEffects:
             - database_read
           sideEffectNote: >-
             Reads DB schema via pg_dump/mysqldump and compares with
@@ -477,10 +477,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects:
+          sideEffects:
             - database_read
           sideEffectNote: Reads schema_migrations table and compares with local files.
           expectedDurationMs: 5000
@@ -526,20 +526,20 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: high
-          requires_confirmation: true
+          riskLevel: high
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             A resolved (skipped) migration cannot be un-resolved.
             Re-apply the migration manually if needed.
-          side_effects:
+          sideEffects:
             - database_write
           sideEffectNote: Inserts a 'skipped' record into schema_migrations for the given file.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 3000
           retryableExitCodes: [1]
-          recommended_before_use:
+          recommendedBeforeUse:
             - Verify that the failure has been addressed by a subsequent migration or manual fix.
             - Run migraguard status to confirm the file is in failed state.
 
@@ -564,10 +564,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: []
+          sideEffects: []
           sideEffectNote: Read-only. Lists leaf/latest migration files from metadata.
           expectedDurationMs: 1000
           retryableExitCodes: []
@@ -619,10 +619,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: medium
-          requires_confirmation: false
+          riskLevel: medium
+          requiresConfirmation: false
           idempotent: true
-          side_effects:
+          sideEffects:
             - database_read
             - database_write
           sideEffectNote: >-
@@ -630,7 +630,7 @@ command_sets:
             idempotency. Does not modify the primary database.
           expectedDurationMs: 60000
           retryableExitCodes: [1]
-          recommended_before_use:
+          recommendedBeforeUse:
             - Ensure the database server is running and accessible.
 
       # ── group-status ─────────────────────────────────
@@ -665,10 +665,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: []
+          sideEffects: []
           sideEffectNote: Read-only. Derives group state from schema_migrations records.
           expectedDurationMs: 3000
           retryableExitCodes: [1]
@@ -712,23 +712,23 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: high
-          requires_confirmation: true
+          riskLevel: high
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Deleted migration files can only be recovered from version control.
             The baseline operation cannot be undone programmatically.
-          side_effects:
+          sideEffects:
             - file_write
             - file_delete
           sideEffectNote: >-
             Dumps current DB schema to schema.sql, deletes squashed migration
             files, updates metadata.json, and rewrites depends-on references.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 30000
           retryableExitCodes: []
-          recommended_before_use:
+          recommendedBeforeUse:
             - Ensure all migrations have been applied to all environments.
             - Back up migration files before running.
 
@@ -795,20 +795,20 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: medium
-          requires_confirmation: true
+          riskLevel: medium
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             State transitions cannot be undone. Use advance with the previous
             status value to manually correct, or reset group state in the database.
-          side_effects:
+          sideEffects:
             - database_write
           sideEffectNote: Inserts a phase state transition record into schema_migrations.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 5000
           retryableExitCodes: [1]
-          recommended_before_use:
+          recommendedBeforeUse:
             - Run migraguard group-status <group> to verify current phase state before advancing.
 
       # ── apply-phase ──────────────────────────────────
@@ -866,22 +866,22 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: high
-          requires_confirmation: true
+          riskLevel: high
+          requiresConfirmation: true
           idempotent: false
           reversible: false
           rollbackGuidance: >-
             Phase execution is not automatically reversible. Write a compensating
             migration or restore from backup if rollback is needed.
-          side_effects:
+          sideEffects:
             - database_write
           sideEffectNote: >-
             Executes a phase SQL file via native CLI and records the
             result in schema_migrations. Uses advisory lock.
-          safe_dry_run_option: dry-run
+          safeDryRunOption: dry-run
           expectedDurationMs: 30000
           retryableExitCodes: []
-          recommended_before_use:
+          recommendedBeforeUse:
             - Run migraguard group-status to verify current phase state.
 
       # ── gate ─────────────────────────────────────────
@@ -948,10 +948,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: []
+          sideEffects: []
           sideEffectNote: Read-only. Evaluates gate conditions against schema_migrations state.
           expectedDurationMs: 5000
           retryableExitCodes: [1]
@@ -996,10 +996,10 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects:
+          sideEffects:
             - file_write
           sideEffectNote: >-
             Reads migration files and outputs dependency graph.
@@ -1019,7 +1019,7 @@ command_sets:
         usage:
           - migraguard audit db/migrations/20260510_120000__add_user_status.sql
           - migraguard audit db/migrations/
-          - migraguard audit --adapter gemini --show-prompt
+          - migraguard audit --adapter gemini --dry-run
 
         arguments:
           - name: target
@@ -1073,6 +1073,13 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling the LLM API.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
             description: Audit completed, no blocking findings.
@@ -1086,8 +1093,8 @@ command_sets:
             stderr:
               format: text
 
-          '2':
-            description: Configuration or input error.
+          '3':
+            description: Validation or configuration error.
             stderr:
               format: text
 
@@ -1109,14 +1116,14 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: [network]
+          sideEffects: [network]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safe_dry_run_option: show-prompt
+          safeDryRunOption: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1131,7 +1138,7 @@ command_sets:
           Requires agent-contracts-runtime.
         usage:
           - migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
-          - migraguard propose-expand-contract --output-dir ./proposed/ --show-prompt
+          - migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
 
         arguments:
           - name: file
@@ -1194,6 +1201,13 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling the LLM API.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
             description: Proposal generated successfully.
@@ -1207,8 +1221,8 @@ command_sets:
             stderr:
               format: text
 
-          '2':
-            description: Configuration or input error (file not found, invalid SQL).
+          '3':
+            description: Validation or configuration error.
             stderr:
               format: text
 
@@ -1230,14 +1244,255 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: [network, file_write]
+          sideEffects: [network, file_write]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write when --output or --output-dir is specified.
-          safe_dry_run_option: show-prompt
+          safeDryRunOption: dry-run
+          expectedDurationMs: 120000
+          retryableExitCodes: [12]
+
+      # ── implement ─────────────────────────────────────
+      implement:
+        summary: Generate production-safe migration SQL from a natural language description.
+        description: >-
+          Accepts a natural language description of a schema change and generates
+          correct migration SQL applying all of migraguard's safe DDL patterns:
+          CREATE INDEX CONCURRENTLY, ANALYZE, IF NOT EXISTS, lock_timeout,
+          statement_timeout, NOT VALID + VALIDATE separation, and UNIQUE via
+          CREATE UNIQUE INDEX CONCURRENTLY + ADD CONSTRAINT USING INDEX.
+          Predicts lint results and outputs the lint → apply → dump workflow
+          as recommendedActions. Requires agent-contracts-runtime.
+        usage:
+          - 'migraguard implement "add email verification token to users table"'
+          - 'migraguard implement --adapter claude "create index on users.email"'
+          - 'migraguard implement --output-dir db/migrations/ "add status column"'
+          - 'migraguard implement --dry-run "drop old_column"'
+
+        arguments:
+          - name: description
+            index: 0
+            required: true
+            description: Natural language description of the desired schema change.
+            schema:
+              type: string
+
+        options:
+          - name: output-dir
+            description: Directory to write generated migration file(s).
+            value_name: dir
+            schema:
+              type: string
+
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use for LLM execution.
+            value_name: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            value_name: name
+            schema:
+              type: string
+
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            value_name: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: output
+            aliases: [o]
+            description: Write result to a file instead of stdout.
+            value_name: file
+            schema:
+              type: string
+            file:
+              mode: write
+              media_type: application/json
+              encoding: utf-8
+
+          - name: report-format
+            description: Output format for the implementation report.
+            value_name: fmt
+            schema:
+              type: string
+              enum: [json, text, yaml]
+              default: json
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling the LLM API.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Migration SQL generated successfully, no blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/ImplementMigrationResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '3':
+            description: Validation or configuration error.
+            stderr:
+              format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/ImplementMigrationResult'
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects: [network, file_write]
+          sideEffectNote: >-
+            Network calls to LLM provider when adapter is not mock.
+            Filesystem write when --output or --output-dir is specified.
+          safeDryRunOption: dry-run
+          expectedDurationMs: 120000
+          retryableExitCodes: [12]
+
+      # ── audit-workflow ────────────────────────────────
+      audit-workflow:
+        path: [audit-workflow]
+        summary: Audit migration workflow compliance using LLM.
+        description: >-
+          Analyzes the project's migration workflow for compliance with
+          migraguard best practices. Checks whether migration files use safe
+          DDL patterns (CONCURRENTLY, ANALYZE, IF NOT EXISTS, lock_timeout),
+          whether schema.sql is machine-generated by migraguard dump,
+          whether metadata.json is consistent, whether expand/contract group
+          transitions are valid, and whether the lint → apply → dump workflow
+          is being followed. Requires agent-contracts-runtime.
+        usage:
+          - migraguard audit-workflow
+          - migraguard audit-workflow --adapter gemini
+          - migraguard audit-workflow --report-format text
+          - migraguard audit-workflow --dry-run
+
+        options:
+          - name: adapter
+            aliases: [a]
+            description: SDK adapter to use for LLM execution.
+            value_name: name
+            schema:
+              type: string
+              enum: [cursor, claude, openai, gemini, mock]
+
+          - name: model
+            description: LLM model override.
+            value_name: name
+            schema:
+              type: string
+
+          - name: fail-on
+            description: Minimum severity that causes a non-zero exit.
+            value_name: level
+            schema:
+              type: string
+              enum: [warning, error, critical]
+              default: error
+
+          - name: output
+            aliases: [o]
+            description: Write result to a file instead of stdout.
+            value_name: file
+            schema:
+              type: string
+            file:
+              mode: write
+              media_type: application/json
+              encoding: utf-8
+
+          - name: report-format
+            description: Output format for the audit report.
+            value_name: fmt
+            schema:
+              type: string
+              enum: [json, text, yaml]
+              default: json
+
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling the LLM API.
+            schema:
+              type: boolean
+              default: false
+
+        exits:
+          '0':
+            description: Audit completed, no blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/WorkflowAuditResult'
+
+          '1':
+            description: Unexpected error.
+            stderr:
+              format: text
+
+          '3':
+            description: Validation or configuration error.
+            stderr:
+              format: text
+
+          '10':
+            description: Completed with blocking findings.
+            stdout:
+              format: '{options.report-format}'
+              schema:
+                $ref: '#/components/schemas/WorkflowAuditResult'
+
+          '11':
+            description: Runtime dependency missing (agent-contracts-runtime).
+            stderr:
+              format: text
+
+          '12':
+            description: LLM provider or adapter error.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects: [network]
+          sideEffectNote: >-
+            Network calls to LLM provider when adapter is not mock.
+            Filesystem write only when --output is specified.
+          safeDryRunOption: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1303,6 +1558,13 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
+          - name: dry-run
+            aliases: [n]
+            description: Output the constructed prompt without calling the LLM API.
+            schema:
+              type: boolean
+              default: false
+
         exits:
           '0':
             description: Explanation generated.
@@ -1316,8 +1578,8 @@ command_sets:
             stderr:
               format: text
 
-          '2':
-            description: Invalid input or no stdin data (empty pipe, malformed JSON, TTY).
+          '3':
+            description: Validation or configuration error.
             stderr:
               format: text
 
@@ -1339,14 +1601,14 @@ command_sets:
               format: text
 
         x-agent:
-          risk_level: low
-          requires_confirmation: false
+          riskLevel: low
+          requiresConfirmation: false
           idempotent: true
-          side_effects: [network]
+          sideEffects: [network]
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safe_dry_run_option: show-prompt
+          safeDryRunOption: dry-run
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1361,6 +1623,8 @@ components:
       $ref: 'components.yaml#/schemas/agent-finding'
     AgentRecommendedAction:
       $ref: 'components.yaml#/schemas/agent-recommended-action'
+    AgentAuditResult:
+      $ref: 'components.yaml#/schemas/agent-audit-result'
     MigrationAuditResult:
       $ref: 'components.yaml#/schemas/agent-audit-result'
 
@@ -1377,7 +1641,7 @@ components:
             summary:
               type: string
               description: Overview of the proposed decomposition.
-            risk_level:
+            riskLevel:
               type: string
               enum: [low, medium, high, critical]
               description: Risk level of the original unsafe DDL.
@@ -1406,6 +1670,56 @@ components:
                     description: Gate condition to verify before proceeding to next phase.
               description: Ordered list of migration phases.
 
+    ImplementMigrationResult:
+      type: object
+      description: >-
+        Result from implement command. Contains generated migration SQL files
+        following safe DDL patterns, predicted lint findings, and recommended
+        workflow steps.
+      allOf:
+        - $ref: 'components.yaml#/schemas/agent-audit-result'
+        - type: object
+          required: [migrations]
+          properties:
+            summary:
+              type: string
+              description: One-line summary of what the generated migration(s) will do.
+            riskLevel:
+              type: string
+              enum: [low, medium, high, critical]
+              description: Risk level of the requested schema change.
+            findings:
+              type: array
+              items:
+                $ref: '#/components/schemas/AgentFinding'
+              description: Predicted lint violations (should be empty for correctly generated SQL).
+            migrations:
+              type: array
+              description: Generated migration files.
+              items:
+                type: object
+                required: [fileName, sql, description]
+                properties:
+                  fileName:
+                    type: string
+                    description: >-
+                      Migration file name following YYYYMMDD_HHMMSS__description.sql convention.
+                  sql:
+                    type: string
+                    description: Full SQL content of the migration file.
+                  description:
+                    type: string
+                    description: Human-readable description of what this migration does.
+                  phase:
+                    type: string
+                    enum: [expand, backfill, switch, contract]
+                    description: >-
+                      Expand/contract phase assignment. Only set when the migration
+                      is part of a phased group.
+
+    WorkflowAuditResult:
+      $ref: 'components.yaml#/schemas/agent-audit-result'
+
     ExplainResult:
       type: object
       description: >-
@@ -1419,7 +1733,7 @@ components:
             summary:
               type: string
               description: One-line summary for quick scanning.
-            risk_level:
+            riskLevel:
               type: string
               enum: [low, medium, high, critical]
               description: Assessed urgency of the underlying issue.
