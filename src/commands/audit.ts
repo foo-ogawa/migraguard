@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
 import { buildAuditContext } from "../agents/context-builder.js";
 import {
-  runAgentTask,
+  runAgentWorkflow,
   computeExitCode,
   formatResult,
   writeOutput,
@@ -39,7 +39,7 @@ export async function commandAudit(
   };
 
   try {
-    const result = await runAgentTask(
+    const result = await runAgentWorkflow(
       context,
       "audit-migration-safety",
       auditConfig,

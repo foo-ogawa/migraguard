@@ -2,7 +2,7 @@ import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
 import { buildExplainContext } from "../agents/context-builder.js";
 import {
-  runAgentTask,
+  runAgentWorkflow,
   computeExitCode,
   formatResult,
   writeOutput,
@@ -45,7 +45,7 @@ export async function commandExplain(
   };
 
   try {
-    const result = await runAgentTask(
+    const result = await runAgentWorkflow(
       context,
       "explain-command-result",
       auditConfig,
