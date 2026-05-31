@@ -38,7 +38,8 @@
     "contract:validate": "npx cli-contracts validate",
     "contract:generate": "npx cli-contracts generate",
     "dsl:generate": "npx agent-runtime generate --config dsl/agent-runtime.config.yaml",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:ci": "vitest run --exclude 'tests/integration/**'"
   },
   "keywords": [
     "postgresql",
