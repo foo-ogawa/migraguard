@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,19 +13,22 @@
     }
   },
   "bin": {
-    "migraguard": "./bin/migraguard.js"
+    "migraguard": "dist/migraguard.bundle.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "files": [
+    "dist/migraguard.bundle.mjs",
+    "dist/migraguard.bundle.mjs.map",
     "dist",
-    "bin",
     "docs",
     "cli-contract.yaml"
   ],
   "scripts": {
     "build": "tsup",
+    "bundle": "node esbuild.bundle.mjs",
+    "bundle:min": "node esbuild.bundle.mjs --minify",
     "dev": "tsup --watch",
     "lint": "eslint",
     "test": "vitest",
@@ -38,7 +41,7 @@
     "contract:validate": "npx cli-contracts validate",
     "contract:generate": "npx cli-contracts generate",
     "dsl:generate": "npx agent-runtime generate --config dsl/agent-runtime.config.yaml",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run build && npm run bundle:min && npm run test:ci",
     "test:ci": "vitest run --exclude 'tests/integration/**'"
   },
   "keywords": [
@@ -58,7 +61,6 @@
     "deployment-gate"
   ],
   "peerDependencies": {
-    "agent-contracts-runtime": ">=0.30.0",
     "better-sqlite3": ">=11.0.0",
     "mysql2": ">=3.0.0"
   },
@@ -68,22 +70,13 @@
     },
     "better-sqlite3": {
       "optional": true
-    },
-    "agent-contracts-runtime": {
-      "optional": true
     }
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "diff": "^8.0.3",
-    "glob": "^10.3.10",
     "libpg-query": "^17.7.3",
-    "node-sql-parser": "^5.4.0",
-    "pg": "^8.19.0",
-    "zod": "^4.4.3"
+    "pg": "^8.19.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -95,11 +88,18 @@
     "@typescript-eslint/parser": "^8.54.0",
     "agent-contracts": "^0.32.4",
     "agent-contracts-runtime": "^0.32.4",
-    "cli-contracts": "^0.31.4",
+    "chalk": "^5.3.0",
+    "cli-contracts": "^0.32.0",
+    "commander": "^12.1.0",
+    "diff": "^8.0.3",
+    "esbuild": "^0.28.0",
+    "glob": "^10.3.10",
+    "node-sql-parser": "^5.4.0",
     "eslint": "^9.39.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.54.0",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "zod": "^4.4.3"
   }
 }
