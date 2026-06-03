@@ -537,3 +537,25 @@ export async function migraguardExplain(
     };
   }
 }
+
+export async function migraguardAgents(
+  executable: string,
+  options?: Partial<import("./types.js").AgentsOptions>,
+): Promise<ExecResult> {
+  const cmdArgs: string[] = ["agents"];
+  if (options) {
+    if (options.format !== undefined) cmdArgs.push("--format", String(options.format));
+  }
+
+  try {
+    const result = await execFileAsync(executable, cmdArgs);
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (err: unknown) {
+    const e = err as { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof e.code === 'number' ? e.code : 1,
+      stdout: e.stdout ?? '',
+      stderr: e.stderr ?? '',
+    };
+  }
+}

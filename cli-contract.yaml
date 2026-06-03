@@ -1612,6 +1612,39 @@ command_sets:
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
+      # ── agents ──────────────────────────────────────────
+      agents:
+        summary: Output the full resolved agent DSL as structured data.
+        description: >-
+          Outputs the complete resolved agent-contracts DSL (agents, tasks,
+          workflows, handoff_types) embedded in this CLI binary.
+          Useful for debugging, external tooling integration, and DSL
+          inspection.
+        options:
+          - name: format
+            aliases: [F]
+            description: Output format.
+            schema:
+              type: string
+              enum: [yaml, json]
+              default: yaml
+
+        exits:
+          '0':
+            description: DSL output successfully.
+            stdout:
+              format: text
+          '1':
+            description: Failed to load embedded DSL.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects: []
+
 components:
   schemas:
     # ── AI Agent Interoperability Schemas ──────────────────

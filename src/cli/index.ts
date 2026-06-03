@@ -24,6 +24,7 @@ import { commandProposeExpandContract } from '../commands/propose-expand-contrac
 import { commandExplain } from '../commands/explain.js';
 import { commandImplement } from '../commands/implement.js';
 import { commandAuditWorkflow } from '../commands/audit-workflow.js';
+import { resolvedDsl } from '../generated/dsl/index.js';
 import type { Phase } from '../naming.js';
 
 function asArray(value: string | string[] | undefined): string[] | undefined {
@@ -256,6 +257,21 @@ const handlers: CommandHandlers = {
     await run(async () => {
       await commandAuditWorkflow(config, commandOpts);
     });
+  },
+
+  async agents(opts) {
+    const YAML = await import('yaml');
+    const format = opts.format ?? 'yaml';
+    try {
+      if (format === 'json') {
+        console.log(JSON.stringify(resolvedDsl, null, 2));
+      } else {
+        console.log(YAML.stringify(resolvedDsl, { lineWidth: 120 }));
+      }
+    } catch (err) {
+      console.error(`Failed to output DSL: ${(err as Error).message}`);
+      process.exit(1);
+    }
   },
 };
 

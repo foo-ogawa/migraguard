@@ -1709,3 +1709,4 @@ export const proposeExpandContractExitCodes = [0, 1, 3, 10, 11, 12] as const;
 export const implementExitCodes = [0, 1, 3, 10, 11, 12] as const;
 export const auditWorkflowExitCodes = [0, 1, 3, 10, 11, 12] as const;
 export const explainExitCodes = [0, 1, 3, 10, 11, 12] as const;
+export const agentsExitCodes = [0, 1] as const;
