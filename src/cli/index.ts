@@ -176,6 +176,7 @@ const handlers: CommandHandlers = {
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+      logFile: opts.logFile,
     };
     if (opts.dryRun) {
       return commandAudit(config, target, commandOpts);
@@ -195,6 +196,7 @@ const handlers: CommandHandlers = {
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       outputDir: opts.outputDir,
+      logFile: opts.logFile,
     };
     if (opts.dryRun) {
       return commandProposeExpandContract(config, file!, commandOpts);
@@ -213,6 +215,7 @@ const handlers: CommandHandlers = {
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+      logFile: opts.logFile,
     };
     if (opts.dryRun) {
       return commandExplain(config, commandOpts);
@@ -232,6 +235,7 @@ const handlers: CommandHandlers = {
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       outputDir: opts.outputDir,
+      logFile: opts.logFile,
     };
     if (opts.dryRun) {
       return commandImplement(config, description!, commandOpts);
@@ -250,6 +254,7 @@ const handlers: CommandHandlers = {
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
+      logFile: opts.logFile,
     };
     if (opts.dryRun) {
       return commandAuditWorkflow(config, commandOpts);

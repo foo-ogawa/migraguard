@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.15.2",
+  "version": "0.16.0",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -87,7 +87,7 @@
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "agent-contracts": "^0.33.1",
-    "agent-contracts-runtime": "^0.33.3",
+    "agent-contracts-runtime": "^0.35.2",
     "chalk": "^5.3.0",
     "cli-contracts": "^0.32.0",
     "commander": "^12.1.0",

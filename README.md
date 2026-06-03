@@ -284,6 +284,17 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `propose-expand-contract <file>` | Generate expand/contract migration group proposal |
 | `explain` | Explain command output in human-readable form (accepts JSON or text from `lint`, `check`, `diff`, `deps`, `verify` via stdin) |
 
+### Utility Commands
+
+| Command | Description |
+|---------|-------------|
+| `migraguard extract [--all] [commands...]` | Extract embedded CLI contract specification (YAML/JSON) |
+| `migraguard agents [--format json\|yaml]` | Output resolved agent-contracts DSL |
+
+**Common LLM Options:**
+
+All LLM commands support `--log-file <path>` (`-l`) to write structured progress logs for debugging and monitoring.
+
 LLM-powered commands are read-only by default. `implement` generates SQL but writes files only when `--output-dir` is specified. All commands return structured results (`AgentAuditResult` / `AgentFinding` shape) consumable by CI systems and higher-level workflow agents.
 
 All LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key, and support `--dry-run` to inspect the prompt without calling the LLM.

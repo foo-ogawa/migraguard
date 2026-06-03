@@ -1,15 +1,10 @@
+import { resolve } from "node:path";
+import { resolvedDsl } from "../generated/dsl/dsl-data.js";
+import { handoffs } from "../generated/dsl/handoffs.js";
 import type { AuditConfig, AuditOptions, AuditRunResult, TaskId, WorkflowId } from "./types.js";
 
 export const EXIT_RUNTIME_MISSING = 11;
 export const EXIT_ADAPTER_ERROR = 12;
-
-const TASK_TO_WORKFLOW: Record<TaskId, WorkflowId> = {
-  "audit-migration-safety": "migration-audit",
-  "propose-expand-contract": "expand-contract-proposal",
-  "explain-command-result": "command-explanation",
-  "implement-migration": "migration-implementation",
-  "audit-workflow-compliance": "workflow-audit",
-};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createAdapter(runtimePkg: string, name: string, config: AuditConfig): Promise<any> {
@@ -137,9 +132,9 @@ function mapWorkflowResult(
 }
 
 /**
- * Run an LLM task via its enclosing workflow. Each TaskId maps to a WorkflowId
- * in the DSL. The function builds a structured HandoffEnvelope for the
- * invocation_handoff schema, passes it alongside registries to runWorkflow(),
+ * Run an LLM task via its enclosing workflow. workflowId must match the command's
+ * dsl_workflow in cli-contract.yaml. The function builds a structured HandoffEnvelope
+ * for the invocation_handoff schema, passes it alongside registries to runWorkflow(),
  * and maps the WorkflowResult back to AuditRunResult.
  *
  * Never calls adapter.send() or runTask() directly (R-IMPL-002).
@@ -148,6 +143,7 @@ function mapWorkflowResult(
 export async function runAgentWorkflow(
   userRequest: string,
   taskId: TaskId,
+  workflowId: WorkflowId,
   auditConfig: AuditConfig,
   options: AuditOptions,
 ): Promise<AuditRunResult> {
@@ -169,9 +165,15 @@ export async function runAgentWorkflow(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runWorkflow: (...args: any[]) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let loadDslContext: (...args: any[]) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let createProgressSink: (...args: any[]) => { write: (chunk: string) => void; close: () => void };
   try {
     const runtime = await import(RUNTIME_PKG);
     runWorkflow = runtime.runWorkflow;
+    loadDslContext = runtime.loadDslContext;
+    createProgressSink = runtime.createProgressSink;
   } catch {
     throw Object.assign(
       new Error(
@@ -183,15 +185,24 @@ export async function runAgentWorkflow(
     );
   }
 
-  // Load generated DSL registries and handoff factories (R-IMPL-007).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let dsl: any;
+  let ctx;
   try {
-    dsl = await import("../generated/dsl/index.js");
+    ctx = await loadDslContext({
+      embeddedDsl: resolvedDsl,
+      requiredEntities: {
+        workflows: [
+          "migration-audit",
+          "expand-contract-proposal",
+          "migration-implementation",
+          "workflow-audit",
+          "command-explanation",
+        ],
+      },
+    });
   } catch (err) {
     throw Object.assign(
       new Error(
-        "Failed to load generated DSL registries. " +
+        "Failed to load DSL context. " +
         "Run `npm run dsl:generate` to regenerate.\n" +
         `  ${(err as Error).message}`,
       ),
@@ -208,36 +219,38 @@ export async function runAgentWorkflow(
     throw Object.assign(err as Error, { exitCode: EXIT_ADAPTER_ERROR });
   }
 
-  const workflowId = TASK_TO_WORKFLOW[taskId];
+  const progressSink = options.logFile
+    ? createProgressSink({ stderr: true, file: resolve(options.logFile), naming: "single" })
+    : createProgressSink({ stderr: true });
 
   // Build structured handoff envelope for runtime validation against
   // the invocation_handoff schema defined in the DSL task contract.
-  const handoff = dsl.handoffs.migrationAuditRequest({
+  const handoff = handoffs.migrationAuditRequest({
     task_id: taskId,
     context: userRequest,
   });
 
-  const workflowResult = await runWorkflow(
-    adapter,
-    {
-      workflow: workflowId,
-      handoff,
-      user_request: userRequest,
-      runtime: {
-        maxFollowUps: 3,
-        maxRetries: 1,
+  try {
+    const workflowResult = await runWorkflow(
+      adapter,
+      {
+        workflow: workflowId,
+        handoff,
+        user_request: userRequest,
+        progressOutput: progressSink,
+        runtime: {
+          maxFollowUps: 3,
+          maxRetries: 1,
+        },
+        context: {
+          cwd: auditConfig.cwd ?? process.cwd(),
+        },
       },
-      context: {
-        cwd: auditConfig.cwd ?? process.cwd(),
-      },
-    },
-    {
-      workflowRegistry: dsl.workflowRegistry,
-      taskRegistry: dsl.taskRegistry,
-      agentRegistry: dsl.agentRegistry,
-      handoffSchemas: dsl.handoffSchemas,
-    },
-  );
+      ctx.registries,
+    );
 
-  return mapWorkflowResult(taskId, userRequest, workflowResult);
+    return mapWorkflowResult(taskId, userRequest, workflowResult);
+  } finally {
+    progressSink.close();
+  }
 }

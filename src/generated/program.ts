@@ -20,11 +20,11 @@ export interface CommandHandlers {
   applyPhase: (group: string | undefined, phase: string | undefined, options: { tag?: string; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   gate: (options: { require?: string; forbid?: string; contractFile?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
   deps: (options: { html?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
-  audit: (target: string | undefined, options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  proposeExpandContract: (file: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  implement: (description: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  auditWorkflow: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
-  explain: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  audit: (target: string | undefined, options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; logFile?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  proposeExpandContract: (file: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; logFile?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  implement: (description: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; logFile?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  auditWorkflow: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; logFile?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  explain: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; logFile?: string; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
   agents: (options: { format?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
 }
 
@@ -203,6 +203,7 @@ export function createProgram(
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the audit report.", "json")
     .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("-l, --log-file <value>", "Write agent progress log to this file path.")
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (target, opts, cmd) => {
       if (opts.showPrompt) {
@@ -224,6 +225,7 @@ export function createProgram(
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the proposal report.", "json")
     .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("-l, --log-file <value>", "Write agent progress log to this file path.")
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (file, opts, cmd) => {
       if (opts.showPrompt) {
@@ -245,6 +247,7 @@ export function createProgram(
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the implementation report.", "json")
     .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("-l, --log-file <value>", "Write agent progress log to this file path.")
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (description, opts, cmd) => {
       if (opts.showPrompt) {
@@ -264,6 +267,7 @@ export function createProgram(
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the audit report.", "json")
     .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("-l, --log-file <value>", "Write agent progress log to this file path.")
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (opts, cmd) => {
       if (opts.showPrompt) {
@@ -283,6 +287,7 @@ export function createProgram(
     .option("-o, --output <file>", "Write result to a file instead of stdout.")
     .option("--report-format <fmt>", "Output format for the explanation report.", "json")
     .option("-n, --dry-run", "Output the constructed prompt without calling the LLM API.", false)
+    .option("-l, --log-file <value>", "Write agent progress log to this file path.")
     .option("--show-prompt", "Output the constructed prompt without calling the LLM API.", false)
     .action(async (opts, cmd) => {
       if (opts.showPrompt) {

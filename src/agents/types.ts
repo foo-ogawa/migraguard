@@ -37,6 +37,7 @@ export interface AuditConfig {
 export interface AuditOptions {
   failOn?: "warning" | "error" | "critical";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export interface AuditRunResult {
