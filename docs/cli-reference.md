@@ -1017,6 +1017,7 @@ migraguard audit --adapter gemini --dry-run
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the audit report. |
 | `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
 
@@ -1048,6 +1049,7 @@ migraguard audit --adapter gemini --dry-run
 
 ```yaml
 x-agent: 
+  dsl_workflow: migration-audit
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
@@ -1094,6 +1096,7 @@ migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the proposal report. |
 | `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
 
@@ -1125,6 +1128,7 @@ migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
 
 ```yaml
 x-agent: 
+  dsl_workflow: expand-contract-proposal
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
@@ -1178,6 +1182,7 @@ migraguard implement --dry-run "drop old_column"
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the implementation report. |
 | `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
 
@@ -1209,6 +1214,7 @@ migraguard implement --dry-run "drop old_column"
 
 ```yaml
 x-agent: 
+  dsl_workflow: migration-implementation
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
@@ -1255,6 +1261,7 @@ migraguard audit-workflow --dry-run
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the audit report. |
 | `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
 
@@ -1286,6 +1293,7 @@ migraguard audit-workflow --dry-run
 
 ```yaml
 x-agent: 
+  dsl_workflow: workflow-audit
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
@@ -1328,6 +1336,7 @@ migraguard verify --format json | migraguard explain
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the explanation report. |
 | `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
 
@@ -1359,6 +1368,7 @@ migraguard verify --format json | migraguard explain
 
 ```yaml
 x-agent: 
+  dsl_workflow: command-explanation
   riskLevel: low
   requiresConfirmation: false
   idempotent: true

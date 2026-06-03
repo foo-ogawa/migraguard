@@ -1080,6 +1080,12 @@ command_sets:
               type: boolean
               default: false
 
+          - name: log-file
+            aliases: [l]
+            description: Write agent progress log to this file path.
+            schema:
+              type: string
+
         exits:
           '0':
             description: Audit completed, no blocking findings.
@@ -1116,6 +1122,7 @@ command_sets:
               format: text
 
         x-agent:
+          dsl_workflow: migration-audit
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
@@ -1208,6 +1215,12 @@ command_sets:
               type: boolean
               default: false
 
+          - name: log-file
+            aliases: [l]
+            description: Write agent progress log to this file path.
+            schema:
+              type: string
+
         exits:
           '0':
             description: Proposal generated successfully.
@@ -1244,6 +1257,7 @@ command_sets:
               format: text
 
         x-agent:
+          dsl_workflow: expand-contract-proposal
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
@@ -1335,6 +1349,12 @@ command_sets:
               type: boolean
               default: false
 
+          - name: log-file
+            aliases: [l]
+            description: Write agent progress log to this file path.
+            schema:
+              type: string
+
         exits:
           '0':
             description: Migration SQL generated successfully, no blocking findings.
@@ -1371,6 +1391,7 @@ command_sets:
               format: text
 
         x-agent:
+          dsl_workflow: migration-implementation
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
@@ -1449,6 +1470,12 @@ command_sets:
               type: boolean
               default: false
 
+          - name: log-file
+            aliases: [l]
+            description: Write agent progress log to this file path.
+            schema:
+              type: string
+
         exits:
           '0':
             description: Audit completed, no blocking findings.
@@ -1485,6 +1512,7 @@ command_sets:
               format: text
 
         x-agent:
+          dsl_workflow: workflow-audit
           riskLevel: low
           requiresConfirmation: false
           idempotent: true
@@ -1565,6 +1593,12 @@ command_sets:
               type: boolean
               default: false
 
+          - name: log-file
+            aliases: [l]
+            description: Write agent progress log to this file path.
+            schema:
+              type: string
+
         exits:
           '0':
             description: Explanation generated.
@@ -1601,6 +1635,7 @@ command_sets:
               format: text
 
         x-agent:
+          dsl_workflow: command-explanation
           riskLevel: low
           requiresConfirmation: false
           idempotent: true

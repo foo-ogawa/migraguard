@@ -18,6 +18,7 @@ export interface CommandAuditOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
+  logFile?: string;
 }
 
 export async function commandAudit(
@@ -36,12 +37,14 @@ export async function commandAudit(
 
   const auditOpts: AuditOptions = {
     failOn: opts.failOn,
+    logFile: opts.logFile,
   };
 
   try {
     const result = await runAgentWorkflow(
       context,
       "audit-migration-safety",
+      "migration-audit",
       auditConfig,
       auditOpts,
     );

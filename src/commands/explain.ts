@@ -18,6 +18,7 @@ export interface CommandExplainOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
+  logFile?: string;
 }
 
 export async function commandExplain(
@@ -42,12 +43,14 @@ export async function commandExplain(
 
   const auditOpts: AuditOptions = {
     failOn: opts.failOn,
+    logFile: opts.logFile,
   };
 
   try {
     const result = await runAgentWorkflow(
       context,
       "explain-command-result",
+      "command-explanation",
       auditConfig,
       auditOpts,
     );

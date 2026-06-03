@@ -23,6 +23,7 @@ export interface CommandImplementOptions {
   output?: string;
   reportFormat?: ReportFormat;
   outputDir?: string;
+  logFile?: string;
 }
 
 export async function commandImplement(
@@ -41,12 +42,14 @@ export async function commandImplement(
 
   const auditOpts: AuditOptions = {
     failOn: opts.failOn,
+    logFile: opts.logFile,
   };
 
   try {
     const result = await runAgentWorkflow(
       context,
       "implement-migration",
+      "migration-implementation",
       auditConfig,
       auditOpts,
     );

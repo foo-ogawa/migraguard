@@ -409,6 +409,7 @@ export async function migraguardAudit(
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
   try {
@@ -439,6 +440,7 @@ export async function migraguardProposeExpandContract(
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
   try {
@@ -469,6 +471,7 @@ export async function migraguardImplement(
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
   try {
@@ -496,6 +499,7 @@ export async function migraguardAuditWorkflow(
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
   try {
@@ -523,6 +527,7 @@ export async function migraguardExplain(
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
   try {

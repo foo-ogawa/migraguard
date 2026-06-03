@@ -207,6 +207,7 @@ export interface AuditOptions {
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export type AuditExitCode = 0 | 1 | 3 | 10 | 11 | 12;
@@ -231,6 +232,7 @@ export interface ProposeExpandContractOptions {
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export type ProposeExpandContractExitCode = 0 | 1 | 3 | 10 | 11 | 12;
@@ -255,6 +257,7 @@ export interface ImplementOptions {
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export type ImplementExitCode = 0 | 1 | 3 | 10 | 11 | 12;
@@ -274,6 +277,7 @@ export interface AuditWorkflowOptions {
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export type AuditWorkflowExitCode = 0 | 1 | 3 | 10 | 11 | 12;
@@ -293,6 +297,7 @@ export interface ExplainOptions {
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
   dryRun?: boolean;
+  logFile?: string;
 }
 
 export type ExplainExitCode = 0 | 1 | 3 | 10 | 11 | 12;

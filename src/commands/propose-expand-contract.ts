@@ -21,6 +21,7 @@ export interface CommandProposeOptions {
   output?: string;
   reportFormat?: ReportFormat;
   outputDir?: string;
+  logFile?: string;
 }
 
 export async function commandProposeExpandContract(
@@ -39,12 +40,14 @@ export async function commandProposeExpandContract(
 
   const auditOpts: AuditOptions = {
     failOn: opts.failOn,
+    logFile: opts.logFile,
   };
 
   try {
     const result = await runAgentWorkflow(
       context,
       "propose-expand-contract",
+      "expand-contract-proposal",
       auditConfig,
       auditOpts,
     );
