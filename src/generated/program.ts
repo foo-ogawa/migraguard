@@ -25,6 +25,7 @@ export interface CommandHandlers {
   implement: (description: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
   auditWorkflow: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
   explain: (options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; dryRun?: boolean; showPrompt?: boolean }, parentOpts: Record<string, unknown>) => Promise<void | string>;
+  agents: (options: { format?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
 }
 
 export function createProgram(
@@ -292,6 +293,14 @@ export function createProgram(
       await handlers.explain(opts, cmd.optsWithGlobals());
     });
 
+  program
+    .command("agents")
+    .description("Output the full resolved agent DSL as structured data.")
+    .option("-F, --format <value>", "Output format.", "yaml")
+    .action(async (opts, cmd) => {
+      await handlers.agents(opts, cmd.optsWithGlobals());
+    });
+
 
   // Built-in extract command (auto-injected by cli-contracts)
   program
@@ -321,7 +330,7 @@ export function createProgram(
               type: "cli-contracts/extract",
               extractedAt: new Date().toISOString(),
               specVersion: doc.cli_contracts ?? "0.1.0",
-              commands: ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain"],
+              commands: ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"],
             };
           }
           Object.assign(out, doc);
@@ -339,7 +348,7 @@ export function createProgram(
             yamlLines.push("extractedAt: " + new Date().toISOString());
             yamlLines.push("spec_version: " + (doc.cli_contracts ?? "0.1.0"));
             yamlLines.push("commands:");
-            for (const id of ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain"]) {
+            for (const id of ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"]) {
               yamlLines.push("  - " + id);
             }
           }

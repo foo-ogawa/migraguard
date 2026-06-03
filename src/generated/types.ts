@@ -305,6 +305,16 @@ export type ExplainExitResult =
   | { exitCode: 11; stderr: unknown }
   | { exitCode: 12; stderr: unknown };
 
+export interface AgentsOptions {
+  format?: "yaml" | "json";
+}
+
+export type AgentsExitCode = 0 | 1;
+
+export type AgentsExitResult =
+  { exitCode: 0; stdout: unknown }
+  | { exitCode: 1; stderr: unknown };
+
 export interface AgentEvidence {
   kind: "file" | "command" | "schema" | "diff" | "stdout" | "stderr" | "text";
   target?: string;
