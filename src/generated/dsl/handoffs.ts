@@ -32,7 +32,7 @@ export const MigrationAuditResultSchema = z.object({
   location: z.string().optional(),
   message: z.string(),
   recommendation: z.string().optional(),
-  confidence: z.number().optional(),
+  confidence: z.number().min(0).max(1).optional(),
   evidence: z.array(z.object({
   type: z.string().optional(),
   content: z.string().optional(),
@@ -115,7 +115,7 @@ export const ImplementMigrationResultSchema = z.object({
   location: z.string().optional(),
   message: z.string(),
   recommendation: z.string().optional(),
-  confidence: z.number().optional(),
+  confidence: z.number().min(0).max(1).optional(),
 })),
   migrations: z.array(z.object({
   fileName: z.string(),
@@ -157,7 +157,7 @@ export const WorkflowAuditResultSchema = z.object({
   location: z.string().optional(),
   message: z.string(),
   recommendation: z.string().optional(),
-  confidence: z.number().optional(),
+  confidence: z.number().min(0).max(1).optional(),
 })),
   recommendedActions: z.array(z.object({
   kind: z.enum(["run_command", "edit_file", "review", "confirm", "block", "ignore"]),

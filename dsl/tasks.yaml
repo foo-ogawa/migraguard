@@ -1,6 +1,7 @@
 audit-migration-safety:
   description: Audit SQL migration file(s) for operational safety
   target_agent: migration-safety-auditor
+  model_class: standard
   allowed_from_agents:
     - migration-safety-auditor
   workflow: migration-audit
@@ -26,6 +27,7 @@ audit-migration-safety:
 propose-expand-contract:
   description: Generate expand/contract migration group proposal from unsafe DDL
   target_agent: migration-safety-auditor
+  model_class: thinking
   allowed_from_agents:
     - migration-safety-auditor
   workflow: expand-contract-proposal
@@ -48,6 +50,7 @@ propose-expand-contract:
 explain-command-result:
   description: Explain migraguard command output in human-readable form
   target_agent: migration-safety-auditor
+  model_class: fast
   allowed_from_agents:
     - migration-safety-auditor
   workflow: command-explanation
@@ -69,6 +72,7 @@ explain-command-result:
 implement-migration:
   description: Generate production-safe migration SQL from natural language description
   target_agent: migration-implementer
+  model_class: thinking
   allowed_from_agents:
     - migration-implementer
   workflow: migration-implementation
@@ -95,6 +99,7 @@ implement-migration:
 audit-workflow-compliance:
   description: Audit project migration workflow compliance
   target_agent: workflow-auditor
+  model_class: standard
   allowed_from_agents:
     - workflow-auditor
   workflow: workflow-audit

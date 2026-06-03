@@ -7,6 +7,8 @@
 import type { AgentId } from "./agents";
 import type { HandoffTypeId } from "./handoffs";
 
+export type ModelClass = "fast" | "standard" | "thinking";
+
 export interface TaskContract {
   readonly id: string;
   readonly description: string;
@@ -19,6 +21,7 @@ export interface TaskContract {
   readonly responsibilities: readonly string[];
   readonly completion_criteria: readonly string[];
   readonly optional: boolean;
+  readonly model_class?: ModelClass;
 }
 
 export const auditMigrationSafety: TaskContract = {
@@ -51,6 +54,7 @@ export const auditMigrationSafety: TaskContract = {
   "Output conforms to AgentAuditResult schema"
 ],
   optional: false,
+  model_class: "standard",
 };
 
 export const proposeExpandContract: TaskContract = {
@@ -80,6 +84,7 @@ export const proposeExpandContract: TaskContract = {
   "recommendedActions include edit_file actions for each phase file"
 ],
   optional: false,
+  model_class: "thinking",
 };
 
 export const explainCommandResult: TaskContract = {
@@ -108,6 +113,7 @@ export const explainCommandResult: TaskContract = {
   "Severity reflects urgency of the underlying issue"
 ],
   optional: false,
+  model_class: "fast",
 };
 
 export const implementMigration: TaskContract = {
@@ -141,6 +147,7 @@ export const implementMigration: TaskContract = {
   "Output conforms to ImplementMigrationResult schema"
 ],
   optional: false,
+  model_class: "thinking",
 };
 
 export const auditWorkflowCompliance: TaskContract = {
@@ -174,6 +181,7 @@ export const auditWorkflowCompliance: TaskContract = {
   "Output conforms to AgentAuditResult schema"
 ],
   optional: false,
+  model_class: "standard",
 };
 
 export const taskRegistry: Record<string, TaskContract> = {
