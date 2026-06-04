@@ -956,6 +956,51 @@ command_sets:
           expectedDurationMs: 5000
           retryableExitCodes: [1]
 
+      # ── insights ─────────────────────────────────────
+      insights:
+        summary: Export migration dependency graph as ExternalInsight JSON.
+        description: >-
+          Builds the migration DAG and outputs agent-contracts-analyzer
+          ExternalInsight JSON to stdout for programmatic integration.
+        usage:
+          - migraguard insights --format json
+          - migraguard insights --format json --project-root .
+
+        options:
+          - name: format
+            description: Output format for insight results.
+            schema:
+              type: string
+              enum: [json]
+              default: json
+
+          - name: project-root
+            description: Project root directory containing migraguard.config.json.
+            value_name: path
+            schema:
+              type: string
+              default: .
+
+        exits:
+          '0':
+            description: ExternalInsight JSON written to stdout.
+            stdout:
+              format: json
+
+          '1':
+            description: Insight export failed.
+            stderr:
+              format: text
+
+        x-agent:
+          riskLevel: low
+          requiresConfirmation: false
+          idempotent: true
+          sideEffects: []
+          sideEffectNote: Read-only. Emits structured JSON to stdout.
+          expectedDurationMs: 5000
+          retryableExitCodes: [1]
+
       # ── deps ─────────────────────────────────────────
       deps:
         summary: Analyze and display migration dependency graph.

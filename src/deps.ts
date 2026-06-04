@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import libpg from 'libpg-query';
-import type { MigraguardConfig, RawConfig } from './config.js';
+import type { MigraguardConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
 import type { Phase } from './naming.js';
@@ -335,8 +335,7 @@ export function parseExplicitDepTargetsFromSql(sql: string): string[] {
 export function parseExplicitDepsFromConfig(
   config: MigraguardConfig,
 ): Map<string, string[]> {
-  const raw = config as unknown as RawConfig & { dependencies?: Record<string, string[]> };
-  const deps = raw.dependencies;
+  const deps = config.dependencies;
   if (!deps || typeof deps !== 'object') return new Map();
 
   const result = new Map<string, string[]>();

@@ -14,6 +14,7 @@ import { commandDump } from '../commands/dump.js';
 import { commandDiff } from '../commands/diff.js';
 import { commandVerify } from '../commands/verify.js';
 import { commandDeps } from '../commands/deps.js';
+import { commandInsights } from '../commands/insights.js';
 import { commandGroupStatus } from '../commands/group-status.js';
 import { commandAdvance } from '../commands/advance.js';
 import { commandApplyPhase } from '../commands/apply-phase.js';
@@ -165,6 +166,13 @@ const handlers: CommandHandlers = {
     const config = await loadConfig();
     const result = await commandDeps(config, { html: opts.html });
     if (!result.ok) process.exit(1);
+  }),
+
+  insights: async (opts) => run(async () => {
+    await commandInsights({
+      format: opts.format,
+      projectRoot: opts.projectRoot,
+    });
   }),
 
   audit: async (target, opts) => {

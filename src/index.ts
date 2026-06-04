@@ -1,14 +1,4 @@
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-
-export const pkg = require('../package.json') as {
-  name: string;
-  version: string;
-  description: string;
-};
-
-export const VERSION: string = pkg.version;
+export { pkg, VERSION } from './version.js';
 export type { LintRule, LintViolation, RuleReport, RuleContext, NodeVisitors } from './rules/engine.js';
 
 export { MigraguardDb, createDb, safeGetAllRecords } from './db.js';
@@ -33,3 +23,32 @@ export type { GroupState, GroupStateName, PhaseRecord } from './group-state.js';
 export { deriveGroupState, deriveAllGroupStates, isGroupOpen } from './group-state.js';
 export type { Phase } from './naming.js';
 export { ALL_PHASES, PHASE_ORDER } from './naming.js';
+export {
+  analyzeSql,
+  analyzeFile,
+  buildDependencyGraph,
+  buildDependencyGraphFromFiles,
+  detectCycles,
+  topologicalSort,
+  findLeafNodes,
+  findTransitiveDependents,
+  parseExplicitDepsFromSql,
+  parseExplicitDepsFromConfig,
+  parseExplicitDepTargetsFromSql,
+} from './deps.js';
+export type {
+  ObjectRef,
+  FileDeps,
+  DependencyEdge,
+  DependencyGraph,
+  CycleError,
+  ExplicitDep,
+} from './deps.js';
+export {
+  createMigraguardInsightProvider,
+  MigraguardInsightProvider,
+  buildExternalInsight,
+  buildExternalInsightFromGraph,
+  buildAnchorMappings,
+  INSIGHT_PROVIDER_NAME,
+} from './external/insight-provider.js';

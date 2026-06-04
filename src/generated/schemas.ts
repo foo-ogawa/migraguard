@@ -1703,6 +1703,7 @@ export const baselineExitCodes = [0, 1] as const;
 export const advanceExitCodes = [0, 1] as const;
 export const applyPhaseExitCodes = [0, 1] as const;
 export const gateExitCodes = [0, 1, 10] as const;
+export const insightsExitCodes = [0, 1] as const;
 export const depsExitCodes = [0, 1] as const;
 export const auditExitCodes = [0, 1, 3, 10, 11, 12] as const;
 export const proposeExpandContractExitCodes = [0, 1, 3, 10, 11, 12] as const;

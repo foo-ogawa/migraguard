@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     cli: 'src/cli/index.ts',
+    'external/insight-provider': 'src/external/insight-provider.ts',
   },
   format: ['esm'],
   dts: true,

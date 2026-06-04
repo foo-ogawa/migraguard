@@ -39,6 +39,7 @@ export interface MigraguardConfig {
   configDir: string;
   dialect: Dialect;
   model?: 'dag';
+  dependencies?: Record<string, string[]>;
   migrationsDirs: string[];
   schemaFile: string;
   metadataFile: string;
@@ -140,6 +141,7 @@ const DEFAULT_LINT: LintConfig = {
 export interface RawConfig {
   dialect?: Dialect;
   model?: 'dag';
+  dependencies?: Record<string, string[]>;
   migrationsDir?: string;
   migrationsDirs?: string[];
   schemaFile?: string;
@@ -216,6 +218,7 @@ export function buildConfig(raw: RawConfig, configDir: string): MigraguardConfig
     configDir,
     dialect,
     ...(raw.model ? { model: raw.model } : {}),
+    ...(raw.dependencies ? { dependencies: raw.dependencies } : {}),
     migrationsDirs: resolveMigrationsDirs(raw),
     schemaFile: raw.schemaFile ?? 'db/schema.sql',
     metadataFile: raw.metadataFile ?? 'db/.migraguard/metadata.json',
