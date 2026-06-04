@@ -8,6 +8,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
+      - ./__tests__:/app/__tests__:ro
     network_mode: none
     command: ["npm", "run", "test:unit"]
 
@@ -20,6 +21,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
+      - ./__tests__:/app/__tests__:ro
     environment:
       DATABASE_URL: postgres://migraguard_test:migraguard_test@postgres:5432/migraguard_test
     depends_on:

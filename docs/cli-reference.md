@@ -23,6 +23,7 @@ PostgreSQL-first schema-aware deployment control — idempotent SQL migrations w
   - [advance](#migraguard-advance)
   - [apply-phase](#migraguard-apply-phase)
   - [gate](#migraguard-gate)
+  - [insights](#migraguard-insights)
   - [deps](#migraguard-deps)
   - [audit](#migraguard-audit)
   - [propose-expand-contract](#migraguard-propose-expand-contract)
@@ -925,6 +926,55 @@ x-agent:
   sideEffects: 
 
   sideEffectNote: Read-only. Evaluates gate conditions against schema_migrations state.
+  expectedDurationMs: 5000
+  retryableExitCodes: 
+    - 1
+```
+
+---
+
+### insights
+
+Export migration dependency graph as ExternalInsight JSON.
+
+Builds the migration DAG and outputs agent-contracts-analyzer ExternalInsight JSON to stdout for programmatic integration.
+
+**Usage:**
+
+```
+migraguard insights --format json
+```
+```
+migraguard insights --format json --project-root .
+```
+
+#### Options
+
+| Option | Aliases | Required | Default | Description |
+|---|---|---|---|---|
+| `--format` |  | No | `"json"` | Output format for insight results. |
+| `--project-root` |  | No | `"."` | Project root directory containing migraguard.config.json. |
+
+#### Exit Codes
+
+**Exit 0:** ExternalInsight JSON written to stdout.
+
+- **stdout:** format=`json`
+
+**Exit 1:** Insight export failed.
+
+- **stderr:** format=`text`
+
+#### Extensions
+
+```yaml
+x-agent: 
+  riskLevel: low
+  requiresConfirmation: false
+  idempotent: true
+  sideEffects: 
+
+  sideEffectNote: Read-only. Emits structured JSON to stdout.
   expectedDurationMs: 5000
   retryableExitCodes: 
     - 1

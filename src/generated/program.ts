@@ -19,6 +19,7 @@ export interface CommandHandlers {
   advance: (group: string | undefined, phase: string | undefined, status: string | undefined, options: { tag?: string; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   applyPhase: (group: string | undefined, phase: string | undefined, options: { tag?: string; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   gate: (options: { require?: string; forbid?: string; contractFile?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
+  insights: (options: { format?: string; projectRoot?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
   deps: (options: { html?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
   audit: (target: string | undefined, options: { adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; showPrompt?: boolean; logFile?: string }, parentOpts: Record<string, unknown>) => Promise<void | string>;
   proposeExpandContract: (file: string | undefined, options: { outputDir?: string; adapter?: string; model?: string; failOn?: string; output?: string; reportFormat?: string; showPrompt?: boolean; logFile?: string }, parentOpts: Record<string, unknown>) => Promise<void | string>;
@@ -186,6 +187,15 @@ export function createProgram(
     });
 
   program
+    .command("insights")
+    .description("Export migration dependency graph as ExternalInsight JSON.")
+    .option("--format <value>", "Output format for insight results.", "json")
+    .option("--project-root <path>", "Project root directory containing migraguard.config.json.", ".")
+    .action(async (opts, cmd) => {
+      await handlers.insights(opts, cmd.optsWithGlobals());
+    });
+
+  program
     .command("deps")
     .description("Analyze and display migration dependency graph.")
     .option("--html <path>", "Output as HTML file with interactive visualization. File is created or overwritten at the specified path. Parent directory must exist.")
@@ -330,7 +340,7 @@ export function createProgram(
               type: "cli-contracts/extract",
               extractedAt: new Date().toISOString(),
               specVersion: doc.cli_contracts ?? "0.1.0",
-              commands: ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"],
+              commands: ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.insights","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"],
             };
           }
           Object.assign(out, doc);
@@ -348,7 +358,7 @@ export function createProgram(
             yamlLines.push("extractedAt: " + new Date().toISOString());
             yamlLines.push("spec_version: " + (doc.cli_contracts ?? "0.1.0"));
             yamlLines.push("commands:");
-            for (const id of ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"]) {
+            for (const id of ["migraguard.new","migraguard.apply","migraguard.check","migraguard.squash","migraguard.lint","migraguard.dump","migraguard.diff","migraguard.status","migraguard.resolve","migraguard.editable","migraguard.verify","migraguard.group-status","migraguard.baseline","migraguard.advance","migraguard.apply-phase","migraguard.gate","migraguard.insights","migraguard.deps","migraguard.audit","migraguard.propose-expand-contract","migraguard.implement","migraguard.audit-workflow","migraguard.explain","migraguard.agents"]) {
               yamlLines.push("  - " + id);
             }
           }

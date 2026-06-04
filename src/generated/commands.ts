@@ -373,6 +373,29 @@ export async function migraguardGate(
   }
 }
 
+export async function migraguardInsights(
+  executable: string,
+  options?: Partial<import("./types.js").InsightsOptions>,
+): Promise<ExecResult> {
+  const cmdArgs: string[] = ["insights"];
+  if (options) {
+    if (options.format !== undefined) cmdArgs.push("--format", String(options.format));
+    if (options.projectRoot !== undefined) cmdArgs.push("--project-root", String(options.projectRoot));
+  }
+
+  try {
+    const result = await execFileAsync(executable, cmdArgs);
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (err: unknown) {
+    const e = err as { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof e.code === 'number' ? e.code : 1,
+      stdout: e.stdout ?? '',
+      stderr: e.stderr ?? '',
+    };
+  }
+}
+
 export async function migraguardDeps(
   executable: string,
   options?: Partial<import("./types.js").DepsOptions>,

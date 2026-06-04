@@ -186,6 +186,17 @@ export type GateExitResult =
   | { exitCode: 1; stderr: unknown }
   | { exitCode: 10; stderr: unknown };
 
+export interface InsightsOptions {
+  format?: "json";
+  projectRoot?: string;
+}
+
+export type InsightsExitCode = 0 | 1;
+
+export type InsightsExitResult =
+  { exitCode: 0; stdout: unknown }
+  | { exitCode: 1; stderr: unknown };
+
 export interface DepsOptions {
   html?: string;
 }
