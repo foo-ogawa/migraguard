@@ -1,25 +1,29 @@
 services:
   test-unit:
     build:
-      context: .
-      dockerfile: Dockerfile.test
+      context: ..
+      dockerfile: migraguard/Dockerfile.test
       args:
         NODE_VERSION: ${NODE_VERSION:-22}
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
-      - ./src:/app/src:ro
-      - ./tests:/app/tests:ro
+      - ./src:/app/migraguard/src:ro
+      - ./tests:/app/migraguard/tests:ro
+      - ./__tests__:/app/migraguard/__tests__:ro
     network_mode: none
     command: ["npm", "run", "test:unit"]
 
   test-integration:
     build:
-      context: .
-      dockerfile: Dockerfile.test
+      context: ..
+      dockerfile: migraguard/Dockerfile.test
       args:
         NODE_VERSION: ${NODE_VERSION:-22}
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
-      - ./src:/app/src:ro
-      - ./tests:/app/tests:ro
+      - ./src:/app/migraguard/src:ro
+      - ./tests:/app/migraguard/tests:ro
+      - ./__tests__:/app/migraguard/__tests__:ro
     environment:
       DATABASE_URL: postgres://migraguard_test:migraguard_test@postgres:5432/migraguard_test
     depends_on:
