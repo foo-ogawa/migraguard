@@ -3,8 +3,7 @@ FROM node:${NODE_VERSION}-alpine
 RUN apk add --no-cache sqlite
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
-COPY vendor ./vendor
-RUN echo "allow-git=all" >> .npmrc && npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 RUN apk add --no-cache python3 make gcc g++ musl-dev && \
     npm_config_ignore_scripts=false npm rebuild better-sqlite3
 COPY . .
