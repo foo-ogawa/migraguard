@@ -12,7 +12,7 @@ function makeResult(overrides: Partial<AuditRunResult> = {}): AuditRunResult {
     },
     raw: "",
     prompt: "test prompt",
-    dryRun: false,
+    showPrompt: false,
     status: "success",
     followUpsUsed: 0,
     retriesUsed: 0,

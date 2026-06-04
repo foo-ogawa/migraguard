@@ -18,7 +18,7 @@ import type { ImplementMigrationResult } from "../generated/dsl/handoffs.js";
 export interface CommandImplementOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -33,7 +33,7 @@ export async function commandImplement(
 ): Promise<void | string> {
   const context = await buildImplementContext(description, config);
 
-  if (opts.dryRun) return context;
+  if (opts.showPrompt) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,

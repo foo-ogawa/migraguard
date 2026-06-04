@@ -16,7 +16,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandProposeOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -31,7 +31,7 @@ export async function commandProposeExpandContract(
 ): Promise<void | string> {
   const context = await buildProposeExpandContractContext(file, config);
 
-  if (opts.dryRun) return context;
+  if (opts.showPrompt) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,

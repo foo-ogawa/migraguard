@@ -36,7 +36,7 @@ export interface AuditConfig {
 
 export interface AuditOptions {
   failOn?: "warning" | "error" | "critical";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
@@ -45,7 +45,7 @@ export interface AuditRunResult {
   data: AuditResultData | null;
   raw: string;
   prompt: string;
-  dryRun: boolean;
+  showPrompt: boolean;
   status: "success" | "error" | "escalation" | "validation_error";
   errorMessage?: string;
   followUpsUsed: number;

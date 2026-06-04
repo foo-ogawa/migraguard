@@ -172,13 +172,13 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       logFile: opts.logFile,
     };
-    if (opts.dryRun) {
+    if (opts.showPrompt) {
       return commandAudit(config, target, commandOpts);
     }
     await run(async () => {
@@ -191,14 +191,14 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       outputDir: opts.outputDir,
       logFile: opts.logFile,
     };
-    if (opts.dryRun) {
+    if (opts.showPrompt) {
       return commandProposeExpandContract(config, file!, commandOpts);
     }
     await run(async () => {
@@ -211,13 +211,13 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       logFile: opts.logFile,
     };
-    if (opts.dryRun) {
+    if (opts.showPrompt) {
       return commandExplain(config, commandOpts);
     }
     await run(async () => {
@@ -230,14 +230,14 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       outputDir: opts.outputDir,
       logFile: opts.logFile,
     };
-    if (opts.dryRun) {
+    if (opts.showPrompt) {
       return commandImplement(config, description!, commandOpts);
     }
     await run(async () => {
@@ -250,13 +250,13 @@ const handlers: CommandHandlers = {
     const commandOpts = {
       adapter: opts.adapter,
       model: opts.model,
-      dryRun: opts.dryRun,
+      showPrompt: opts.showPrompt,
       failOn: opts.failOn as 'warning' | 'error' | 'critical' | undefined,
       output: opts.output,
       reportFormat: opts.reportFormat as 'json' | 'text' | 'yaml' | undefined,
       logFile: opts.logFile,
     };
-    if (opts.dryRun) {
+    if (opts.showPrompt) {
       return commandAuditWorkflow(config, commandOpts);
     }
     await run(async () => {
