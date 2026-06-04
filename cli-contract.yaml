@@ -1019,7 +1019,7 @@ command_sets:
         usage:
           - migraguard audit db/migrations/20260510_120000__add_user_status.sql
           - migraguard audit db/migrations/
-          - migraguard audit --adapter gemini --dry-run
+          - migraguard audit --adapter gemini --show-prompt
 
         arguments:
           - name: target
@@ -1073,8 +1073,7 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
-          - name: dry-run
-            aliases: [n]
+          - name: show-prompt
             description: Output the constructed prompt without calling the LLM API.
             schema:
               type: boolean
@@ -1130,7 +1129,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safeDryRunOption: dry-run
+          safeDryRunOption: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1145,7 +1144,7 @@ command_sets:
           Requires agent-contracts-runtime.
         usage:
           - migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
-          - migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
+          - migraguard propose-expand-contract --output-dir ./proposed/ --show-prompt
 
         arguments:
           - name: file
@@ -1208,8 +1207,7 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
-          - name: dry-run
-            aliases: [n]
+          - name: show-prompt
             description: Output the constructed prompt without calling the LLM API.
             schema:
               type: boolean
@@ -1265,7 +1263,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write when --output or --output-dir is specified.
-          safeDryRunOption: dry-run
+          safeDryRunOption: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1284,7 +1282,7 @@ command_sets:
           - 'migraguard implement "add email verification token to users table"'
           - 'migraguard implement --adapter claude "create index on users.email"'
           - 'migraguard implement --output-dir db/migrations/ "add status column"'
-          - 'migraguard implement --dry-run "drop old_column"'
+          - 'migraguard implement --show-prompt "drop old_column"'
 
         arguments:
           - name: description
@@ -1342,8 +1340,7 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
-          - name: dry-run
-            aliases: [n]
+          - name: show-prompt
             description: Output the constructed prompt without calling the LLM API.
             schema:
               type: boolean
@@ -1399,7 +1396,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write when --output or --output-dir is specified.
-          safeDryRunOption: dry-run
+          safeDryRunOption: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1419,7 +1416,7 @@ command_sets:
           - migraguard audit-workflow
           - migraguard audit-workflow --adapter gemini
           - migraguard audit-workflow --report-format text
-          - migraguard audit-workflow --dry-run
+          - migraguard audit-workflow --show-prompt
 
         options:
           - name: adapter
@@ -1463,8 +1460,7 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
-          - name: dry-run
-            aliases: [n]
+          - name: show-prompt
             description: Output the constructed prompt without calling the LLM API.
             schema:
               type: boolean
@@ -1520,7 +1516,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safeDryRunOption: dry-run
+          safeDryRunOption: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 
@@ -1586,8 +1582,7 @@ command_sets:
               enum: [json, text, yaml]
               default: json
 
-          - name: dry-run
-            aliases: [n]
+          - name: show-prompt
             description: Output the constructed prompt without calling the LLM API.
             schema:
               type: boolean
@@ -1643,7 +1638,7 @@ command_sets:
           sideEffectNote: >-
             Network calls to LLM provider when adapter is not mock.
             Filesystem write only when --output is specified.
-          safeDryRunOption: dry-run
+          safeDryRunOption: show-prompt
           expectedDurationMs: 120000
           retryableExitCodes: [12]
 

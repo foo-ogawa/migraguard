@@ -4,7 +4,7 @@ import type { AuditRunResult, AuditOptions } from "./types.js";
 export type ReportFormat = "json" | "text" | "yaml";
 
 export function computeExitCode(result: AuditRunResult, options: AuditOptions): number {
-  if (result.dryRun) return 0;
+  if (result.showPrompt) return 0;
   if (result.status !== "success" || !result.data) return 1;
 
   const failOn = options.failOn ?? "error";

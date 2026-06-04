@@ -998,7 +998,7 @@ migraguard audit db/migrations/20260510_120000__add_user_status.sql
 migraguard audit db/migrations/
 ```
 ```
-migraguard audit --adapter gemini --dry-run
+migraguard audit --adapter gemini --show-prompt
 ```
 
 #### Arguments
@@ -1016,7 +1016,7 @@ migraguard audit --adapter gemini --dry-run
 | `--fail-on` |  | No | `"error"` | Minimum severity that causes a non-zero exit. |
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the audit report. |
-| `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--show-prompt` |  | No | `false` | Output the constructed prompt without calling the LLM API. |
 | `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
@@ -1056,7 +1056,7 @@ x-agent:
   sideEffects: 
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
-  safeDryRunOption: dry-run
+  safeDryRunOption: show-prompt
   expectedDurationMs: 120000
   retryableExitCodes: 
     - 12
@@ -1076,7 +1076,7 @@ Analyzes a migration file containing potentially unsafe DDL (renames, type chang
 migraguard propose-expand-contract db/migrations/20260510__rename_username.sql
 ```
 ```
-migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
+migraguard propose-expand-contract --output-dir ./proposed/ --show-prompt
 ```
 
 #### Arguments
@@ -1095,7 +1095,7 @@ migraguard propose-expand-contract --output-dir ./proposed/ --dry-run
 | `--fail-on` |  | No | `"error"` | Minimum severity that causes a non-zero exit. |
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the proposal report. |
-| `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--show-prompt` |  | No | `false` | Output the constructed prompt without calling the LLM API. |
 | `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
@@ -1136,7 +1136,7 @@ x-agent:
     - network
     - file_write
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write when --output or --output-dir is specified.
-  safeDryRunOption: dry-run
+  safeDryRunOption: show-prompt
   expectedDurationMs: 120000
   retryableExitCodes: 
     - 12
@@ -1162,7 +1162,7 @@ migraguard implement --adapter claude "create index on users.email"
 migraguard implement --output-dir db/migrations/ "add status column"
 ```
 ```
-migraguard implement --dry-run "drop old_column"
+migraguard implement --show-prompt "drop old_column"
 ```
 
 #### Arguments
@@ -1181,7 +1181,7 @@ migraguard implement --dry-run "drop old_column"
 | `--fail-on` |  | No | `"error"` | Minimum severity that causes a non-zero exit. |
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the implementation report. |
-| `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--show-prompt` |  | No | `false` | Output the constructed prompt without calling the LLM API. |
 | `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
@@ -1222,7 +1222,7 @@ x-agent:
     - network
     - file_write
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write when --output or --output-dir is specified.
-  safeDryRunOption: dry-run
+  safeDryRunOption: show-prompt
   expectedDurationMs: 120000
   retryableExitCodes: 
     - 12
@@ -1248,7 +1248,7 @@ migraguard audit-workflow --adapter gemini
 migraguard audit-workflow --report-format text
 ```
 ```
-migraguard audit-workflow --dry-run
+migraguard audit-workflow --show-prompt
 ```
 
 #### Options
@@ -1260,7 +1260,7 @@ migraguard audit-workflow --dry-run
 | `--fail-on` |  | No | `"error"` | Minimum severity that causes a non-zero exit. |
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the audit report. |
-| `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--show-prompt` |  | No | `false` | Output the constructed prompt without calling the LLM API. |
 | `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
@@ -1300,7 +1300,7 @@ x-agent:
   sideEffects: 
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
-  safeDryRunOption: dry-run
+  safeDryRunOption: show-prompt
   expectedDurationMs: 120000
   retryableExitCodes: 
     - 12
@@ -1335,7 +1335,7 @@ migraguard verify --format json | migraguard explain
 | `--fail-on` |  | No | `"error"` | Minimum severity that causes a non-zero exit. |
 | `--output` | -o | No |  | Write result to a file instead of stdout. |
 | `--report-format` |  | No | `"json"` | Output format for the explanation report. |
-| `--dry-run` | -n | No | `false` | Output the constructed prompt without calling the LLM API. |
+| `--show-prompt` |  | No | `false` | Output the constructed prompt without calling the LLM API. |
 | `--log-file` | -l | No |  | Write agent progress log to this file path. |
 
 #### Exit Codes
@@ -1375,7 +1375,7 @@ x-agent:
   sideEffects: 
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
-  safeDryRunOption: dry-run
+  safeDryRunOption: show-prompt
   expectedDurationMs: 120000
   retryableExitCodes: 
     - 12

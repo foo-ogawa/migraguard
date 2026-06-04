@@ -83,7 +83,7 @@ function mapWorkflowResult(
       data: outcome.data ?? null,
       raw: String(outcome.raw ?? ""),
       prompt: userRequest,
-      dryRun: false,
+      showPrompt: false,
       status: "success",
       followUpsUsed,
       retriesUsed,
@@ -96,7 +96,7 @@ function mapWorkflowResult(
       data: null,
       raw: String(outcome.raw ?? ""),
       prompt: userRequest,
-      dryRun: false,
+      showPrompt: false,
       status: "validation_error",
       errorMessage: outcome.errors?.message ?? "Schema validation failed",
       followUpsUsed,
@@ -110,7 +110,7 @@ function mapWorkflowResult(
       data: null,
       raw: String(outcome.raw ?? ""),
       prompt: userRequest,
-      dryRun: false,
+      showPrompt: false,
       status: "escalation",
       errorMessage: workflowResult.escalation_reason ?? outcome.reason ?? "Agent escalated",
       followUpsUsed,
@@ -123,7 +123,7 @@ function mapWorkflowResult(
     data: null,
     raw: String(outcome.raw ?? ""),
     prompt: userRequest,
-    dryRun: false,
+    showPrompt: false,
     status: "error",
     errorMessage: workflowResult.error_message ?? outcome.message ?? "Workflow execution failed",
     followUpsUsed,
@@ -147,13 +147,13 @@ export async function runAgentWorkflow(
   auditConfig: AuditConfig,
   options: AuditOptions,
 ): Promise<AuditRunResult> {
-  if (options.dryRun) {
+  if (options.showPrompt) {
     return {
       taskId,
       data: null,
       raw: "",
       prompt: userRequest,
-      dryRun: true,
+      showPrompt: true,
       status: "success",
       followUpsUsed: 0,
       retriesUsed: 0,
@@ -178,7 +178,7 @@ export async function runAgentWorkflow(
     throw Object.assign(
       new Error(
         "agent-contracts-runtime is not installed. " +
-        "Install it to use this command, or use --dry-run to inspect the prompt.\n" +
+        "Install it to use this command, or use --show-prompt to inspect the prompt.\n" +
         "  npm install agent-contracts-runtime",
       ),
       { exitCode: EXIT_RUNTIME_MISSING },

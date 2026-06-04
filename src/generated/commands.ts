@@ -408,7 +408,7 @@ export async function migraguardAudit(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
-    if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.showPrompt) cmdArgs.push("--show-prompt");
     if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
@@ -439,7 +439,7 @@ export async function migraguardProposeExpandContract(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
-    if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.showPrompt) cmdArgs.push("--show-prompt");
     if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
@@ -470,7 +470,7 @@ export async function migraguardImplement(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
-    if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.showPrompt) cmdArgs.push("--show-prompt");
     if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
@@ -498,7 +498,7 @@ export async function migraguardAuditWorkflow(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
-    if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.showPrompt) cmdArgs.push("--show-prompt");
     if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 
@@ -526,7 +526,7 @@ export async function migraguardExplain(
     if (options.failOn !== undefined) cmdArgs.push("--fail-on", String(options.failOn));
     if (options.output !== undefined) cmdArgs.push("--output", String(options.output));
     if (options.reportFormat !== undefined) cmdArgs.push("--report-format", String(options.reportFormat));
-    if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.showPrompt) cmdArgs.push("--show-prompt");
     if (options.logFile !== undefined) cmdArgs.push("--log-file", String(options.logFile));
   }
 

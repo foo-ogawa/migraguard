@@ -14,7 +14,7 @@ import type { AuditConfig, AuditOptions, ReportFormat } from "../agents/index.js
 export interface CommandAuditWorkflowOptions {
   adapter?: string;
   model?: string;
-  dryRun?: boolean;
+  showPrompt?: boolean;
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: ReportFormat;
@@ -27,7 +27,7 @@ export async function commandAuditWorkflow(
 ): Promise<void | string> {
   const context = await buildAuditWorkflowContext(config);
 
-  if (opts.dryRun) return context;
+  if (opts.showPrompt) return context;
 
   const auditConfig: AuditConfig = {
     adapter: opts.adapter,

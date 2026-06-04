@@ -206,7 +206,7 @@ export interface AuditOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
@@ -231,7 +231,7 @@ export interface ProposeExpandContractOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
@@ -256,7 +256,7 @@ export interface ImplementOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
@@ -276,7 +276,7 @@ export interface AuditWorkflowOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
@@ -296,7 +296,7 @@ export interface ExplainOptions {
   failOn?: "warning" | "error" | "critical";
   output?: string;
   reportFormat?: "json" | "text" | "yaml";
-  dryRun?: boolean;
+  showPrompt?: boolean;
   logFile?: string;
 }
 
