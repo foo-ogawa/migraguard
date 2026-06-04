@@ -1,6 +1,6 @@
 ARG NODE_VERSION=22
 FROM node:${NODE_VERSION}-alpine
-RUN apk add --no-cache sqlite
+RUN apk add --no-cache sqlite git
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --legacy-peer-deps
