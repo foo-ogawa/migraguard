@@ -1,5 +1,5 @@
 import { buildExternalInsight } from '../external/insight-provider.js';
-import type { ExternalInsight } from 'agent-contracts-analyzer';
+import type { ExternalInsight } from '../external/analyzer-types.js';
 import { resolve } from 'node:path';
 
 export interface InsightsOptions {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ExternalInsightSchema } from 'agent-contracts-analyzer';
+import { ExternalInsightSchema } from '../../src/external/analyzer-types.js';
 import { buildConfig } from '../../src/config.js';
 import {
   buildDependencyGraphFromFiles,

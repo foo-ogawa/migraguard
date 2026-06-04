@@ -5,7 +5,7 @@ import type {
   ExternalInsight,
   InsightProvider,
   InsightQuery,
-} from 'agent-contracts-analyzer';
+} from './analyzer-types.js';
 import { loadConfig } from '../config.js';
 import { VERSION as PACKAGE_VERSION } from '../version.js';
 import {
