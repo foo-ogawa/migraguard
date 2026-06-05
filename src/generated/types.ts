@@ -212,7 +212,7 @@ export interface AuditArgs {
 }
 
 export interface AuditOptions {
-  adapter?: "cursor" | "claude" | "openai" | "gemini" | "mock";
+  adapter?: "claude" | "openai" | "gemini" | "mock";
   model?: string;
   failOn?: "warning" | "error" | "critical";
   output?: string;
@@ -237,7 +237,7 @@ export interface ProposeExpandContractArgs {
 
 export interface ProposeExpandContractOptions {
   outputDir?: string;
-  adapter?: "cursor" | "claude" | "openai" | "gemini" | "mock";
+  adapter?: "claude" | "openai" | "gemini" | "mock";
   model?: string;
   failOn?: "warning" | "error" | "critical";
   output?: string;
@@ -262,7 +262,7 @@ export interface ImplementArgs {
 
 export interface ImplementOptions {
   outputDir?: string;
-  adapter?: "cursor" | "claude" | "openai" | "gemini" | "mock";
+  adapter?: "claude" | "openai" | "gemini" | "mock";
   model?: string;
   failOn?: "warning" | "error" | "critical";
   output?: string;
@@ -282,7 +282,7 @@ export type ImplementExitResult =
   | { exitCode: 12; stderr: unknown };
 
 export interface AuditWorkflowOptions {
-  adapter?: "cursor" | "claude" | "openai" | "gemini" | "mock";
+  adapter?: "claude" | "openai" | "gemini" | "mock";
   model?: string;
   failOn?: "warning" | "error" | "critical";
   output?: string;
@@ -302,7 +302,7 @@ export type AuditWorkflowExitResult =
   | { exitCode: 12; stderr: unknown };
 
 export interface ExplainOptions {
-  adapter?: "cursor" | "claude" | "openai" | "gemini" | "mock";
+  adapter?: "claude" | "openai" | "gemini" | "mock";
   model?: string;
   failOn?: "warning" | "error" | "critical";
   output?: string;

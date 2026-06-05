@@ -1083,7 +1083,7 @@ command_sets:
             value_name: name
             schema:
               type: string
-              enum: [cursor, claude, openai, gemini, mock]
+              enum: [claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
@@ -1217,7 +1217,7 @@ command_sets:
             value_name: name
             schema:
               type: string
-              enum: [cursor, claude, openai, gemini, mock]
+              enum: [claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
@@ -1350,7 +1350,7 @@ command_sets:
             value_name: name
             schema:
               type: string
-              enum: [cursor, claude, openai, gemini, mock]
+              enum: [claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
@@ -1470,7 +1470,7 @@ command_sets:
             value_name: name
             schema:
               type: string
-              enum: [cursor, claude, openai, gemini, mock]
+              enum: [claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
@@ -1592,7 +1592,7 @@ command_sets:
             value_name: name
             schema:
               type: string
-              enum: [cursor, claude, openai, gemini, mock]
+              enum: [claude, openai, gemini, mock]
 
           - name: model
             description: LLM model override.
