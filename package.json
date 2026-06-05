@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -83,6 +83,7 @@
     "pg": "^8.19.0"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.165",
     "@eslint/js": "^9.39.2",
     "@openai/agents": "^0.11.1",
     "@types/diff": "^7.0.2",
