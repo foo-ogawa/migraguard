@@ -14,17 +14,6 @@ async function createAdapter(runtimePkg: string, name: string, config: AuditConf
       const mod = await import(`${runtimePkg}/adapters/mock`);
       return new mod.MockAdapter();
     }
-    case "cursor": {
-      const mod = await import(`${runtimePkg}/adapters/cursor-sdk`);
-      const apiKey = process.env.CURSOR_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          "CURSOR_API_KEY environment variable is required for the cursor adapter.\n" +
-          "Get your key from: https://cursor.com/dashboard/integrations",
-        );
-      }
-      return mod.CursorSdkAdapter.create({ apiKey, cwd, model: config.model ?? "claude-opus-4-6" });
-    }
     case "claude": {
       const mod = await import(`${runtimePkg}/adapters/claude-agent-sdk`);
       return new mod.ClaudeAgentSdkAdapter({
@@ -42,8 +31,8 @@ async function createAdapter(runtimePkg: string, name: string, config: AuditConf
       });
     }
     case "gemini": {
-      const mod = await import(`${runtimePkg}/adapters/gemini-sdk`);
-      return new mod.GeminiSdkAdapter({
+      const mod = await import(`${runtimePkg}/adapters/adk-sdk`);
+      return new mod.AdkSdkAdapter({
         apiKey: process.env.GEMINI_API_KEY,
         model: config.model ?? "gemini-2.5-pro",
         temperature: config.temperature,
@@ -52,7 +41,7 @@ async function createAdapter(runtimePkg: string, name: string, config: AuditConf
     default:
       throw new Error(
         `Unsupported adapter: "${name}". ` +
-        "Available: mock, cursor, claude, openai, gemini.",
+        "Available: mock, claude, openai, gemini.",
       );
   }
 }
