@@ -9,9 +9,8 @@ const externalPackages = [
   // LLM SDKs
   "@anthropic-ai/claude-agent-sdk",
   "@anthropic-ai/sdk",
-  "@cursor/sdk",
   "@openai/agents",
-  "@google/genai",
+  "@google/adk",
   // Native modules
   "libpg-query",
   "pg",

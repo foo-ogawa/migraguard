@@ -310,7 +310,7 @@ npx migraguard audit db/migrations/20260510__add_user_status.sql --adapter opena
 npx migraguard audit-workflow --adapter claude
 
 # Propose expand/contract decomposition for unsafe DDL
-npx migraguard propose-expand-contract db/migrations/20260510__rename_column.sql --adapter cursor
+npx migraguard propose-expand-contract db/migrations/20260510__rename_column.sql --adapter claude
 
 # Explain lint output for a PR comment
 npx migraguard lint --format json | npx migraguard explain --adapter openai
@@ -686,7 +686,6 @@ Tool capabilities are described in machine-readable form via [cli-contract.yaml]
 
 | Adapter | Default Model | Environment Variable |
 |---------|---------------|---------------------|
-| `cursor` | runtime default | `CURSOR_API_KEY` |
 | `openai` | runtime default | `OPENAI_API_KEY` |
 | `gemini` | runtime default | `GEMINI_API_KEY` |
 | `claude` | runtime default | `ANTHROPIC_API_KEY` |
@@ -705,7 +704,7 @@ npx migraguard audit --adapter openai --model gpt-4o
 npx migraguard audit-workflow --adapter claude
 
 # Propose expand/contract decomposition
-npx migraguard propose-expand-contract migration.sql --adapter cursor
+npx migraguard propose-expand-contract migration.sql --adapter claude
 
 # Explain lint output for a PR comment
 npx migraguard lint --format json | npx migraguard explain --adapter openai
