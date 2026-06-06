@@ -1,2 +1,5 @@
 dsl: ./migraguard-dsl.yaml
 generated_dir: ../src/generated/dsl
+bindings:
+  - ./bindings/runtime.yaml
+active_guardrail_policy: migration-safety-policy

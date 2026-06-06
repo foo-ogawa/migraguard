@@ -1,0 +1,29 @@
+software: migraguard
+version: 1
+
+# output-schema-conformance and confidence-threshold are semantic guardrails
+# enforced at runtime (Zod validation and output content checks).
+# No standard binding matcher applies.
+guardrail_impl:
+  no-sql-execution:
+    checks:
+      - matcher:
+          type: command_regex
+          pattern: "(^|[|;&]\\s*)(psql|mysql|sqlite3|mysqldump|pg_dump)\\b"
+        message: >-
+          SQL execution and database access commands are forbidden.
+          All migraguard agents operate in read-only analysis mode.
+  safe-ddl-enforcement:
+    checks:
+      - matcher:
+          type: content_regex
+          pattern: "CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(?!CONCURRENTLY)"
+          file_glob: "**/*.sql"
+        message: >-
+          CREATE INDEX must use CONCURRENTLY for safe DDL.
+      - matcher:
+          type: content_regex
+          pattern: "CREATE\\s+TABLE\\s+(?!IF\\s+NOT\\s+EXISTS)"
+          file_glob: "**/*.sql"
+        message: >-
+          CREATE TABLE must include IF NOT EXISTS for safe DDL.
