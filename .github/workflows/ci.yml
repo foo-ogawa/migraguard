@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Security audit
-        run: docker run --rm -v "$(pwd)":/app:ro -w /app node:22-alpine npm audit --audit-level=high
+        run: docker run --rm -v "$(pwd)":/app:ro -w /app node:22-alpine npm audit
 
   build-and-test:
     runs-on: ubuntu-latest
@@ -25,3 +25,16 @@ jobs:
         run: docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=${{ matrix.node-version }}
       - name: Run unit tests
         run: docker compose -f docker-compose.test.yml run --rm test-unit
+
+  bundle-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --legacy-peer-deps
+      - run: node esbuild.bundle.mjs
+      - run: npx vitest run --config vitest.bundle.config.ts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

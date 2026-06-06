@@ -6,7 +6,6 @@ const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 const minify = process.argv.includes("--minify");
 
 const externalSdks = [
-  "agent-contracts-runtime",
   // LLM SDKs
   "@anthropic-ai/claude-agent-sdk",
   "@anthropic-ai/sdk",
@@ -61,8 +60,8 @@ const result = await build({
   banner: {
     js: [
       "#!/usr/bin/env node",
-      "import { createRequire } from 'module';",
-      "const require = createRequire(import.meta.url);",
+      "import { createRequire as __banner_createRequire } from 'module';",
+      "const require = __banner_createRequire(import.meta.url);",
     ].join("\n"),
   },
   plugins: [resolveRuntimeDynamicImports, inlineBuildTimeConstants],
