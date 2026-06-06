@@ -171,4 +171,42 @@ describe('external/insight-provider', () => {
     const insight = await provider.provide({ projectRoot: tempDir });
     expect(insight.anchorMapping?.some((m) => m.domainId === '20260301_100000__solo.sql')).toBe(true);
   });
+
+  it('filters edges by changedFiles', async () => {
+    await setupMigration('20260301_100000__create_users.sql', 'CREATE TABLE users (id INT PRIMARY KEY);');
+    await setupMigration('20260302_100000__create_posts.sql', 'CREATE TABLE posts (id INT, user_id INT REFERENCES users(id));');
+
+    const provider = createMigraguardInsightProvider();
+    const insight = await provider.provide({
+      projectRoot: tempDir,
+      changedFiles: ['db/migrations/20260302_100000__create_posts.sql'],
+    });
+
+    expect(insight.edges).toHaveLength(1);
+    expect(insight.edges[0].from).toBe('20260302_100000__create_posts.sql');
+  });
+
+  it('filters edges by artifactIds', async () => {
+    await setupMigration('20260301_100000__create_users.sql', 'CREATE TABLE users (id INT PRIMARY KEY);');
+    await setupMigration('20260302_100000__create_posts.sql', 'CREATE TABLE posts (id INT, user_id INT REFERENCES users(id));');
+
+    const provider = createMigraguardInsightProvider();
+    const insight = await provider.provide({
+      projectRoot: tempDir,
+      artifactIds: ['20260301_100000__create_users.sql'],
+    });
+
+    expect(insight.edges).toHaveLength(1);
+    expect(insight.edges[0].to).toBe('20260301_100000__create_users.sql');
+  });
+
+  it('returns all edges when no filter is specified', async () => {
+    await setupMigration('20260301_100000__create_users.sql', 'CREATE TABLE users (id INT PRIMARY KEY);');
+    await setupMigration('20260302_100000__create_posts.sql', 'CREATE TABLE posts (id INT, user_id INT REFERENCES users(id));');
+
+    const provider = createMigraguardInsightProvider();
+    const insight = await provider.provide({ projectRoot: tempDir });
+
+    expect(insight.edges).toHaveLength(1);
+  });
 });
