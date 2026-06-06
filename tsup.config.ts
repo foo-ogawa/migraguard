@@ -14,5 +14,12 @@ export default defineConfig({
   treeshake: true,
   target: 'node20',
   outDir: 'dist',
-  external: ['chalk', 'commander', 'glob'],
+  external: [
+    'chalk',
+    'commander',
+    'glob',
+    '@anthropic-ai/claude-agent-sdk',
+    '@openai/agents',
+    '@google/adk',
+  ],
 });
