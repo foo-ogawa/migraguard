@@ -5,7 +5,8 @@ import { readFileSync, statSync } from "node:fs";
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 const minify = process.argv.includes("--minify");
 
-const externalPackages = [
+const externalSdks = [
+  "agent-contracts-runtime",
   // LLM SDKs
   "@anthropic-ai/claude-agent-sdk",
   "@anthropic-ai/sdk",
@@ -20,24 +21,7 @@ const externalPackages = [
 
 const resolveRuntimeDynamicImports = {
   name: "resolve-runtime-dynamic-imports",
-  setup(build) {
-    build.onLoad({ filter: /agents[\\/]orchestrator\.ts$/ }, async (args) => {
-      let contents = readFileSync(args.path, "utf8");
-      contents = contents.replace(
-        /const RUNTIME_PKG = \["agent-contracts",\s*"runtime"\]\.join\("-"\);/,
-        'const RUNTIME_PKG = "agent-contracts-runtime";',
-      );
-      contents = contents.replace(
-        /await import\(RUNTIME_PKG\)/g,
-        'await import("agent-contracts-runtime")',
-      );
-      contents = contents.replace(
-        /await import\(`\$\{runtimePkg\}\/adapters\/([^`]+)`\)/g,
-        'await import("agent-contracts-runtime/adapters/$1")',
-      );
-      return { contents, loader: "ts" };
-    });
-  },
+  setup(_build) {},
 };
 
 const inlineBuildTimeConstants = {
@@ -71,7 +55,7 @@ const result = await build({
   outfile: "dist/migraguard.bundle.mjs",
   minify,
   sourcemap: true,
-  external: externalPackages,
+  external: externalSdks,
   mainFields: ["module", "main"],
   conditions: ["import", "node"],
   banner: {
