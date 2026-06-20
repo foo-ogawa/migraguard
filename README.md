@@ -2,9 +2,11 @@
 
 [![npm version](https://badge.fury.io/js/migraguard.svg)](https://www.npmjs.com/package/migraguard) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PostgreSQL-first, schema-aware deployment control with built-in LLM agents. Generates production-safe migration SQL, audits operational risks, enforces the lint → apply → dump workflow, and explains command output — all from the CLI. Deterministic gates (38 AST-based lint rules, checksum tamper detection, schema drift detection, idempotency proof) run alongside LLM-powered semantic analysis, so domain expertise is encapsulated inside the tool rather than scattered across agent prompts.
+**Prevent dangerous schema changes before production deployment.**
 
-MySQL and SQLite are supported as secondary dialects with 17 generic lint rules.
+migraguard is a Schema Change Safety Platform, not just a migration runner. PostgreSQL-first, schema-aware deployment control with built-in LLM agents. Generates production-safe migration SQL, audits operational risks, enforces the lint → apply → dump workflow, and explains command output — all from the CLI. Deterministic gates (38 AST-based lint rules, checksum tamper detection, schema drift detection, idempotency proof) run alongside LLM-powered semantic analysis, so domain expertise is encapsulated inside the tool rather than scattered across agent prompts.
+
+Designed primarily for PostgreSQL production environments. MySQL and SQLite are supported as secondary dialects with 17 generic lint rules.
 
 **What the LLM agents do:**
 
@@ -93,7 +95,24 @@ npx migraguard lint --format json | npx migraguard explain --adapter openai
 - **Parallel releases via dependency tree**: DDL dependencies are analyzed to build a DAG, enabling parallel releases for independent changes
 - **Shift verification left**: Linting, checksum-based tamper detection, and schema dump diffs run at the PR stage
 - **Agent-native**: Domain-specific semantic reasoning is encapsulated inside the toolchain itself. Higher-level agents do not need to know every PostgreSQL lock rule or expand/contract pattern — they invoke migraguard and consume structured findings
+- **AI-safety-aware**: AI-generated code commonly introduces migration omissions, DROP accidents, schema drift, and rollback-impossible changes. migraguard's deterministic gates and LLM-powered semantic audits catch these before deployment
 - **Minimal footprint**: Two CLI tools (`psql`, `pg_dump`) and one npm library ([libpg-query](https://github.com/pganalyze/libpg-query)) for the primary PostgreSQL path. MySQL uses `mysql` + `mysqldump` CLIs + [mysql2](https://github.com/sidorares/node-mysql2) (optional peer dep); SQLite uses `sqlite3` CLI + [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (optional peer dep). No external linter required — lint rules are built in via AST analysis. MySQL/SQLite linting uses [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) as a parallel, feature-limited engine
+
+## Why AI-friendly?
+
+AI code assistants and autonomous agents generate schema changes at increasing volume, but they lack operational intuition. Common failure modes include:
+
+- **Migration omissions** — generating a column reference without the corresponding `ALTER TABLE`
+- **DROP accidents** — removing columns or tables without expand/contract phases
+- **Schema drift** — producing DDL that conflicts with the actual database state
+- **Rollback-impossible changes** — destructive operations with no recovery path
+
+migraguard addresses these systematically:
+
+1. **Deterministic gates catch mechanical errors** — 38 AST-based lint rules reject unsafe patterns before they reach CI, regardless of who (or what) authored the SQL
+2. **LLM semantic audits catch domain-level risks** — lock contention under concurrent load, backfill safety, deployment ordering, and expand/contract necessity are evaluated contextually
+3. **Structured output consumable by CI and higher-level agents** — all results conform to typed schemas (`AgentAuditResult` / `AgentFinding`), enabling automated decision-making without parsing prose
+4. **Agent-native toolchain design** — domain expertise is encapsulated inside the tool; outer agents invoke commands and consume findings without needing to encode PostgreSQL operational knowledge in their prompts
 
 ## Dialect support
 
@@ -321,6 +340,8 @@ All commands honor the `dialect` setting. See [Dialect support](#dialect-support
 See [docs/commands.md](docs/commands.md) for detailed usage, options, and examples.
 
 ## CI Integration
+
+migraguard is designed to be your **CI safety gate** for schema changes. Every PR touching database schemas should pass through `lint` + `check` before merge.
 
 ### PR Check
 
@@ -627,6 +648,10 @@ See [docs/dag-internals.md](docs/dag-internals.md) for dependency analysis detai
 
 migraguard embeds operational policies into the tool and prevents incidents via CI gates, rather than providing a general-purpose migration execution engine.
 
+| Axis | migraguard | [Flyway](https://flywaydb.org/) | [Atlas](https://atlasgo.io/) |
+|------|-----------|---------|-------|
+| **Focus** | Migration execution + Schema drift detection + Deployment safety gate + Expand/Contract verification | Migration execution | Declarative schema management |
+
 | Axis | migraguard | [Flyway](https://flywaydb.org/) | [Atlas](https://atlasgo.io/) | [Sqitch](https://sqitch.org/) | [Graphile Migrate](https://github.com/graphile/migrate) |
 |------|-----------|---------|-------|--------|------------------|
 | **Tamper detection** | checksum + CI gate (offline) | checksum (at apply time) | Merkle hash (atlas.sum) | Merkle tree (sqitch.plan) | none |
@@ -765,6 +790,23 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 | Agent DSL | [agent-contracts](https://www.npmjs.com/package/agent-contracts) — agent/task/workflow definitions |
 | CLI contract | [cli-contracts](https://www.npmjs.com/package/cli-contracts) — machine-readable interface spec |
 | Package manager | npm |
+
+## Security
+
+migraguard executes trusted code on your behalf. Understanding the trust boundaries is essential:
+
+- **Migration SQL files** are executed via the database's native CLI (`psql`, `mysql`, `sqlite3`). They are trusted code — treat them with the same care as application source
+- **Custom lint rules** (`customRulesDir`) are loaded and executed as JavaScript modules with the current user's privileges. Do not point this at untrusted rule sources
+- **LLM-powered commands** generate content (migration SQL, audit findings) that should be reviewed before execution. The `implement` command writes files only when a target directory is configured
+- **`pgDumpCommand`** configuration can execute arbitrary local binaries
+
+**Recommendations:**
+
+- Never run `migraguard apply` on untrusted repositories
+- Review AI-generated migrations before applying to production
+- Do not use `customRulesDir` with untrusted rule sources
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting instructions and the full trust model.
 
 ## Detailed Documentation
 
