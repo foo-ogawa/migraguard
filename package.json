@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.16.13",
+  "version": "0.16.14",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -92,5 +92,10 @@
     "typescript-eslint": "^8.54.0",
     "vitest": "^4.1.8",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "tsup": {
+      "esbuild": "$esbuild"
+    }
   }
 }
