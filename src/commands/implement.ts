@@ -1,5 +1,5 @@
 import { writeFile, mkdir } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve, join, sep } from "node:path";
 import chalk from "chalk";
 import type { MigraguardConfig } from "../config.js";
 import { resolveFromConfig } from "../config.js";
@@ -63,6 +63,13 @@ export async function commandImplement(
         await mkdir(outDir, { recursive: true });
 
         for (const migration of implData.migrations) {
+          if (!/^[0-9A-Za-z_][0-9A-Za-z_.\-]*\.sql$/.test(migration.fileName) || migration.fileName.includes('/') || migration.fileName.includes('\\')) {
+            throw new Error(`Invalid migration file name from LLM output: ${migration.fileName}`);
+          }
+          const resolvedOut = resolve(outDir, migration.fileName);
+          if (!resolvedOut.startsWith(resolve(outDir) + sep)) {
+            throw new Error(`Path traversal detected in migration file name: ${migration.fileName}`);
+          }
           const outPath = join(outDir, migration.fileName);
           await writeFile(outPath, migration.sql, "utf-8");
           console.log(chalk.green(`  Created: ${outPath}`));
