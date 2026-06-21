@@ -39,6 +39,9 @@ jobs:
       - name: Install
         if: steps.tag.outcome == 'failure'
         run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Rebuild better-sqlite3
+        if: steps.tag.outcome == 'failure'
+        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         if: steps.tag.outcome == 'failure'
         run: npm audit --audit-level=moderate
@@ -51,9 +54,21 @@ jobs:
       - name: Build
         if: steps.tag.outcome == 'failure'
         run: npm run build
-      - name: Test
+      - name: Docker unit tests (Node 20)
         if: steps.tag.outcome == 'failure'
-        run: npm run test:ci
+        run: |
+          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=20 test-unit
+          docker compose -f docker-compose.test.yml run --rm test-unit
+      - name: Docker unit tests (Node 22)
+        if: steps.tag.outcome == 'failure'
+        run: |
+          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=22 test-unit
+          docker compose -f docker-compose.test.yml run --rm test-unit
+      - name: Bundle tests
+        if: steps.tag.outcome == 'failure'
+        run: |
+          node esbuild.bundle.mjs
+          npx vitest run --config vitest.bundle.config.ts
       - name: Verify package contents
         if: steps.tag.outcome == 'failure'
         run: npm pack --dry-run
