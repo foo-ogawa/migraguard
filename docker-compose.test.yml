@@ -33,8 +33,6 @@ services:
 
   postgres:
     image: postgres:16
-    ports:
-      - "15432:5432"
     environment:
       POSTGRES_USER: migraguard_test
       POSTGRES_PASSWORD: migraguard_test
