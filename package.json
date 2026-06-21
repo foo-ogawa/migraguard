@@ -45,8 +45,9 @@
     "contract:validate": "npx cli-contracts validate",
     "contract:generate": "npx cli-contracts generate",
     "dsl:generate": "npx agent-runtime generate --config dsl/agent-runtime.config.yaml",
-    "prepublishOnly": "npm run build && npm run bundle:min && npm run test:ci",
-    "test:ci": "vitest run --exclude 'tests/integration/**'"
+    "prepublishOnly": "npm run build && npm run bundle:min && npm run test:docker:ci",
+    "test:ci": "npm run test:docker:ci",
+    "test:docker:ci": "bash scripts/test-docker-ci.sh"
   },
   "keywords": [
     "postgresql",

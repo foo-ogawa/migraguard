@@ -19,6 +19,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Rebuild better-sqlite3
+        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         run: npm audit --audit-level=moderate
       - name: Verify npm signatures
@@ -27,7 +29,21 @@ jobs:
         run: npm run lint --if-present
       - name: Build
         run: npm run build
-      - name: Test
-        run: npm run test:ci
+      - name: Docker unit tests (Node 20)
+        run: |
+          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=20 test-unit
+          docker compose -f docker-compose.test.yml run --rm test-unit
+      - name: Docker unit tests (Node 22)
+        run: |
+          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=22 test-unit
+          docker compose -f docker-compose.test.yml run --rm test-unit
+      - name: Docker integration tests
+        run: |
+          docker compose -f docker-compose.test.yml build test-integration
+          docker compose -f docker-compose.test.yml run --rm test-integration
+      - name: Bundle tests
+        run: |
+          node esbuild.bundle.mjs
+          npx vitest run --config vitest.bundle.config.ts
       - name: Verify package contents
         run: npm pack --dry-run
