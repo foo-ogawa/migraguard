@@ -12,8 +12,9 @@ run_unit() {
 run_unit 20
 run_unit 22
 
-"${COMPOSE[@]}" build test-integration
-"${COMPOSE[@]}" run --rm test-integration
+"${COMPOSE[@]}" up postgres -d --wait
+npm run test:integration
+"${COMPOSE[@]}" down -v
 
 node esbuild.bundle.mjs
 npx vitest run --config vitest.bundle.config.ts

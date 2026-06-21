@@ -64,11 +64,12 @@ jobs:
         run: |
           docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=22 test-unit
           docker compose -f docker-compose.test.yml run --rm test-unit
-      - name: Docker integration tests
+      - name: Integration tests (Postgres in Docker)
         if: steps.tag.outcome == 'failure'
         run: |
-          docker compose -f docker-compose.test.yml build test-integration
-          docker compose -f docker-compose.test.yml run --rm test-integration
+          docker compose -f docker-compose.test.yml up postgres -d --wait
+          npm run test:integration
+          docker compose -f docker-compose.test.yml down -v
       - name: Bundle tests
         if: steps.tag.outcome == 'failure'
         run: |
