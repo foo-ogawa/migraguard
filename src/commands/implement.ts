@@ -63,7 +63,7 @@ export async function commandImplement(
         await mkdir(outDir, { recursive: true });
 
         for (const migration of implData.migrations) {
-          if (!/^[0-9A-Za-z_][0-9A-Za-z_.\-]*\.sql$/.test(migration.fileName) || migration.fileName.includes('/') || migration.fileName.includes('\\')) {
+          if (!/^[0-9A-Za-z_][0-9A-Za-z_.-]*\.sql$/.test(migration.fileName) || migration.fileName.includes('/') || migration.fileName.includes('\\')) {
             throw new Error(`Invalid migration file name from LLM output: ${migration.fileName}`);
           }
           const resolvedOut = resolve(outDir, migration.fileName);
