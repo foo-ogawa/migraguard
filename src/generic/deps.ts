@@ -173,7 +173,7 @@ function extractDrop(
   references: ObjectRef[],
 ): void {
   const keyword = stmt.keyword as string | undefined;
-  let objType: ObjectRef['type'] = 'table';
+  let objType: ObjectRef['type'];
   if (keyword === 'table') objType = 'table';
   else if (keyword === 'view') objType = 'view';
   else if (keyword === 'index') objType = 'index';
