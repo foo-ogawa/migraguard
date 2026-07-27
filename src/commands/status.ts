@@ -32,7 +32,7 @@ function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefine
 export async function commandStatus(config: MigraguardConfig): Promise<StatusResult> {
   const db = createDb(config);
   const entries: StatusEntry[] = [];
-  let groups: GroupState[] = [];
+  let groups: GroupState[];
 
   try {
     await db.connect();
