@@ -93,16 +93,16 @@ migraguard new --expand-contract rename_username_to_handle
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: false
-  sideEffects: 
+  sideEffects:
     - file_write
   sideEffectNote: Creates migration SQL file(s) in the configured migrations directory.
   safeDryRunOption: dry-run
   expectedDurationMs: 1000
-  retryableExitCodes: 
+  retryableExitCodes:
 
 ```
 
@@ -151,20 +151,20 @@ migraguard apply --dry-run
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: high
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: Migrations are not automatically reversible. Manual rollback requires writing a compensating migration or restoring from backup.
-  sideEffects: 
+  sideEffects:
     - database_write
   sideEffectNote: Executes SQL via native CLI and records results in schema_migrations. Uses advisory lock to prevent concurrent execution.
   safeDryRunOption: dry-run
   expectedDurationMs: 60000
-  retryableExitCodes: 
+  retryableExitCodes:
 
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Run migraguard check to verify metadata integrity.
     - Run migraguard lint to check for unsafe DDL patterns.
     - Consider running with --with-drift-check for local development.
@@ -201,15 +201,15 @@ migraguard check
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Compares metadata.json against files on disk.
   expectedDurationMs: 2000
-  retryableExitCodes: 
+  retryableExitCodes:
 
 ```
 
@@ -252,21 +252,21 @@ migraguard squash --dry-run
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: medium
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: Deleted files can be recovered from version control (git checkout). Re-run migraguard new to recreate individual files if needed.
-  sideEffects: 
+  sideEffects:
     - file_write
     - file_delete
   sideEffectNote: Merges migration files into one and deletes originals. Updates metadata.json.
   safeDryRunOption: dry-run
   expectedDurationMs: 3000
-  retryableExitCodes: 
+  retryableExitCodes:
 
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Ensure all pending files are ready for release.
     - Confirm no uncommitted changes to migration files.
 ```
@@ -316,15 +316,15 @@ migraguard lint --format json | migraguard explain
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Scans migration files against safety rules.
   expectedDurationMs: 3000
-  retryableExitCodes: 
+  retryableExitCodes:
 
 ```
 
@@ -367,17 +367,17 @@ migraguard dump --dry-run
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - database_read
     - file_write
   sideEffectNote: Reads DB schema via pg_dump/mysqldump and writes normalized output to schema.sql.
   safeDryRunOption: dry-run
   expectedDurationMs: 10000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -424,15 +424,15 @@ migraguard diff --format json | migraguard explain
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - database_read
   sideEffectNote: Reads DB schema via pg_dump/mysqldump and compares with saved schema.sql. No writes.
   expectedDurationMs: 10000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -472,15 +472,15 @@ migraguard status --format json
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - database_read
   sideEffectNote: Reads schema_migrations table and compares with local files.
   expectedDurationMs: 5000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -526,20 +526,20 @@ migraguard resolve --dry-run 20260301_120000__create_users_table.sql
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: high
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: A resolved (skipped) migration cannot be un-resolved. Re-apply the migration manually if needed.
-  sideEffects: 
+  sideEffects:
     - database_write
   sideEffectNote: Inserts a 'skipped' record into schema_migrations for the given file.
   safeDryRunOption: dry-run
   expectedDurationMs: 3000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Verify that the failure has been addressed by a subsequent migration or manual fix.
     - Run migraguard status to confirm the file is in failed state.
 ```
@@ -571,15 +571,15 @@ migraguard editable
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Lists leaf/latest migration files from metadata.
   expectedDurationMs: 1000
-  retryableExitCodes: 
+  retryableExitCodes:
 
 ```
 
@@ -629,18 +629,18 @@ migraguard verify --format json
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: medium
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - database_read
     - database_write
   sideEffectNote: Creates and destroys a temporary shadow database to verify idempotency. Does not modify the primary database.
   expectedDurationMs: 60000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Ensure the database server is running and accessible.
 ```
 
@@ -680,15 +680,15 @@ migraguard group-status rename_username_to_handle
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Derives group state from schema_migrations records.
   expectedDurationMs: 3000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -732,21 +732,21 @@ migraguard baseline --dry-run
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: high
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: Deleted migration files can only be recovered from version control. The baseline operation cannot be undone programmatically.
-  sideEffects: 
+  sideEffects:
     - file_write
     - file_delete
   sideEffectNote: Dumps current DB schema to schema.sql, deletes squashed migration files, updates metadata.json, and rewrites depends-on references.
   safeDryRunOption: dry-run
   expectedDurationMs: 30000
-  retryableExitCodes: 
+  retryableExitCodes:
 
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Ensure all migrations have been applied to all environments.
     - Back up migration files before running.
 ```
@@ -796,20 +796,20 @@ migraguard advance rename_username_to_handle backfill running
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: medium
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: State transitions cannot be undone. Use advance with the previous status value to manually correct, or reset group state in the database.
-  sideEffects: 
+  sideEffects:
     - database_write
   sideEffectNote: Inserts a phase state transition record into schema_migrations.
   safeDryRunOption: dry-run
   expectedDurationMs: 5000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Run migraguard group-status <group> to verify current phase state before advancing.
 ```
 
@@ -857,20 +857,20 @@ migraguard apply-phase rename_username_to_handle contract
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: high
   requiresConfirmation: true
   idempotent: false
   reversible: false
   rollbackGuidance: Phase execution is not automatically reversible. Write a compensating migration or restore from backup if rollback is needed.
-  sideEffects: 
+  sideEffects:
     - database_write
   sideEffectNote: Executes a phase SQL file via native CLI and records the result in schema_migrations. Uses advisory lock.
   safeDryRunOption: dry-run
   expectedDurationMs: 30000
-  retryableExitCodes: 
+  retryableExitCodes:
 
-  recommendedBeforeUse: 
+  recommendedBeforeUse:
     - Run migraguard group-status to verify current phase state.
 ```
 
@@ -919,15 +919,15 @@ migraguard gate --contract-file deploy-gates.json
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Evaluates gate conditions against schema_migrations state.
   expectedDurationMs: 5000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -968,15 +968,15 @@ migraguard insights --format json --project-root .
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
   sideEffectNote: Read-only. Emits structured JSON to stdout.
   expectedDurationMs: 5000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 1
 ```
 
@@ -1019,15 +1019,15 @@ migraguard deps --html deps.html
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - file_write
   sideEffectNote: Reads migration files and outputs dependency graph. Writes HTML file only when --html is specified.
   expectedDurationMs: 3000
-  retryableExitCodes: 
+  retryableExitCodes:
 
 ```
 
@@ -1530,17 +1530,17 @@ migraguard audit --adapter gemini --show-prompt
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   dsl_workflow: migration-audit
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
   safeDryRunOption: show-prompt
   expectedDurationMs: 120000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 12
 ```
 
@@ -2287,18 +2287,18 @@ migraguard propose-expand-contract --output-dir ./proposed/ --show-prompt
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   dsl_workflow: expand-contract-proposal
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - network
     - file_write
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write when --output or --output-dir is specified.
   safeDryRunOption: show-prompt
   expectedDurationMs: 120000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 12
 ```
 
@@ -3053,18 +3053,18 @@ migraguard implement --show-prompt "drop old_column"
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   dsl_workflow: migration-implementation
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - network
     - file_write
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write when --output or --output-dir is specified.
   safeDryRunOption: show-prompt
   expectedDurationMs: 120000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 12
 ```
 
@@ -3564,17 +3564,17 @@ migraguard audit-workflow --show-prompt
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   dsl_workflow: workflow-audit
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
   safeDryRunOption: show-prompt
   expectedDurationMs: 120000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 12
 ```
 
@@ -4341,17 +4341,17 @@ migraguard verify --format json | migraguard explain
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   dsl_workflow: command-explanation
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
     - network
   sideEffectNote: Network calls to LLM provider when adapter is not mock. Filesystem write only when --output is specified.
   safeDryRunOption: show-prompt
   expectedDurationMs: 120000
-  retryableExitCodes: 
+  retryableExitCodes:
     - 12
 ```
 
@@ -4388,11 +4388,11 @@ migraguard agents [--format]
 #### Extensions
 
 ```yaml
-x-agent: 
+x-agent:
   riskLevel: low
   requiresConfirmation: false
   idempotent: true
-  sideEffects: 
+  sideEffects:
 
 ```
 

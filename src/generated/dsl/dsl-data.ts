@@ -1489,5 +1489,32 @@ export const resolvedDsl: Record<string, unknown> = {
         }
       ]
     }
+  },
+  "_guardrailRules": {
+    "commandRules": [
+      {
+        "guardrail_id": "no-sql-execution",
+        "pattern": "(^|[|;&]\\s*)(psql|mysql|sqlite3|mysqldump|pg_dump)\\b",
+        "action": "block",
+        "message": "SQL execution and database access commands are forbidden. All migraguard agents operate in read-only analysis mode."
+      }
+    ],
+    "fileRules": [],
+    "contentRules": [
+      {
+        "guardrail_id": "safe-ddl-enforcement",
+        "pattern": "CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(?!CONCURRENTLY)",
+        "action": "warn",
+        "message": "CREATE INDEX must use CONCURRENTLY for safe DDL.",
+        "file_glob": "**/*.sql"
+      },
+      {
+        "guardrail_id": "safe-ddl-enforcement",
+        "pattern": "CREATE\\s+TABLE\\s+(?!IF\\s+NOT\\s+EXISTS)",
+        "action": "warn",
+        "message": "CREATE TABLE must include IF NOT EXISTS for safe DDL.",
+        "file_glob": "**/*.sql"
+      }
+    ]
   }
 } as const;
