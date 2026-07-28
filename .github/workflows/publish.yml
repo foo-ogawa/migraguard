@@ -45,9 +45,6 @@ jobs:
       - name: Install dependencies
         if: steps.need.outputs.publish == 'true'
         run: npm ci --legacy-peer-deps
-      - name: Rebuild native modules
-        if: steps.need.outputs.publish == 'true'
-        run: npm_config_ignore_scripts=false npm rebuild better-sqlite3
       - name: Build
         if: steps.need.outputs.publish == 'true'
         run: npm run build

@@ -39,9 +39,6 @@ jobs:
       - name: Install
         if: steps.tag.outcome == 'failure'
         run: npm ci --legacy-peer-deps --ignore-scripts
-      - name: Rebuild better-sqlite3
-        if: steps.tag.outcome == 'failure'
-        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         if: steps.tag.outcome == 'failure'
         run: npm audit --audit-level=moderate
@@ -51,6 +48,17 @@ jobs:
       - name: Lint
         if: steps.tag.outcome == 'failure'
         run: npm run lint --if-present
+      - name: Verify generated artifacts match the CLI contract
+        if: steps.tag.outcome == 'failure'
+        run: |
+          npm run contract:generate
+          git diff --exit-code -- src/generated docs/cli-reference.md
+      - name: Verify generated artifacts match the agent DSL
+        if: steps.tag.outcome == 'failure'
+        run: npm run dsl:generate -- --check
+      - name: Typecheck
+        if: steps.tag.outcome == 'failure'
+        run: npm run typecheck
       - name: Build
         if: steps.tag.outcome == 'failure'
         run: npm run build

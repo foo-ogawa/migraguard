@@ -19,14 +19,20 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --legacy-peer-deps --ignore-scripts
-      - name: Rebuild better-sqlite3
-        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         run: npm audit --audit-level=moderate
       - name: Verify npm signatures
         run: npm audit signatures
       - name: Lint
         run: npm run lint --if-present
+      - name: Verify generated artifacts match the CLI contract
+        run: |
+          npm run contract:generate
+          git diff --exit-code -- src/generated docs/cli-reference.md
+      - name: Verify generated artifacts match the agent DSL
+        run: npm run dsl:generate -- --check
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build
         run: npm run build
       - name: Docker unit tests (Node 20)
