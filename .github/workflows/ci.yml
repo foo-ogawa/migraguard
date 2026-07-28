@@ -19,8 +19,6 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --legacy-peer-deps --ignore-scripts
-      - name: Rebuild better-sqlite3
-        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         run: npm audit --audit-level=moderate
       - name: Verify npm signatures

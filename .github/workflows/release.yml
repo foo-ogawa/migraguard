@@ -39,9 +39,6 @@ jobs:
       - name: Install
         if: steps.tag.outcome == 'failure'
         run: npm ci --legacy-peer-deps --ignore-scripts
-      - name: Rebuild better-sqlite3
-        if: steps.tag.outcome == 'failure'
-        run: npm rebuild better-sqlite3 --ignore-scripts=false
       - name: Audit
         if: steps.tag.outcome == 'failure'
         run: npm audit --audit-level=moderate
