@@ -33,6 +33,8 @@ jobs:
         run: npm run dsl:generate -- --check
       - name: Typecheck
         run: npm run typecheck
+      - name: Verify contract version matches the package version
+        run: npx cli-contracts version-sync --check
       - name: Build
         run: npm run build
       - name: Docker unit tests (Node 20)
