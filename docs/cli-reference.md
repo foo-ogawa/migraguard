@@ -2,7 +2,7 @@
 
 PostgreSQL-first schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. MySQL and SQLite supported as secondary dialects.
 
-**Version:** 0.16.18
+**Version:** 0.16.19
 
 ## Table of Contents
 
