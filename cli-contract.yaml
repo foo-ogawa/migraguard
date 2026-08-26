@@ -3,7 +3,7 @@ cli_contracts: 0.1.0
 
 info:
   title: migraguard CLI
-  version: 0.16.18
+  version: 0.16.19
   description: >-
     PostgreSQL-first schema-aware deployment control — idempotent SQL migrations
     with CI-enforced integrity checks, expand/contract migration orchestration,
