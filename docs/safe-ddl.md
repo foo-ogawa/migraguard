@@ -56,6 +56,35 @@ ALTER TABLE users ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'active';
 
 **Rule**: `adding-not-nullable-field` — errors on adding a NOT NULL column without a DEFAULT value.
 
+## Value Lists on varchar Columns
+
+`CHECK (status IN ('a', 'b'))` on a `character varying` column is not a fixed point across dump and restore. `varchar` is not `text`, so PostgreSQL casts the left operand, and pg_dump renders the cast around the whole array:
+
+```sql
+CHECK (((status)::text = ANY ((ARRAY['a'::character varying, 'b'::character varying])::text[])))
+```
+
+Replaying that output and dumping again distributes the cast to the elements:
+
+```sql
+CHECK (((status)::text = ANY (ARRAY[('a'::character varying)::text, ('b'::character varying)::text])))
+```
+
+Both forms mean the same thing, but they are textually different — so a database built from a dump never matches a database built from the original DDL. If you seed a CI shadow database from `schema.sql` and compare it against a live database, `diff` reports drift that no migration can ever resolve.
+
+Casting explicitly is stable in both directions:
+
+```sql
+-- Good
+CHECK (status::text = ANY (ARRAY['a', 'b']::text[]))
+```
+
+Only `character varying` is affected. Verified on PostgreSQL 16.11: `text`, `bpchar` (`character(n)`), `integer`, `numeric`, `date`, `timestamp`, `uuid`, `boolean` and enum operands all round-trip unchanged, as do DEFAULT expressions, generated columns and index expressions.
+
+**Rule**: `ban-unstable-list-predicate` — errors on `IN (...)` or `= ANY (...)` against a varchar column in a CHECK constraint, where the column type is declared in the same statement (`CREATE TABLE`, `CREATE DOMAIN`).
+
+The rule deliberately stays silent where the operand type is not visible from a single file — `ALTER TABLE ... ADD CONSTRAINT`, view definitions, partial index predicates — because the suggested rewrite would be wrong for a `date` or `uuid` column. Those positions are subject to the same instability, so if you seed environments from dumps, confirm the whole schema is a fixed point once: dump, restore into an empty database, dump again, and compare. One round trip is enough — the second round trip produces no further change.
+
 ## Adding Constraints
 
 Adding a FOREIGN KEY or CHECK constraint directly causes PostgreSQL to scan the entire table to validate the constraint. The table is write-locked during this scan. Using `NOT VALID` skips the validation and adds the constraint instantly. `VALIDATE CONSTRAINT` can then verify existing rows in a non-blocking manner.

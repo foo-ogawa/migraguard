@@ -4,7 +4,7 @@
 
 **Prevent dangerous schema changes before production deployment.**
 
-migraguard is a Schema Change Safety Platform, not just a migration runner. PostgreSQL-first, schema-aware deployment control with built-in LLM agents. Generates production-safe migration SQL, audits operational risks, enforces the lint → apply → dump workflow, and explains command output — all from the CLI. Deterministic gates (38 AST-based lint rules, checksum tamper detection, schema drift detection, idempotency proof) run alongside LLM-powered semantic analysis, so domain expertise is encapsulated inside the tool rather than scattered across agent prompts.
+migraguard is a Schema Change Safety Platform, not just a migration runner. PostgreSQL-first, schema-aware deployment control with built-in LLM agents. Generates production-safe migration SQL, audits operational risks, enforces the lint → apply → dump workflow, and explains command output — all from the CLI. Deterministic gates (39 AST-based lint rules, checksum tamper detection, schema drift detection, idempotency proof) run alongside LLM-powered semantic analysis, so domain expertise is encapsulated inside the tool rather than scattered across agent prompts.
 
 Designed primarily for PostgreSQL production environments. MySQL and SQLite are supported as secondary dialects with 17 generic lint rules.
 
@@ -109,20 +109,20 @@ AI code assistants and autonomous agents generate schema changes at increasing v
 
 migraguard addresses these systematically:
 
-1. **Deterministic gates catch mechanical errors** — 38 AST-based lint rules reject unsafe patterns before they reach CI, regardless of who (or what) authored the SQL
+1. **Deterministic gates catch mechanical errors** — 39 AST-based lint rules reject unsafe patterns before they reach CI, regardless of who (or what) authored the SQL
 2. **LLM semantic audits catch domain-level risks** — lock contention under concurrent load, backfill safety, deployment ordering, and expand/contract necessity are evaluated contextually
 3. **Structured output consumable by CI and higher-level agents** — all results conform to typed schemas (`AgentAuditResult` / `AgentFinding`), enabling automated decision-making without parsing prose
 4. **Agent-native toolchain design** — domain expertise is encapsulated inside the tool; outer agents invoke commands and consume findings without needing to encode PostgreSQL operational knowledge in their prompts
 
 ## Dialect support
 
-PostgreSQL remains the **primary, full-featured** target: `libpg-query` powers all built-in lint rules (38) and unchanged behavior when `dialect` is `postgresql` (default).
+PostgreSQL remains the **primary, full-featured** target: `libpg-query` powers all built-in lint rules (39) and unchanged behavior when `dialect` is `postgresql` (default).
 
-Setting `dialect` to `mysql` or `sqlite` switches the entire tool chain to the corresponding database engine. Lint coverage is limited to **17 generic rules** (vs 38 for PostgreSQL); PostgreSQL-specific semantics (e.g. CONCURRENTLY, advisory lock timeout rules) are not replicated. This mode is for teams that want migraguard’s file workflow and a subset of safety checks on non-PostgreSQL SQL, not parity with the PG toolchain.
+Setting `dialect` to `mysql` or `sqlite` switches the entire tool chain to the corresponding database engine. Lint coverage is limited to **17 generic rules** (vs 39 for PostgreSQL); PostgreSQL-specific semantics (e.g. CONCURRENTLY, advisory lock timeout rules) are not replicated. This mode is for teams that want migraguard’s file workflow and a subset of safety checks on non-PostgreSQL SQL, not parity with the PG toolchain.
 
 | Concern | `postgresql` (default) | `mysql` | `sqlite` |
 |---------|------------------------|---------|----------|
-| Lint AST | libpg-query (38 rules) | node-sql-parser (17 rules) | node-sql-parser (17 rules) |
+| Lint AST | libpg-query (39 rules) | node-sql-parser (17 rules) | node-sql-parser (17 rules) |
 | `deps` / DAG extraction | ✅ | ✅ | ✅ |
 | `apply` (SQL execution) | `psql` CLI | `mysql` CLI | `sqlite3 -bail` CLI |
 | `dump` / `diff` (schema dump) | `pg_dump --schema-only` | `mysqldump --no-data` | `sqlite3 .schema` |
@@ -469,7 +469,7 @@ jobs:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `dialect` | `"postgresql"` | SQL dialect: `"postgresql"` (libpg-query, 38 rules, `psql`/`pg_dump`), `"mysql"` (node-sql-parser, 17 rules, `mysql`/`mysqldump`), or `"sqlite"` (node-sql-parser, 17 rules, `sqlite3`). Omitted means `"postgresql"` |
+| `dialect` | `"postgresql"` | SQL dialect: `"postgresql"` (libpg-query, 39 rules, `psql`/`pg_dump`), `"mysql"` (node-sql-parser, 17 rules, `mysql`/`mysqldump`), or `"sqlite"` (node-sql-parser, 17 rules, `sqlite3`). Omitted means `"postgresql"` |
 | `model` | _(unset = linear)_ | Set to `"dag"` to enable DAG mode. When set in config, takes precedence over `metadata.json` |
 
 ### Naming Configuration
@@ -683,7 +683,7 @@ migraguard takes a different approach: it encapsulates domain-specific semantic 
 
 ### Deterministic checks first
 
-Anything that can be validated mechanically is validated deterministically: AST-based lint rules (38 for PostgreSQL), checksum-based tamper detection, schema drift comparison, idempotency verification on shadow databases, and expand/contract phase enforcement.
+Anything that can be validated mechanically is validated deterministically: AST-based lint rules (39 for PostgreSQL), checksum-based tamper detection, schema drift comparison, idempotency verification on shadow databases, and expand/contract phase enforcement.
 
 ### Semantic audit and code generation inside the toolchain
 
@@ -784,7 +784,7 @@ No. `verify` creates a temporary shadow DB, applies migrations twice, then drops
 | DB state management (PostgreSQL) | [pg](https://github.com/brianc/node-postgres) |
 | DB state management (MySQL) | [mysql2](https://github.com/sidorares/node-mysql2) (optional peer dep) |
 | DB state management (SQLite) | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (optional peer dep) |
-| SQL lint / parser (PostgreSQL) | [libpg-query](https://github.com/pganalyze/libpg-query) — 38 built-in rules |
+| SQL lint / parser (PostgreSQL) | [libpg-query](https://github.com/pganalyze/libpg-query) — 39 built-in rules |
 | SQL lint / parser (MySQL, SQLite) | [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser) — 17 generic rules |
 | LLM integration | [agent-contracts-runtime](https://www.npmjs.com/package/agent-contracts-runtime) (optional peer dep) |
 | Agent DSL | [agent-contracts](https://www.npmjs.com/package/agent-contracts) — agent/task/workflow definitions |
