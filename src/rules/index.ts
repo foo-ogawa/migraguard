@@ -24,6 +24,7 @@ import { banBareAnalyze } from './ban-bare-analyze.js';
 import { requireIfNotExistsMaterializedView } from './require-if-not-exists-materialized-view.js';
 import { banRefreshMaterializedViewInMigration } from './ban-refresh-materialized-view-in-migration.js';
 import { banSelectStarInView } from './ban-select-star-in-view.js';
+import { banUnstableListPredicate } from './ban-unstable-list-predicate.js';
 import { banRenameColumn } from './ban-rename-column.js';
 import { banRenameTable } from './ban-rename-table.js';
 import { banDropTable } from './ban-drop-table.js';
@@ -65,6 +66,7 @@ export const ALL_RULES: LintRule[] = [
   requireIfNotExistsMaterializedView,
   banRefreshMaterializedViewInMigration,
   banSelectStarInView,
+  banUnstableListPredicate,
   banRenameColumn,
   banRenameTable,
   banDropTable,

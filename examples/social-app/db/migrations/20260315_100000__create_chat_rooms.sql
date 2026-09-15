@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     name        VARCHAR(100) NOT NULL,
     description TEXT,
     room_type   VARCHAR(20)  NOT NULL DEFAULT 'group'
-                             CHECK (room_type IN ('group', 'dm', 'channel')),
+                             CHECK (room_type::text = ANY (ARRAY['group', 'dm', 'channel']::text[])),
     max_members INT          DEFAULT 100,
     created_by  BIGINT       NOT NULL REFERENCES users(id),
     is_archived BOOLEAN      NOT NULL DEFAULT false,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS chat_room_members (
     room_id   BIGINT      NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
     user_id   BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role      VARCHAR(20) NOT NULL DEFAULT 'member'
-                          CHECK (role IN ('owner', 'admin', 'member')),
+                          CHECK (role::text = ANY (ARRAY['owner', 'admin', 'member']::text[])),
     nickname  VARCHAR(50),
     is_muted  BOOLEAN     NOT NULL DEFAULT false,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
