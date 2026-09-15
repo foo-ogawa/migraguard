@@ -1,8 +1,5 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { runCapturing } from './exec.js';
 import type { MigraguardConfig } from './config.js';
-
-const execFileAsync = promisify(execFile);
 
 export interface PsqlResult {
   success: boolean;
@@ -25,10 +22,10 @@ function buildPsqlEnv(config: MigraguardConfig): Record<string, string> {
 export async function executePsqlFile(config: MigraguardConfig, filePath: string): Promise<PsqlResult> {
   const env = buildPsqlEnv(config);
   try {
-    const { stdout, stderr } = await execFileAsync(
+    const { stdout, stderr } = await runCapturing(
       'psql',
       ['-v', 'ON_ERROR_STOP=1', '-f', filePath],
-      { env },
+      env,
     );
     return { success: true, stdout, stderr };
   } catch (err: unknown) {
@@ -43,7 +40,7 @@ export async function executePsqlFile(config: MigraguardConfig, filePath: string
 
 export async function isPsqlAvailable(): Promise<boolean> {
   try {
-    await execFileAsync('psql', ['--version']);
+    await runCapturing('psql', ['--version']);
     return true;
   } catch {
     return false;

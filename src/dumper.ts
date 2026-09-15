@@ -1,8 +1,5 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { runCapturing } from './exec.js';
 import type { MigraguardConfig } from './config.js';
-
-const execFileAsync = promisify(execFile);
 
 function buildPgDumpEnv(config: MigraguardConfig): Record<string, string> {
   const env: Record<string, string> = { ...(process.env as Record<string, string>) };
@@ -38,11 +35,11 @@ async function dumpPgSchema(config: MigraguardConfig): Promise<string> {
 
   if (pgDumpCmd && pgDumpCmd.length > 0) {
     const [cmd, ...baseArgs] = pgDumpCmd;
-    const { stdout: out } = await execFileAsync(cmd, [...baseArgs, ...dumpArgs]);
+    const { stdout: out } = await runCapturing(cmd, [...baseArgs, ...dumpArgs]);
     stdout = out;
   } else {
     const env = buildPgDumpEnv(config);
-    const { stdout: out } = await execFileAsync('pg_dump', dumpArgs, { env });
+    const { stdout: out } = await runCapturing('pg_dump', dumpArgs, env);
     stdout = out;
   }
 
@@ -66,7 +63,7 @@ async function dumpMysqlSchema(config: MigraguardConfig): Promise<string> {
     env['MYSQL_PWD'] = config.connection.password;
   }
 
-  const { stdout } = await execFileAsync('mysqldump', args, { env });
+  const { stdout } = await runCapturing('mysqldump', args, env);
 
   if (config.dump.normalize) {
     return normalizeMysqlSchema(stdout);
@@ -75,7 +72,7 @@ async function dumpMysqlSchema(config: MigraguardConfig): Promise<string> {
 }
 
 async function dumpSqliteSchema(config: MigraguardConfig): Promise<string> {
-  const { stdout } = await execFileAsync('sqlite3', [
+  const { stdout } = await runCapturing('sqlite3', [
     config.connection.database,
     '.schema',
   ]);

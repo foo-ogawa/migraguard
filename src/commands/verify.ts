@@ -1,6 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { writeFile, unlink, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,11 +7,11 @@ import chalk from 'chalk';
 import type { MigraguardConfig, ConnectionConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { executeSqlFile, spawnWithStdin } from '../executor.js';
+import { runCapturing } from '../exec.js';
 import { dumpSchema } from '../dumper.js';
 import { createDb, safeGetAllRecords } from '../db.js';
 
 const { Client } = pg;
-const execFileAsync = promisify(execFile);
 
 export interface VerifyOptions {
   all?: boolean;
@@ -79,11 +77,11 @@ async function dumpPgSourceToShadow(config: MigraguardConfig, shadowName: string
   let dumpOutput: string;
   if (pgDumpCmd && pgDumpCmd.length > 0) {
     const [cmd, ...baseArgs] = pgDumpCmd;
-    const { stdout } = await execFileAsync(cmd, [...baseArgs, '--no-owner', '--no-privileges']);
+    const { stdout } = await runCapturing(cmd, [...baseArgs, '--no-owner', '--no-privileges']);
     dumpOutput = stdout;
   } else {
     env['PGDATABASE'] = conn.database;
-    const { stdout } = await execFileAsync('pg_dump', ['--no-owner', '--no-privileges'], { env });
+    const { stdout } = await runCapturing('pg_dump', ['--no-owner', '--no-privileges'], env);
     dumpOutput = stdout;
   }
 
@@ -92,10 +90,7 @@ async function dumpPgSourceToShadow(config: MigraguardConfig, shadowName: string
   try {
     const restoreEnv = buildPgEnv(conn);
     restoreEnv['PGDATABASE'] = shadowName;
-    await execFileAsync('psql', ['-v', 'ON_ERROR_STOP=1', '-f', tmpFile], {
-      env: restoreEnv,
-      maxBuffer: 50 * 1024 * 1024,
-    });
+    await runCapturing('psql', ['-v', 'ON_ERROR_STOP=1', '-f', tmpFile], restoreEnv);
   } finally {
     await unlink(tmpFile).catch(() => {});
   }
@@ -134,10 +129,10 @@ async function dumpMysqlSourceToShadow(config: MigraguardConfig, shadowName: str
   const env: Record<string, string> = { ...(process.env as Record<string, string>) };
   if (conn.password) env['MYSQL_PWD'] = conn.password;
 
-  const { stdout: dumpOutput } = await execFileAsync('mysqldump', [
+  const { stdout: dumpOutput } = await runCapturing('mysqldump', [
     `--host=${conn.host}`, `--port=${conn.port}`, `--user=${conn.user}`,
     conn.database,
-  ], { env });
+  ], env);
 
   const restoreArgs = [
     `--host=${conn.host}`, `--port=${conn.port}`, `--user=${conn.user}`,
