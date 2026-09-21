@@ -29,7 +29,7 @@ Information extracted from SQL statements:
 | `ALTER TABLE ADD CONSTRAINT` | constraint | table, columns, referenced tables |
 | `CREATE INDEX` | index | table, columns |
 | `CREATE VIEW` | view | referenced tables |
-| `CREATE FUNCTION` | function | none (the body is not analyzed) |
+| `CREATE FUNCTION` / `CREATE PROCEDURE` | function | tables read by a `LANGUAGE sql` body, including `BEGIN ATOMIC` |
 | `DO $$ ... $$` | objects its body creates | objects its body references |
 | `CREATE SCHEMA` | schema | authorization role |
 | `CREATE ROLE` / `CREATE USER` | role | roles named by `IN ROLE` / `ROLE` / `ADMIN` |
@@ -51,7 +51,8 @@ name therefore never produce an edge.
 |------|----------------|------------|
 | `CREATE TABLE` / `ALTER TABLE` / `CREATE INDEX` / `CREATE VIEW` | ✅ extractable | — |
 | DDL inside `DO $$ ... $$` blocks | ✅ extractable | The body is parsed as PL/pgSQL and its statements are analyzed like top-level SQL, including statements nested in `IF` and `LOOP` |
-| Table references inside `CREATE FUNCTION` body | ❌ undetectable | The body is not analyzed. Explicit declaration required |
+| Table references inside a `LANGUAGE sql` body | ✅ extractable | PostgreSQL resolves those names when the function is created, so they are dependencies |
+| Table references inside a `LANGUAGE plpgsql` body | ➖ not a dependency | PostgreSQL does not resolve them until the function runs, so nothing constrains the order |
 | Dynamic SQL (`EXECUTE`, variable expansion) | ❌ undetectable, reported | The statement text exists only at run time. `deps` lists the files whose `DO` block builds SQL that way. Explicit declaration required |
 | Implicit schema references via `search_path` | ❌ undetectable | Explicit declaration required |
 | Business-logic ordering dependencies (data dependencies) | ❌ out of scope | Explicit declaration required |
