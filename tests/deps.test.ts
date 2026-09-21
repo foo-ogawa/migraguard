@@ -115,6 +115,68 @@ describe('deps — analyzeSql', () => {
     expect(creates).toEqual([{ type: 'function', name: 'my_func' }]);
   });
 
+  it('extracts tables read by a LANGUAGE sql body', async () => {
+    const sql = 'CREATE FUNCTION f() RETURNS int AS $$ SELECT count(*) FROM parent $$ LANGUAGE sql;';
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'function', name: 'f' }]);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('reads a LANGUAGE sql body written before the AS clause', async () => {
+    const sql = 'CREATE OR REPLACE FUNCTION f() RETURNS int LANGUAGE SQL AS $$ SELECT count(*) FROM parent $$;';
+    const { references } = await analyzeSql(sql);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+  });
+
+  it('reads a BEGIN ATOMIC body', async () => {
+    const sql = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT a + (SELECT count(*) FROM parent); END;';
+    const { creates, references } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'function', name: 'f' }]);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+  });
+
+  it('reads a LANGUAGE sql procedure body', async () => {
+    const sql = 'CREATE PROCEDURE p() LANGUAGE sql AS $$ INSERT INTO audit.logs VALUES (1) $$;';
+    const { references } = await analyzeSql(sql);
+    expect(references).toEqual([{ type: 'table', name: 'audit.logs' }]);
+  });
+
+  it('reads every statement of a multi-statement LANGUAGE sql body', async () => {
+    const sql = "CREATE FUNCTION f() RETURNS int AS $$ INSERT INTO audit_log VALUES (1); SELECT count(*) FROM parent $$ LANGUAGE sql;";
+    const { references } = await analyzeSql(sql);
+    expect(references.map((r) => r.name).sort()).toEqual(['audit_log', 'parent']);
+  });
+
+  it('leaves a PL/pgSQL body alone, which PostgreSQL does not resolve until it runs', async () => {
+    const sql = 'CREATE FUNCTION g() RETURNS void AS $$ BEGIN INSERT INTO parent VALUES (1); END $$ LANGUAGE plpgsql;';
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'function', name: 'g' }]);
+    expect(references).toEqual([]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('does not reference a table the same file creates from a LANGUAGE sql body', async () => {
+    const sql = `
+      CREATE TABLE parent (id INT);
+      CREATE FUNCTION f() RETURNS int AS $$ SELECT count(*) FROM parent $$ LANGUAGE sql;
+    `;
+    const { creates, references } = await analyzeSql(sql);
+    expect(creates).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'function', name: 'f' },
+    ]);
+    expect(references).toEqual([]);
+  });
+
+  it('counts a LANGUAGE sql body it cannot parse as unanalyzed', async () => {
+    const sql = 'CREATE FUNCTION f() RETURNS int AS $$ NOT SQL AT ALL !!! $$ LANGUAGE sql;';
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'function', name: 'f' }]);
+    expect(references).toEqual([]);
+    expect(unanalyzedBlocks).toBe(1);
+  });
+
   it('extracts schema creation and its authorization role', async () => {
     const { creates, references } = await analyzeSql('CREATE SCHEMA app AUTHORIZATION owner_role;');
     expect(creates).toEqual([{ type: 'schema', name: 'app' }]);

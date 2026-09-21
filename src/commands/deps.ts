@@ -193,8 +193,8 @@ function printUnanalyzedBlocks(graph: DependencyGraph): void {
 
   console.log('');
   console.log(chalk.yellow(
-    `⚠ ${files.length} file(s) hold SQL the analyzer cannot read inside a DO $$ ... $$ block ` +
-    '— dynamic EXECUTE, or a body PL/pgSQL rejects:',
+    `⚠ ${files.length} file(s) hold SQL the analyzer cannot read — dynamic EXECUTE ` +
+    'inside a DO $$ ... $$ block, or a body the parser rejects:',
   ));
   for (const f of files) {
     console.log(chalk.yellow(`  ${f}`));

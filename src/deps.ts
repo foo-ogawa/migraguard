@@ -113,7 +113,7 @@ export async function analyzeSql(
     } else if ('DropStmt' in s) {
       extractDropStmt(s.DropStmt, references);
     } else if ('CreateFunctionStmt' in s) {
-      extractCreateFunctionStmt(s.CreateFunctionStmt, creates);
+      unanalyzedBlocks += await extractCreateFunctionStmt(s.CreateFunctionStmt, creates, references);
     } else if ('CreateSchemaStmt' in s) {
       extractCreateSchemaStmt(s.CreateSchemaStmt, creates, references);
     } else if ('GrantStmt' in s) {
@@ -269,6 +269,14 @@ function extractViewStmt(
   }
 }
 
+/**
+ * Fields holding a RangeVar directly rather than wrapped in a `RangeVar` node.
+ * The parse tree wraps a node only where the C struct declares a generic
+ * `Node *`; a typed `RangeVar *` field is serialized bare, which is how INSERT,
+ * UPDATE and DELETE carry their target table.
+ */
+const BARE_RANGE_VAR_FIELDS = new Set(['relation', 'rel']);
+
 function collectRangeVarsFromNode(
   node: unknown,
   references: ObjectRef[],
@@ -277,16 +285,14 @@ function collectRangeVarsFromNode(
 
   const obj = node as Record<string, unknown>;
   if ('RangeVar' in obj) {
-    const rv = obj.RangeVar as { relname?: string; schemaname?: string };
-    if (rv?.relname) {
-      references.push({
-        type: 'table',
-        name: normalizeTableName(rv.relname, rv.schemaname),
-      });
-    }
+    pushRangeVar(obj.RangeVar, references);
   }
 
-  for (const value of Object.values(obj)) {
+  for (const [key, value] of Object.entries(obj)) {
+    if (BARE_RANGE_VAR_FIELDS.has(key)) {
+      pushRangeVar(value, references);
+    }
+
     if (Array.isArray(value)) {
       for (const item of value) {
         collectRangeVarsFromNode(item, references);
@@ -295,6 +301,16 @@ function collectRangeVarsFromNode(
       collectRangeVarsFromNode(value, references);
     }
   }
+}
+
+function pushRangeVar(node: unknown, references: ObjectRef[]): void {
+  const rv = node as { relname?: string; schemaname?: string } | undefined;
+  if (!rv?.relname) return;
+
+  references.push({
+    type: 'table',
+    name: normalizeTableName(rv.relname, rv.schemaname),
+  });
 }
 
 function extractDropStmt(
@@ -341,14 +357,62 @@ function qualifiedName(
     : names[names.length - 1];
 }
 
-function extractCreateFunctionStmt(
+/**
+ * PostgreSQL resolves the names in a `LANGUAGE sql` body when the function is
+ * created, so what that body reads is a dependency of the file — the same rule
+ * that makes a view depend on the tables it selects from. Bodies in other
+ * languages, PL/pgSQL above all, are not resolved until the function runs and
+ * name nothing the file depends on.
+ *
+ * Returns the number of bodies that stayed unreadable.
+ */
+async function extractCreateFunctionStmt(
   node: Record<string, unknown>,
   creates: ObjectRef[],
-): void {
+  references: ObjectRef[],
+): Promise<number> {
   const name = qualifiedName(node.funcname as Array<Record<string, unknown>> | undefined);
   if (name) {
     creates.push({ type: 'function', name });
   }
+
+  // A BEGIN ATOMIC body is parsed along with the statement itself.
+  if (node.sql_body) {
+    collectRangeVarsFromNode(node.sql_body, references);
+    return 0;
+  }
+
+  if (functionOption(node, 'language') !== 'sql') return 0;
+
+  const body = functionOption(node, 'as');
+  if (body === undefined) return 0;
+
+  const stmts = await parseStatements(body);
+  if (!stmts) return 1;
+
+  for (const entry of stmts) {
+    collectRangeVarsFromNode(entry.stmt, references);
+  }
+  return 0;
+}
+
+/** Reads a `CREATE FUNCTION` option whose argument is a single string. */
+function functionOption(
+  node: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const options = node.options as Array<Record<string, unknown>> | undefined;
+  for (const opt of options ?? []) {
+    const def = opt.DefElem as { defname?: string; arg?: Record<string, unknown> } | undefined;
+    if (def?.defname !== name) continue;
+
+    const direct = (def.arg?.String as { sval?: string } | undefined)?.sval;
+    if (direct !== undefined) return direct;
+
+    const items = (def.arg?.List as { items?: Array<Record<string, unknown>> } | undefined)?.items;
+    return (items?.[0]?.String as { sval?: string } | undefined)?.sval;
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
