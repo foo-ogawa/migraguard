@@ -169,12 +169,13 @@ describe('deps — analyzeSql', () => {
     expect(references).toEqual([]);
   });
 
-  it('counts a LANGUAGE sql body it cannot parse as unanalyzed', async () => {
+  it('reports a LANGUAGE sql body it cannot parse', async () => {
     const sql = 'CREATE FUNCTION f() RETURNS int AS $$ NOT SQL AT ALL !!! $$ LANGUAGE sql;';
-    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    const { creates, references, unanalyzedBlocks, parseFailures } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'function', name: 'f' }]);
     expect(references).toEqual([]);
-    expect(unanalyzedBlocks).toBe(1);
+    expect(unanalyzedBlocks).toBe(0);
+    expect(parseFailures).toEqual(['function f: LANGUAGE sql body does not parse']);
   });
 
   it('extracts schema creation and its authorization role', async () => {
@@ -405,6 +406,59 @@ describe('deps — analyzeSql DO blocks', () => {
     const { references, unanalyzedBlocks } = await analyzeSql(sql);
     expect(references).toEqual([{ type: 'table', name: 'parent' }]);
     expect(unanalyzedBlocks).toBe(2);
+  });
+
+  it('reports a DO body the parser rejects instead of calling it unanalyzable', async () => {
+    const { references, unanalyzedBlocks, parseFailures } = await analyzeSql('DO $$ THIS IS NOT PLPGSQL $$;');
+    expect(references).toEqual([]);
+    expect(unanalyzedBlocks).toBe(0);
+    expect(parseFailures).toHaveLength(1);
+    expect(parseFailures[0]).toMatch(/^DO block: /);
+  });
+});
+
+// The parser reports offsets in bytes; a JavaScript string is indexed in UTF-16
+// code units. Anything multi-byte earlier in the file pushes the two apart.
+describe('deps — analyzeSql with multi-byte characters', () => {
+  const doBlock = 'DO $$\nBEGIN\n  GRANT SELECT ON parent TO reporting_role;\nEND\n$$;';
+  const expected = [
+    { type: 'table', name: 'parent' },
+    { type: 'role', name: 'reporting_role' },
+  ];
+
+  it('reads a DO block preceded by a multi-byte comment', async () => {
+    const { references, unanalyzedBlocks, parseFailures } = await analyzeSql(`-- コメント\n${doBlock}`);
+    expect(references).toEqual(expected);
+    expect(unanalyzedBlocks).toBe(0);
+    expect(parseFailures).toEqual([]);
+  });
+
+  it('reads a DO block preceded by a multi-byte statement', async () => {
+    const sql = `CREATE TABLE t (id INT);\nCOMMENT ON TABLE t IS '日本語の説明';\n${doBlock}`;
+    const { references, parseFailures } = await analyzeSql(sql);
+    expect(references).toEqual(expected);
+    expect(parseFailures).toEqual([]);
+  });
+
+  it('reads the second of two DO blocks separated by multi-byte text', async () => {
+    const sql = `${doBlock}\n-- 途中のコメント\nDO $$ BEGIN CREATE INDEX idx ON other (id); END $$;`;
+    const { references, parseFailures } = await analyzeSql(sql);
+    expect(references).toEqual([...expected, { type: 'table', name: 'other' }]);
+    expect(parseFailures).toEqual([]);
+  });
+
+  it('reads a trailing DO block with no closing semicolon', async () => {
+    const sql = '-- コメント\nDO $$ BEGIN CREATE INDEX idx ON parent (id); END $$';
+    const { references, parseFailures } = await analyzeSql(sql);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+    expect(parseFailures).toEqual([]);
+  });
+
+  it('reads a DO block holding multi-byte text of its own', async () => {
+    const sql = `-- コメント\nDO $$\nBEGIN\n  -- 内側のコメント\n  COMMENT ON TABLE parent IS '親テーブル';\nEND\n$$;`;
+    const { references, parseFailures } = await analyzeSql(sql);
+    expect(parseFailures).toEqual([]);
+    expect(references).toEqual([]);
   });
 });
 

@@ -29,21 +29,34 @@ export async function parseStatements(sql: string): Promise<RawStatementEntry[] 
   }
 }
 
-/** Reads the source text of one statement back out of the parsed SQL. */
+/**
+ * Reads the source text of one statement back out of the parsed SQL. The
+ * parser counts offsets in bytes, while a JavaScript string is indexed in
+ * UTF-16 code units, so the two drift apart after any multi-byte character
+ * and the text has to be cut out of the encoded form.
+ */
 export function statementText(sql: string, entry: RawStatementEntry): string {
-  return entry.length === undefined
-    ? sql.slice(entry.location)
-    : sql.slice(entry.location, entry.location + entry.length);
+  const bytes = Buffer.from(sql, 'utf8');
+  const end = entry.length === undefined
+    ? bytes.length
+    : entry.location + entry.length;
+  return bytes.subarray(entry.location, end).toString('utf8');
 }
+
+export type PlPgSqlParse =
+  | { ok: true; tree: unknown }
+  | { ok: false; reason: string };
 
 /**
  * Parses a PL/pgSQL carrying statement (`DO`, `CREATE FUNCTION`) into its
- * PL/pgSQL tree. Returns null when the body does not parse.
+ * PL/pgSQL tree. A rejected body is reported with the reason the parser gave:
+ * it means the migration is broken or the analyzer cut the statement out
+ * wrongly, and neither may pass as "this file has no dependencies".
  */
-export async function parsePlPgSql(statement: string): Promise<unknown | null> {
+export async function parsePlPgSql(statement: string): Promise<PlPgSqlParse> {
   try {
-    return await libpg.parsePlPgSQL(statement);
-  } catch {
-    return null;
+    return { ok: true, tree: await libpg.parsePlPgSQL(statement) };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
   }
 }
