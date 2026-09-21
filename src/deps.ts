@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import libpg from 'libpg-query';
+import { parsePlPgSql, parseStatements, statementText } from './sql-ast.js';
+import type { RawStatementEntry } from './sql-ast.js';
 import type { MigraguardConfig } from './config.js';
 import { scanMigrations } from './scanner.js';
 import type { MigrationFile } from './scanner.js';
@@ -12,14 +13,51 @@ import type { GenericDialect } from './generic/engine.js';
 // ---------------------------------------------------------------------------
 
 export interface ObjectRef {
-  type: 'table' | 'view' | 'sequence' | 'function' | 'index' | 'type';
+  type:
+    | 'table'
+    | 'view'
+    | 'sequence'
+    | 'function'
+    | 'index'
+    | 'type'
+    | 'role'
+    | 'schema'
+    | 'database';
   name: string;
+}
+
+/**
+ * PostgreSQL resolves names per namespace: every relation (table, view,
+ * sequence, index) lives in pg_class, while functions, types, schemas,
+ * databases and roles each have their own. Objects are matched across files
+ * by namespace and name, so a role never binds to a table of the same name.
+ */
+const OBJECT_NAMESPACES: Record<ObjectRef['type'], string> = {
+  table: 'relation',
+  view: 'relation',
+  sequence: 'relation',
+  index: 'relation',
+  function: 'function',
+  type: 'type',
+  role: 'role',
+  schema: 'schema',
+  database: 'database',
+};
+
+export function objectKey(ref: ObjectRef): string {
+  return `${OBJECT_NAMESPACES[ref.type]}:${ref.name}`;
 }
 
 export interface FileDeps {
   fileName: string;
   creates: ObjectRef[];
   references: ObjectRef[];
+  /**
+   * Statements the analyzer cannot read through: a `DO $$ ... $$` body the
+   * PL/pgSQL parser rejects, or a dynamic `EXECUTE` inside one, whose SQL
+   * exists only at run time.
+   */
+  unanalyzedBlocks: number;
 }
 
 export interface DependencyEdge {
@@ -50,23 +88,22 @@ function normalizeTableName(name: string | undefined, schema: string | undefined
   return name;
 }
 
-export async function analyzeSql(sql: string): Promise<{ creates: ObjectRef[]; references: ObjectRef[] }> {
+export async function analyzeSql(
+  sql: string,
+): Promise<{ creates: ObjectRef[]; references: ObjectRef[]; unanalyzedBlocks: number }> {
   const creates: ObjectRef[] = [];
   const references: ObjectRef[] = [];
-  const createdTableNames = new Set<string>();
+  let unanalyzedBlocks = 0;
 
-  let stmts;
-  try {
-    const ast = await libpg.parse(sql);
-    stmts = ast.stmts;
-  } catch {
-    return { creates, references };
+  const stmts = await parseStatements(sql);
+  if (!stmts) {
+    return { creates, references, unanalyzedBlocks };
   }
 
-  for (const { stmt } of stmts) {
-    const s = stmt as Record<string, Record<string, unknown>>;
+  for (const entry of stmts) {
+    const s = entry.stmt;
     if ('CreateStmt' in s) {
-      extractCreateStmt(s.CreateStmt, creates, references, createdTableNames);
+      extractCreateStmt(s.CreateStmt, creates, references);
     } else if ('IndexStmt' in s) {
       extractIndexStmt(s.IndexStmt, references);
     } else if ('AlterTableStmt' in s) {
@@ -77,28 +114,47 @@ export async function analyzeSql(sql: string): Promise<{ creates: ObjectRef[]; r
       extractDropStmt(s.DropStmt, references);
     } else if ('CreateFunctionStmt' in s) {
       extractCreateFunctionStmt(s.CreateFunctionStmt, creates);
+    } else if ('CreateSchemaStmt' in s) {
+      extractCreateSchemaStmt(s.CreateSchemaStmt, creates, references);
+    } else if ('GrantStmt' in s) {
+      extractGrantStmt(s.GrantStmt, references);
+    } else if ('GrantRoleStmt' in s) {
+      extractGrantRoleStmt(s.GrantRoleStmt, references);
+    } else if ('AlterDefaultPrivilegesStmt' in s) {
+      extractAlterDefaultPrivilegesStmt(s.AlterDefaultPrivilegesStmt, references);
+    } else if ('CreateRoleStmt' in s) {
+      extractCreateRoleStmt(s.CreateRoleStmt, creates, references);
+    } else if ('AlterRoleStmt' in s) {
+      pushRoleRef(s.AlterRoleStmt.role, references);
+      extractRoleMemberOptions(s.AlterRoleStmt.options, references);
+    } else if ('AlterRoleSetStmt' in s) {
+      pushRoleRef(s.AlterRoleSetStmt.role, references);
+    } else if ('DropRoleStmt' in s) {
+      pushRoleRefs(s.DropRoleStmt.roles, references);
+    } else if ('AlterOwnerStmt' in s) {
+      pushRoleRef(s.AlterOwnerStmt.newowner, references);
+    } else if ('DoStmt' in s) {
+      unanalyzedBlocks += await extractDoStmt(sql, entry, creates, references);
     }
   }
 
+  const createdKeys = new Set(creates.map(objectKey));
   const filteredRefs = references.filter(
-    (ref) => !createdTableNames.has(ref.name),
+    (ref) => !createdKeys.has(objectKey(ref)),
   );
 
-  return { creates, references: filteredRefs };
+  return { creates, references: filteredRefs, unanalyzedBlocks };
 }
 
 function extractCreateStmt(
   node: Record<string, unknown>,
   creates: ObjectRef[],
   references: ObjectRef[],
-  createdTableNames: Set<string>,
 ): void {
   const rel = node.relation as { relname?: string; schemaname?: string } | undefined;
   if (!rel?.relname) return;
 
-  const tableName = normalizeTableName(rel.relname, rel.schemaname);
-  creates.push({ type: 'table', name: tableName });
-  createdTableNames.add(tableName);
+  creates.push({ type: 'table', name: normalizeTableName(rel.relname, rel.schemaname) });
 
   const tableElts = node.tableElts as Array<Record<string, unknown>> | undefined;
   if (!tableElts) return;
@@ -174,6 +230,10 @@ function extractAlterTableStmt(
   for (const cmd of cmds) {
     const alterCmd = cmd.AlterTableCmd as Record<string, unknown> | undefined;
     if (!alterCmd) continue;
+
+    if (alterCmd.newowner) {
+      pushRoleRef(alterCmd.newowner, references);
+    }
 
     const def = alterCmd.def as Record<string, unknown> | undefined;
     if (!def) continue;
@@ -255,44 +315,282 @@ function extractDropStmt(
 
   for (const obj of objects) {
     const list = obj.List as { items?: Array<Record<string, unknown>> } | undefined;
-    if (list?.items) {
-      const names = list.items
-        .map((item) => {
-          const s = item.String as { sval?: string } | undefined;
-          return s?.sval;
-        })
-        .filter((n): n is string => !!n);
-
-      if (names.length > 0) {
-        const name = names.length > 1 && names[0] !== 'public'
-          ? names.join('.')
-          : names[names.length - 1];
-        references.push({ type: objType, name });
-      }
+    const name = qualifiedName(list?.items);
+    if (name) {
+      references.push({ type: objType, name });
     }
   }
 }
 
-function extractCreateFunctionStmt(
-  node: Record<string, unknown>,
-  creates: ObjectRef[],
-): void {
-  const funcname = node.funcname as Array<Record<string, unknown>> | undefined;
-  if (!funcname) return;
+/** Reads a dotted object name from a list of String nodes. */
+function qualifiedName(
+  items: Array<Record<string, unknown>> | undefined,
+): string | undefined {
+  if (!items) return undefined;
 
-  const names = funcname
+  const names = items
     .map((item) => {
       const s = item.String as { sval?: string } | undefined;
       return s?.sval;
     })
     .filter((n): n is string => !!n);
 
-  if (names.length > 0) {
-    const name = names.length > 1 && names[0] !== 'public'
-      ? names.join('.')
-      : names[names.length - 1];
+  if (names.length === 0) return undefined;
+  return names.length > 1 && names[0] !== 'public'
+    ? names.join('.')
+    : names[names.length - 1];
+}
+
+function extractCreateFunctionStmt(
+  node: Record<string, unknown>,
+  creates: ObjectRef[],
+): void {
+  const name = qualifiedName(node.funcname as Array<Record<string, unknown>> | undefined);
+  if (name) {
     creates.push({ type: 'function', name });
   }
+}
+
+// ---------------------------------------------------------------------------
+// DO blocks
+// ---------------------------------------------------------------------------
+
+/**
+ * A `DO` body is PL/pgSQL, not SQL, so the SQL parser hands it over as a
+ * string literal. The PL/pgSQL parser reads it and gives back the statements
+ * it holds, which are analyzed exactly like top-level SQL — a `DO` block runs
+ * at the same moment as the statements around it, so what it touches is a
+ * dependency of the file.
+ *
+ * Returns the number of statements that stayed unreadable.
+ */
+async function extractDoStmt(
+  sql: string,
+  entry: RawStatementEntry,
+  creates: ObjectRef[],
+  references: ObjectRef[],
+): Promise<number> {
+  const parsed = await parsePlPgSql(statementText(sql, entry));
+  if (parsed === null) {
+    return 1;
+  }
+
+  const body: PlPgSqlBody = { statements: [], dynamic: 0 };
+  collectPlPgSqlStatements(parsed, body);
+
+  let unanalyzed = body.dynamic;
+  for (const inner of body.statements) {
+    const analysis = await analyzeSql(inner);
+    creates.push(...analysis.creates);
+    references.push(...analysis.references);
+    unanalyzed += analysis.unanalyzedBlocks;
+  }
+
+  return unanalyzed;
+}
+
+interface PlPgSqlBody {
+  statements: string[];
+  dynamic: number;
+}
+
+/**
+ * PL/pgSQL carries the SQL it runs as text. `EXECUTE` is the exception: its
+ * statement is built at run time, so it stays unreadable.
+ */
+function collectPlPgSqlStatements(node: unknown, out: PlPgSqlBody): void {
+  if (node === null || node === undefined || typeof node !== 'object') return;
+
+  const obj = node as Record<string, unknown>;
+
+  if ('PLpgSQL_stmt_dynexecute' in obj) {
+    out.dynamic++;
+    return;
+  }
+
+  const expr = obj.PLpgSQL_expr as { query?: string } | undefined;
+  if (expr?.query) {
+    out.statements.push(expr.query);
+  }
+
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) {
+      for (const item of value) collectPlPgSqlStatements(item, out);
+    } else if (typeof value === 'object' && value !== null) {
+      collectPlPgSqlStatements(value, out);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schemas, privileges and roles
+// ---------------------------------------------------------------------------
+
+function extractCreateSchemaStmt(
+  node: Record<string, unknown>,
+  creates: ObjectRef[],
+  references: ObjectRef[],
+): void {
+  const name = node.schemaname as string | undefined;
+  if (name) {
+    creates.push({ type: 'schema', name });
+  }
+  pushRoleRef(node.authrole, references);
+}
+
+/** Object kinds a GRANT/REVOKE target maps to in the dependency graph. */
+const GRANT_OBJECT_TYPES: Record<string, ObjectRef['type']> = {
+  OBJECT_TABLE: 'table',
+  OBJECT_SEQUENCE: 'sequence',
+  OBJECT_FUNCTION: 'function',
+  OBJECT_PROCEDURE: 'function',
+  OBJECT_ROUTINE: 'function',
+  OBJECT_TYPE: 'type',
+  OBJECT_DOMAIN: 'type',
+  OBJECT_SCHEMA: 'schema',
+  OBJECT_DATABASE: 'database',
+};
+
+/**
+ * GRANT and REVOKE share this node (`is_grant` tells them apart); both need
+ * the target object and the grantee role to exist already, so both sides are
+ * references.
+ */
+function extractGrantStmt(
+  node: Record<string, unknown>,
+  references: ObjectRef[],
+): void {
+  const objects = node.objects as Array<Record<string, unknown>> | undefined;
+  const objType = GRANT_OBJECT_TYPES[node.objtype as string];
+
+  if (objects && objType) {
+    const allInSchema = node.targtype === 'ACL_TARGET_ALL_IN_SCHEMA';
+    for (const obj of objects) {
+      if (allInSchema) {
+        // GRANT ... ON ALL TABLES IN SCHEMA app: the object list holds schemas.
+        pushSchemaRef(obj, references);
+      } else {
+        pushGrantObjectRef(obj, objType, references);
+      }
+    }
+  }
+
+  pushRoleRefs(node.grantees, references);
+}
+
+function pushGrantObjectRef(
+  obj: Record<string, unknown>,
+  objType: ObjectRef['type'],
+  references: ObjectRef[],
+): void {
+  const rel = obj.RangeVar as { relname?: string; schemaname?: string } | undefined;
+  if (rel?.relname) {
+    references.push({ type: objType, name: normalizeTableName(rel.relname, rel.schemaname) });
+    return;
+  }
+
+  const withArgs = obj.ObjectWithArgs as { objname?: Array<Record<string, unknown>> } | undefined;
+  const list = obj.List as { items?: Array<Record<string, unknown>> } | undefined;
+  const name = qualifiedName(withArgs?.objname ?? list?.items)
+    ?? (obj.String as { sval?: string } | undefined)?.sval;
+  if (name) {
+    references.push({ type: objType, name });
+  }
+}
+
+function pushSchemaRef(obj: Record<string, unknown>, references: ObjectRef[]): void {
+  const name = (obj.String as { sval?: string } | undefined)?.sval;
+  if (name) {
+    references.push({ type: 'schema', name });
+  }
+}
+
+function extractAlterDefaultPrivilegesStmt(
+  node: Record<string, unknown>,
+  references: ObjectRef[],
+): void {
+  const options = node.options as Array<Record<string, unknown>> | undefined;
+  for (const opt of options ?? []) {
+    const def = opt.DefElem as { defname?: string; arg?: Record<string, unknown> } | undefined;
+    const items = (def?.arg?.List as { items?: Array<Record<string, unknown>> } | undefined)?.items;
+    if (!items) continue;
+
+    if (def?.defname === 'schemas') {
+      for (const item of items) pushSchemaRef(item, references);
+    } else if (def?.defname === 'roles') {
+      pushRoleRefs(items, references);
+    }
+  }
+
+  const action = node.action as Record<string, unknown> | undefined;
+  if (action) {
+    extractGrantStmt(action, references);
+  }
+}
+
+function extractCreateRoleStmt(
+  node: Record<string, unknown>,
+  creates: ObjectRef[],
+  references: ObjectRef[],
+): void {
+  const role = node.role as string | undefined;
+  if (role) {
+    creates.push({ type: 'role', name: role });
+  }
+  extractRoleMemberOptions(node.options, references);
+}
+
+/** CREATE/ALTER ROLE options that name roles which must already exist. */
+const ROLE_MEMBER_OPTIONS = new Set(['addroleto', 'rolemembers', 'adminmembers']);
+
+function extractRoleMemberOptions(options: unknown, references: ObjectRef[]): void {
+  if (!Array.isArray(options)) return;
+
+  for (const opt of options) {
+    const def = (opt as Record<string, unknown>).DefElem as
+      { defname?: string; arg?: Record<string, unknown> } | undefined;
+    if (!def?.defname || !ROLE_MEMBER_OPTIONS.has(def.defname)) continue;
+
+    const list = def.arg?.List as { items?: unknown[] } | undefined;
+    pushRoleRefs(list?.items, references);
+  }
+}
+
+function extractGrantRoleStmt(
+  node: Record<string, unknown>,
+  references: ObjectRef[],
+): void {
+  const granted = node.granted_roles as Array<Record<string, unknown>> | undefined;
+  for (const g of granted ?? []) {
+    const priv = g.AccessPriv as { priv_name?: string } | undefined;
+    if (priv?.priv_name) {
+      references.push({ type: 'role', name: priv.priv_name });
+    }
+  }
+
+  pushRoleRefs(node.grantee_roles, references);
+}
+
+function pushRoleRefs(nodes: unknown, references: ObjectRef[]): void {
+  if (!Array.isArray(nodes)) return;
+  for (const node of nodes) {
+    pushRoleRef(node, references);
+  }
+}
+
+/**
+ * Accepts either a wrapped `{ RoleSpec: … }` list item or a bare RoleSpec
+ * field. PUBLIC, CURRENT_USER and friends name no migration object.
+ */
+function pushRoleRef(node: unknown, references: ObjectRef[]): void {
+  if (!node || typeof node !== 'object') return;
+
+  const wrapper = node as Record<string, unknown>;
+  const spec = ('RoleSpec' in wrapper ? wrapper.RoleSpec : wrapper) as
+    { roletype?: string; rolename?: string } | undefined;
+
+  if (spec?.roletype !== 'ROLESPEC_CSTRING' || !spec.rolename) return;
+  references.push({ type: 'role', name: spec.rolename });
 }
 
 // ---------------------------------------------------------------------------
@@ -353,10 +651,10 @@ export function parseExplicitDepsFromConfig(
 
 export async function analyzeFile(filePath: string, fileName: string, dialect?: string): Promise<FileDeps> {
   const sql = await readFile(filePath, 'utf-8');
-  const { creates, references } = dialect && dialect !== 'postgresql'
-    ? analyzeGenericSql(sql, dialect as GenericDialect)
+  const analysis = dialect && dialect !== 'postgresql'
+    ? { ...analyzeGenericSql(sql, dialect as GenericDialect), unanalyzedBlocks: 0 }
     : await analyzeSql(sql);
-  return { fileName, creates, references };
+  return { fileName, ...analysis };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +683,7 @@ export async function buildDependencyGraphFromFiles(
   const objectCreators = new Map<string, string>();
   for (const [fileName, deps] of fileDeps) {
     for (const obj of deps.creates) {
-      objectCreators.set(obj.name, fileName);
+      objectCreators.set(objectKey(obj), fileName);
     }
   }
 
@@ -402,7 +700,7 @@ export async function buildDependencyGraphFromFiles(
     const explicitDeps = parseExplicitDepsFromSql(sql);
 
     for (const ref of deps.references) {
-      const creator = objectCreators.get(ref.name);
+      const creator = objectCreators.get(objectKey(ref));
       if (creator && creator !== file.fileName) {
         const key = `${file.fileName}->${creator}`;
         if (!edgeSet.has(key)) {

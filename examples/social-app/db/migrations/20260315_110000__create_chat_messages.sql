@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     sender_id    BIGINT       NOT NULL REFERENCES users(id),
     content      TEXT         NOT NULL,
     message_type VARCHAR(20)  NOT NULL DEFAULT 'text'
-                              CHECK (message_type IN ('text', 'image', 'file', 'system')),
+                              CHECK (message_type::text = ANY (ARRAY['text', 'image', 'file', 'system']::text[])),
     reply_to_id  BIGINT       REFERENCES chat_messages(id) ON DELETE SET NULL,
     is_edited    BOOLEAN      NOT NULL DEFAULT false,
     is_deleted   BOOLEAN      NOT NULL DEFAULT false,

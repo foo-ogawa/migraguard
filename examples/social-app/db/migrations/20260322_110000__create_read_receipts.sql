@@ -16,6 +16,6 @@ CREATE TABLE IF NOT EXISTS user_notification_settings (
     chat_notify     BOOLEAN     NOT NULL DEFAULT true,
     mention_notify  BOOLEAN     NOT NULL DEFAULT true,
     email_digest    VARCHAR(20) NOT NULL DEFAULT 'daily'
-                                CHECK (email_digest IN ('none', 'daily', 'weekly')),
+                                CHECK (email_digest::text = ANY (ARRAY['none', 'daily', 'weekly']::text[])),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,4 +1,4 @@
-import libpg from 'libpg-query';
+import { parseStatements } from '../sql-ast.js';
 import type { Phase } from '../naming.js';
 
 export interface LintViolation {
@@ -60,13 +60,8 @@ export async function runRules(
   const activeRules = rules.filter((r) => !allowed.has(r.id));
   if (activeRules.length === 0) return violations;
 
-  let stmts;
-  try {
-    const ast = await libpg.parse(sql);
-    stmts = ast.stmts;
-  } catch {
-    return violations;
-  }
+  const stmts = await parseStatements(sql);
+  if (!stmts) return violations;
 
   const visitors: Array<{ ruleId: string; handlers: NodeVisitors }> = [];
   for (const rule of activeRules) {
@@ -77,8 +72,7 @@ export async function runRules(
   let lockTimeoutSet = false;
   let inTransaction = false;
 
-  for (const { stmt } of stmts) {
-    const s = stmt as Record<string, Record<string, unknown>>;
+  for (const { stmt: s } of stmts) {
 
     if ('VariableSetStmt' in s) {
       const name = s.VariableSetStmt.name as string | undefined;

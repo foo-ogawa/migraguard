@@ -1,6 +1,6 @@
 {
   "name": "migraguard",
-  "version": "0.16.21",
+  "version": "0.16.22",
   "description": "PostgreSQL schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts",
   "type": "module",
   "main": "./dist/index.js",
@@ -67,7 +67,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "libpg-query": "^17.7.3",
+    "libpg-query": "^18.1.5",
     "pg": "^8.19.0"
   },
   "devDependencies": {

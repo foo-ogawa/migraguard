@@ -97,6 +97,7 @@ const DEFAULT_PG_LINT_RULES: Record<string, RuleSeverity> = {
   'require-if-not-exists-materialized-view': 'error',
   'ban-refresh-materialized-view-in-migration': 'error',
   'ban-select-star-in-view': 'error',
+  'ban-unstable-list-predicate': 'error',
   'ban-rename-column': 'error',
   'ban-rename-table': 'error',
   'ban-drop-table': 'error',

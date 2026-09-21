@@ -29,21 +29,34 @@ Information extracted from SQL statements:
 | `ALTER TABLE ADD CONSTRAINT` | constraint | table, columns, referenced tables |
 | `CREATE INDEX` | index | table, columns |
 | `CREATE VIEW` | view | referenced tables |
-| `CREATE FUNCTION` | function | referenced tables (requires body analysis) |
+| `CREATE FUNCTION` | function | none (the body is not analyzed) |
+| `DO $$ ... $$` | objects its body creates | objects its body references |
+| `CREATE SCHEMA` | schema | authorization role |
+| `CREATE ROLE` / `CREATE USER` | role | roles named by `IN ROLE` / `ROLE` / `ADMIN` |
+| `GRANT` / `REVOKE` | none | target object (table, sequence, function, type, schema, database), grantee roles |
+| `GRANT <role> TO <role>` | none | both roles |
+| `ALTER ROLE` / `DROP ROLE` | none | target role |
+| `ALTER DEFAULT PRIVILEGES` | none | schema, owner role, grantee roles |
+| `ALTER ... OWNER TO` | none | target object, new owner role |
 | `DROP *` | none | target object |
+
+Objects are matched across files by name within their namespace: every relation
+(table, view, sequence, index) shares one namespace, while functions, types,
+schemas, databases and roles each have their own. A role and a table of the same
+name therefore never produce an edge.
 
 ### Limitations of Auto-Extraction
 
 | Case | Auto-extraction | Workaround |
 |------|----------------|------------|
 | `CREATE TABLE` / `ALTER TABLE` / `CREATE INDEX` / `CREATE VIEW` | ✅ extractable | — |
-| Table references inside `CREATE FUNCTION` body | ⚠️ partial | Static analysis of function body SQL, but dynamic SQL (`EXECUTE format(...)` etc.) is undetectable. Use explicit declarations |
-| DDL inside `DO $$ ... $$` blocks | ❌ undetectable | Explicit declaration required |
-| Dynamic SQL (`EXECUTE`, variable expansion) | ❌ undetectable | Explicit declaration required |
+| DDL inside `DO $$ ... $$` blocks | ✅ extractable | The body is parsed as PL/pgSQL and its statements are analyzed like top-level SQL, including statements nested in `IF` and `LOOP` |
+| Table references inside `CREATE FUNCTION` body | ❌ undetectable | The body is not analyzed. Explicit declaration required |
+| Dynamic SQL (`EXECUTE`, variable expansion) | ❌ undetectable, reported | The statement text exists only at run time. `deps` lists the files whose `DO` block builds SQL that way. Explicit declaration required |
 | Implicit schema references via `search_path` | ❌ undetectable | Explicit declaration required |
 | Business-logic ordering dependencies (data dependencies) | ❌ out of scope | Explicit declaration required |
 
-When auto-extraction fails to detect dependencies, `check` will pass without warning. Add explicit declarations when in doubt.
+Apart from the run-time SQL that `deps` lists, auto-extraction fails silently and `check` passes. Add explicit declarations when in doubt.
 
 ## Explicit Dependency Declaration
 
