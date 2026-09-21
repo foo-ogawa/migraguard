@@ -67,7 +67,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "libpg-query": "^17.7.3",
+    "libpg-query": "^18.1.5",
     "pg": "^8.19.0"
   },
   "devDependencies": {

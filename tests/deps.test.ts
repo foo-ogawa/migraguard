@@ -114,6 +114,236 @@ describe('deps — analyzeSql', () => {
     const { creates } = await analyzeSql(sql);
     expect(creates).toEqual([{ type: 'function', name: 'my_func' }]);
   });
+
+  it('extracts schema creation and its authorization role', async () => {
+    const { creates, references } = await analyzeSql('CREATE SCHEMA app AUTHORIZATION owner_role;');
+    expect(creates).toEqual([{ type: 'schema', name: 'app' }]);
+    expect(references).toEqual([{ type: 'role', name: 'owner_role' }]);
+  });
+
+  it('reports no unanalyzed blocks for plain SQL', async () => {
+    const { unanalyzedBlocks } = await analyzeSql('CREATE TABLE users (id INT);');
+    expect(unanalyzedBlocks).toBe(0);
+  });
+});
+
+describe('deps — analyzeSql privileges and roles', () => {
+  it('extracts the granted table and the grantee role from GRANT', async () => {
+    const { creates, references } = await analyzeSql('GRANT SELECT ON parent TO reporting_role;');
+    expect(creates).toEqual([]);
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+  });
+
+  it('extracts the table behind a column-level GRANT', async () => {
+    const { references } = await analyzeSql('GRANT SELECT (created_at) ON parent TO reporting_role;');
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+  });
+
+  it('extracts the target of REVOKE and skips PUBLIC', async () => {
+    const { references } = await analyzeSql('REVOKE TEMPORARY ON DATABASE app FROM PUBLIC;');
+    expect(references).toEqual([{ type: 'database', name: 'app' }]);
+  });
+
+  it('extracts every relation named by a multi-object GRANT', async () => {
+    const { references } = await analyzeSql('REVOKE ALL ON TABLE a, b FROM r;');
+    expect(references).toEqual([
+      { type: 'table', name: 'a' },
+      { type: 'table', name: 'b' },
+      { type: 'role', name: 'r' },
+    ]);
+  });
+
+  it('extracts sequence, schema, function and type grants', async () => {
+    const sql = `
+      GRANT USAGE ON SEQUENCE orders_id_seq TO r;
+      GRANT USAGE ON SCHEMA app TO r;
+      GRANT EXECUTE ON FUNCTION app.calc(int) TO r;
+      GRANT USAGE ON TYPE app.status TO r;
+    `;
+    const { references } = await analyzeSql(sql);
+    expect(references.filter((ref) => ref.type !== 'role')).toEqual([
+      { type: 'sequence', name: 'orders_id_seq' },
+      { type: 'schema', name: 'app' },
+      { type: 'function', name: 'app.calc' },
+      { type: 'type', name: 'app.status' },
+    ]);
+  });
+
+  it('extracts the schema behind GRANT ON ALL TABLES IN SCHEMA', async () => {
+    const { references } = await analyzeSql('GRANT SELECT ON ALL TABLES IN SCHEMA app TO r;');
+    expect(references).toEqual([
+      { type: 'schema', name: 'app' },
+      { type: 'role', name: 'r' },
+    ]);
+  });
+
+  it('keeps the schema qualifier of a granted table', async () => {
+    const { references } = await analyzeSql('GRANT SELECT ON audit.logs TO r;');
+    expect(references[0]).toEqual({ type: 'table', name: 'audit.logs' });
+  });
+
+  it('extracts role creation', async () => {
+    const { creates, references } = await analyzeSql('CREATE ROLE reporting_role NOLOGIN INHERIT;');
+    expect(creates).toEqual([{ type: 'role', name: 'reporting_role' }]);
+    expect(references).toEqual([]);
+  });
+
+  it('extracts role creation from CREATE USER', async () => {
+    const { creates } = await analyzeSql("CREATE USER app_user WITH PASSWORD 'x';");
+    expect(creates).toEqual([{ type: 'role', name: 'app_user' }]);
+  });
+
+  it('extracts membership roles named by CREATE ROLE', async () => {
+    const { creates, references } = await analyzeSql('CREATE ROLE app_user IN ROLE reporting_role;');
+    expect(creates).toEqual([{ type: 'role', name: 'app_user' }]);
+    expect(references).toEqual([{ type: 'role', name: 'reporting_role' }]);
+  });
+
+  it('extracts both sides of GRANT <role> TO <role>', async () => {
+    const { references } = await analyzeSql('GRANT reporting_role TO app_user;');
+    expect(references).toEqual([
+      { type: 'role', name: 'reporting_role' },
+      { type: 'role', name: 'app_user' },
+    ]);
+  });
+
+  it('extracts the role named by ALTER ROLE, ALTER ROLE SET and DROP ROLE', async () => {
+    const sql = `
+      ALTER ROLE reporting_role NOLOGIN;
+      ALTER ROLE reporting_role SET search_path = app;
+      DROP ROLE IF EXISTS reporting_role;
+    `;
+    const { references } = await analyzeSql(sql);
+    expect(references).toEqual([
+      { type: 'role', name: 'reporting_role' },
+      { type: 'role', name: 'reporting_role' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+  });
+
+  it('extracts schema and roles from ALTER DEFAULT PRIVILEGES', async () => {
+    const sql = 'ALTER DEFAULT PRIVILEGES FOR ROLE owner_role IN SCHEMA app GRANT SELECT ON TABLES TO reporting_role;';
+    const { references } = await analyzeSql(sql);
+    expect(references).toEqual([
+      { type: 'role', name: 'owner_role' },
+      { type: 'schema', name: 'app' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+  });
+
+  it('extracts the new owner of ALTER TABLE ... OWNER TO', async () => {
+    const { references } = await analyzeSql('ALTER TABLE parent OWNER TO owner_role;');
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'role', name: 'owner_role' },
+    ]);
+  });
+
+  it('extracts the new owner of ALTER SCHEMA ... OWNER TO', async () => {
+    const { references } = await analyzeSql('ALTER SCHEMA app OWNER TO owner_role;');
+    expect(references).toEqual([{ type: 'role', name: 'owner_role' }]);
+  });
+
+  it('does not reference a role the same file creates', async () => {
+    const sql = `
+      CREATE ROLE reporting_role NOLOGIN;
+      GRANT SELECT ON parent TO reporting_role;
+    `;
+    const { creates, references } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'role', name: 'reporting_role' }]);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+  });
+});
+
+describe('deps — analyzeSql DO blocks', () => {
+  it('reads DDL wrapped in a DO block', async () => {
+    const sql = 'DO $$ BEGIN CREATE TABLE child (id uuid REFERENCES parent(id)); END $$;';
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'table', name: 'child' }]);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('reads a GRANT wrapped in a DO block', async () => {
+    const sql = 'DO $$ BEGIN GRANT SELECT ON parent TO reporting_role; END $$;';
+    const { references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('reads statements nested in IF and LOOP bodies', async () => {
+    const sql = `DO $$
+      DECLARE r record;
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx') THEN
+          CREATE INDEX idx ON parent (created_at);
+        END IF;
+        FOR r IN SELECT id FROM parent LOOP
+          GRANT SELECT ON child TO reporting_role;
+        END LOOP;
+      END $$;`;
+    const { references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'table', name: 'child' },
+      { type: 'role', name: 'reporting_role' },
+    ]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('reads every DO block in a file', async () => {
+    const sql = `
+      DO $$ BEGIN GRANT SELECT ON parent TO reporting_role; END $$;
+      CREATE TABLE child (id INT);
+      DO $$ BEGIN CREATE INDEX idx ON other (id); END $$;
+    `;
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'table', name: 'child' }]);
+    expect(references).toEqual([
+      { type: 'table', name: 'parent' },
+      { type: 'role', name: 'reporting_role' },
+      { type: 'table', name: 'other' },
+    ]);
+    expect(unanalyzedBlocks).toBe(0);
+  });
+
+  it('drops references a DO block creates in the same file', async () => {
+    const sql = `
+      CREATE TABLE child (id INT);
+      DO $$ BEGIN CREATE INDEX idx ON child (id); END $$;
+    `;
+    const { creates, references } = await analyzeSql(sql);
+    expect(creates).toEqual([{ type: 'table', name: 'child' }]);
+    expect(references).toEqual([]);
+  });
+
+  it('counts dynamic EXECUTE as unanalyzed', async () => {
+    const sql = "DO $$ BEGIN EXECUTE format('CREATE TABLE %I (id int)', 'dyn'); END $$;";
+    const { creates, references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(creates).toEqual([]);
+    expect(references).toEqual([]);
+    expect(unanalyzedBlocks).toBe(1);
+  });
+
+  it('counts each dynamic EXECUTE separately', async () => {
+    const sql = `DO $$ BEGIN
+      EXECUTE 'CREATE TABLE a (id int)';
+      EXECUTE 'CREATE TABLE b (id int)';
+      CREATE INDEX idx ON parent (id);
+    END $$;`;
+    const { references, unanalyzedBlocks } = await analyzeSql(sql);
+    expect(references).toEqual([{ type: 'table', name: 'parent' }]);
+    expect(unanalyzedBlocks).toBe(2);
+  });
 });
 
 describe('deps — parseExplicitDepsFromSql', () => {

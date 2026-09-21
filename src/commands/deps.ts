@@ -181,6 +181,25 @@ function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
   console.log(chalk.gray(
     `${graph.files.length} files, ${graph.edges.length} deps, ${leaves.size} leaves`,
   ));
+
+  printUnanalyzedBlocks(graph);
+}
+
+function printUnanalyzedBlocks(graph: DependencyGraph): void {
+  const files = graph.files.filter(
+    (f) => (graph.fileDeps.get(f)?.unanalyzedBlocks ?? 0) > 0,
+  );
+  if (files.length === 0) return;
+
+  console.log('');
+  console.log(chalk.yellow(
+    `⚠ ${files.length} file(s) hold SQL the analyzer cannot read inside a DO $$ ... $$ block ` +
+    '— dynamic EXECUTE, or a body PL/pgSQL rejects:',
+  ));
+  for (const f of files) {
+    console.log(chalk.yellow(`  ${f}`));
+  }
+  console.log(chalk.gray('  Declare those dependencies with "-- migraguard:depends-on <file>".'));
 }
 
 // ---------------------------------------------------------------------------
