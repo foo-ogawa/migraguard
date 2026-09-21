@@ -74,7 +74,7 @@ migraguard check
 
 ### `migraguard lint`
 
-Run built-in safety rules on all migration files. PostgreSQL uses libpg-query AST analysis (38 rules); MySQL/SQLite use node-sql-parser (17 generic rules). No external tools required.
+Run built-in safety rules on all migration files. PostgreSQL uses libpg-query AST analysis (39 rules); MySQL/SQLite use node-sql-parser (17 generic rules). No external tools required.
 
 19 rules (all enabled by default). See README for the full table. Key categories:
 

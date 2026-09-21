@@ -2,7 +2,7 @@
 
 PostgreSQL-first schema-aware deployment control — idempotent SQL migrations with CI-enforced integrity checks, expand/contract migration orchestration, schema drift detection, and unified gating across database, application, and infrastructure rollouts. MySQL and SQLite supported as secondary dialects.
 
-**Version:** 0.16.21
+**Version:** 0.16.22
 
 ## Table of Contents
 
@@ -277,7 +277,7 @@ x-agent:
 
 Run built-in safety rules on migration files.
 
-Performs AST-based lint analysis on migration SQL files using libpg-query (38 rules for PostgreSQL) or node-sql-parser (17 generic rules for MySQL/SQLite). Detects unsafe DDL patterns such as missing IF NOT EXISTS, non-concurrent index creation, missing lock timeouts, and prohibited operations.
+Performs AST-based lint analysis on migration SQL files using libpg-query (39 rules for PostgreSQL) or node-sql-parser (17 generic rules for MySQL/SQLite). Detects unsafe DDL patterns such as missing IF NOT EXISTS, non-concurrent index creation, missing lock timeouts, and prohibited operations.
 
 **Usage:**
 
