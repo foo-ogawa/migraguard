@@ -183,6 +183,7 @@ function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
   ));
 
   printUnanalyzedBlocks(graph);
+  printParseFailures(graph);
 }
 
 function printUnanalyzedBlocks(graph: DependencyGraph): void {
@@ -193,13 +194,31 @@ function printUnanalyzedBlocks(graph: DependencyGraph): void {
 
   console.log('');
   console.log(chalk.yellow(
-    `⚠ ${files.length} file(s) hold SQL the analyzer cannot read — dynamic EXECUTE ` +
-    'inside a DO $$ ... $$ block, or a body the parser rejects:',
+    `⚠ ${files.length} file(s) build SQL at run time inside a DO $$ ... $$ block ` +
+    '— what it touches cannot be derived:',
   ));
   for (const f of files) {
     console.log(chalk.yellow(`  ${f}`));
   }
   console.log(chalk.gray('  Declare those dependencies with "-- migraguard:depends-on <file>".'));
+}
+
+function printParseFailures(graph: DependencyGraph): void {
+  const files = graph.files.filter(
+    (f) => (graph.fileDeps.get(f)?.parseFailures.length ?? 0) > 0,
+  );
+  if (files.length === 0) return;
+
+  console.log('');
+  console.log(chalk.red(
+    `✗ ${files.length} file(s) carry a body the parser rejected. Their dependencies ` +
+    'are missing, not absent:',
+  ));
+  for (const f of files) {
+    for (const failure of graph.fileDeps.get(f)?.parseFailures ?? []) {
+      console.log(chalk.red(`  ${f} — ${failure}`));
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

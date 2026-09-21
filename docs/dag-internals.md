@@ -57,7 +57,9 @@ name therefore never produce an edge.
 | Implicit schema references via `search_path` | ❌ undetectable | Explicit declaration required |
 | Business-logic ordering dependencies (data dependencies) | ❌ out of scope | Explicit declaration required |
 
-Apart from the run-time SQL that `deps` lists, auto-extraction fails silently and `check` passes. Add explicit declarations when in doubt.
+A body the parser rejects is not a limit of auto-extraction: the migration is broken, or the analyzer read the statement wrongly. `deps` names those files and the reason the parser gave, separately from the run-time SQL above.
+
+Apart from those two, auto-extraction fails silently and `check` passes. Add explicit declarations when in doubt.
 
 ## Explicit Dependency Declaration
 

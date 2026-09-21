@@ -179,6 +179,34 @@ describe('commands/deps', () => {
     expect(output).toContain('20260301_100000__wrapped.sql');
   });
 
+  it('reads a DO block that follows multi-byte text', async () => {
+    await setupMigration(
+      '20260301_100000__create_parent.sql',
+      'CREATE TABLE parent (id INT PRIMARY KEY);',
+    );
+    await setupMigration(
+      '20260302_100000__wrapped_grant.sql',
+      '-- 冪等性のために DO で包む\nDO $$ BEGIN GRANT SELECT ON parent TO reporting_role; END $$;',
+    );
+
+    const result = await commandDeps(makeConfig());
+
+    expect(result.graph.edges).toEqual([{
+      from: '20260302_100000__wrapped_grant.sql',
+      to: '20260301_100000__create_parent.sql',
+      via: 'parent',
+    }]);
+  });
+
+  it('names the files whose body the parser rejected', async () => {
+    await setupMigration('20260301_100000__broken.sql', 'DO $$ THIS IS NOT PLPGSQL $$;');
+
+    const output = await captureLog(() => commandDeps(makeConfig()));
+
+    expect(output).toContain('20260301_100000__broken.sql — DO block:');
+    expect(output).toContain('missing, not absent');
+  });
+
   it('stays quiet for a DO block it can read', async () => {
     await setupMigration(
       '20260301_100000__wrapped.sql',

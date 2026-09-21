@@ -53,11 +53,17 @@ export interface FileDeps {
   creates: ObjectRef[];
   references: ObjectRef[];
   /**
-   * Statements the analyzer cannot read through: a `DO $$ ... $$` body the
-   * PL/pgSQL parser rejects, or a dynamic `EXECUTE` inside one, whose SQL
-   * exists only at run time.
+   * Statements whose SQL exists only at run time — a dynamic `EXECUTE` inside
+   * a `DO $$ ... $$` block. Nothing can be derived from them.
    */
   unanalyzedBlocks: number;
+  /**
+   * Bodies the PL/pgSQL parser rejected, with the reason it gave. Unlike the
+   * count above this is not a limit of the analysis: the migration is broken,
+   * or the analyzer read the statement wrongly. Either way its dependencies
+   * are missing rather than absent.
+   */
+  parseFailures: string[];
 }
 
 export interface DependencyEdge {
@@ -88,16 +94,22 @@ function normalizeTableName(name: string | undefined, schema: string | undefined
   return name;
 }
 
-export async function analyzeSql(
-  sql: string,
-): Promise<{ creates: ObjectRef[]; references: ObjectRef[]; unanalyzedBlocks: number }> {
+export interface SqlAnalysis {
+  creates: ObjectRef[];
+  references: ObjectRef[];
+  unanalyzedBlocks: number;
+  parseFailures: string[];
+}
+
+export async function analyzeSql(sql: string): Promise<SqlAnalysis> {
   const creates: ObjectRef[] = [];
   const references: ObjectRef[] = [];
+  const parseFailures: string[] = [];
   let unanalyzedBlocks = 0;
 
   const stmts = await parseStatements(sql);
   if (!stmts) {
-    return { creates, references, unanalyzedBlocks };
+    return { creates, references, unanalyzedBlocks, parseFailures };
   }
 
   for (const entry of stmts) {
@@ -113,7 +125,7 @@ export async function analyzeSql(
     } else if ('DropStmt' in s) {
       extractDropStmt(s.DropStmt, references);
     } else if ('CreateFunctionStmt' in s) {
-      unanalyzedBlocks += await extractCreateFunctionStmt(s.CreateFunctionStmt, creates, references);
+      await extractCreateFunctionStmt(s.CreateFunctionStmt, creates, references, parseFailures);
     } else if ('CreateSchemaStmt' in s) {
       extractCreateSchemaStmt(s.CreateSchemaStmt, creates, references);
     } else if ('GrantStmt' in s) {
@@ -134,7 +146,7 @@ export async function analyzeSql(
     } else if ('AlterOwnerStmt' in s) {
       pushRoleRef(s.AlterOwnerStmt.newowner, references);
     } else if ('DoStmt' in s) {
-      unanalyzedBlocks += await extractDoStmt(sql, entry, creates, references);
+      unanalyzedBlocks += await extractDoStmt(sql, entry, creates, references, parseFailures);
     }
   }
 
@@ -143,7 +155,7 @@ export async function analyzeSql(
     (ref) => !createdKeys.has(objectKey(ref)),
   );
 
-  return { creates, references: filteredRefs, unanalyzedBlocks };
+  return { creates, references: filteredRefs, unanalyzedBlocks, parseFailures };
 }
 
 function extractCreateStmt(
@@ -364,13 +376,13 @@ function qualifiedName(
  * languages, PL/pgSQL above all, are not resolved until the function runs and
  * name nothing the file depends on.
  *
- * Returns the number of bodies that stayed unreadable.
  */
 async function extractCreateFunctionStmt(
   node: Record<string, unknown>,
   creates: ObjectRef[],
   references: ObjectRef[],
-): Promise<number> {
+  parseFailures: string[],
+): Promise<void> {
   const name = qualifiedName(node.funcname as Array<Record<string, unknown>> | undefined);
   if (name) {
     creates.push({ type: 'function', name });
@@ -379,21 +391,23 @@ async function extractCreateFunctionStmt(
   // A BEGIN ATOMIC body is parsed along with the statement itself.
   if (node.sql_body) {
     collectRangeVarsFromNode(node.sql_body, references);
-    return 0;
+    return;
   }
 
-  if (functionOption(node, 'language') !== 'sql') return 0;
+  if (functionOption(node, 'language') !== 'sql') return;
 
   const body = functionOption(node, 'as');
-  if (body === undefined) return 0;
+  if (body === undefined) return;
 
   const stmts = await parseStatements(body);
-  if (!stmts) return 1;
+  if (!stmts) {
+    parseFailures.push(`function ${name ?? '(unnamed)'}: LANGUAGE sql body does not parse`);
+    return;
+  }
 
   for (const entry of stmts) {
     collectRangeVarsFromNode(entry.stmt, references);
   }
-  return 0;
 }
 
 /** Reads a `CREATE FUNCTION` option whose argument is a single string. */
@@ -426,21 +440,23 @@ function functionOption(
  * at the same moment as the statements around it, so what it touches is a
  * dependency of the file.
  *
- * Returns the number of statements that stayed unreadable.
+ * Returns the number of statements whose SQL exists only at run time.
  */
 async function extractDoStmt(
   sql: string,
   entry: RawStatementEntry,
   creates: ObjectRef[],
   references: ObjectRef[],
+  parseFailures: string[],
 ): Promise<number> {
   const parsed = await parsePlPgSql(statementText(sql, entry));
-  if (parsed === null) {
-    return 1;
+  if (!parsed.ok) {
+    parseFailures.push(`DO block: ${parsed.reason}`);
+    return 0;
   }
 
   const body: PlPgSqlBody = { statements: [], dynamic: 0 };
-  collectPlPgSqlStatements(parsed, body);
+  collectPlPgSqlStatements(parsed.tree, body);
 
   let unanalyzed = body.dynamic;
   for (const inner of body.statements) {
@@ -448,6 +464,7 @@ async function extractDoStmt(
     creates.push(...analysis.creates);
     references.push(...analysis.references);
     unanalyzed += analysis.unanalyzedBlocks;
+    parseFailures.push(...analysis.parseFailures);
   }
 
   return unanalyzed;
@@ -716,7 +733,7 @@ export function parseExplicitDepsFromConfig(
 export async function analyzeFile(filePath: string, fileName: string, dialect?: string): Promise<FileDeps> {
   const sql = await readFile(filePath, 'utf-8');
   const analysis = dialect && dialect !== 'postgresql'
-    ? { ...analyzeGenericSql(sql, dialect as GenericDialect), unanalyzedBlocks: 0 }
+    ? { ...analyzeGenericSql(sql, dialect as GenericDialect), unanalyzedBlocks: 0, parseFailures: [] }
     : await analyzeSql(sql);
   return { fileName, ...analysis };
 }
