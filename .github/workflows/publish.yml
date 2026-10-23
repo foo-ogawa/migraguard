@@ -56,7 +56,7 @@ jobs:
         run: npm run bundle:min
       - name: Run tests
         if: steps.need.outputs.publish == 'true'
-        run: npm run test:ci
+        run: npm run test:docker:ci
       - name: Publish to npm
         if: steps.need.outputs.publish == 'true'
         run: npm publish --access public
