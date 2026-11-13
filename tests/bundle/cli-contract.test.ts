@@ -27,7 +27,12 @@ describe("CLI contract", () => {
     toolDir = mkdtempSync(join(tmpdir(), "migraguard-cli-tool-"));
     cpSync(BUNDLE_PATH, join(toolDir, "migraguard.bundle.mjs"));
     writeFileSync(join(toolDir, "package.json"), JSON.stringify({ name: "cli-contract-test", version: "1.0.0", type: "module" }));
-    execSync("npm install pg better-sqlite3 libpg-query --legacy-peer-deps", { cwd: toolDir, stdio: "pipe" });
+    // better-sqlite3 12.9.0 is the latest published release with prebuilt bindings for both Node 20 (the lowest
+    // version migraguard supports, used by CI) and Node 22; later releases build from source on Node 20.
+    execSync("npm install pg better-sqlite3@12.9.0 libpg-query --legacy-peer-deps", { cwd: toolDir, stdio: "pipe" });
+    // The repository's .npmrc sets ignore-scripts, which reaches this install through npm_config_* variables;
+    // run only better-sqlite3's install script so that it downloads its prebuilt binding.
+    execSync("npm rebuild better-sqlite3 --ignore-scripts=false", { cwd: toolDir, stdio: "pipe" });
   }, 120_000);
 
   afterAll(() => {
