@@ -5,7 +5,7 @@ import { createProgram, type CommandHandlers } from '../generated/program.js';
 import { commandNew } from '../commands/new.js';
 import { commandCheck } from '../commands/check.js';
 import { commandSquash } from '../commands/squash.js';
-import { commandLint } from '../commands/lint.js';
+import { commandLint, parseLintFormat } from '../commands/lint.js';
 import { commandEditable } from '../commands/editable.js';
 import { commandApply } from '../commands/apply.js';
 import { commandStatus } from '../commands/status.js';
@@ -63,13 +63,13 @@ const handlers: CommandHandlers = {
 
   squash: async (opts) => run(async () => {
     const config = await loadConfig();
-    await commandSquash(config, { dryRun: opts.dryRun });
+    await commandSquash(config, { dryRun: opts.dryRun, recordOnly: opts.recordOnly });
   }),
 
-  lint: async () => run(async () => {
+  lint: async (opts) => run(async () => {
     const config = await loadConfig();
-    const result = await commandLint(config);
-    if (!result.ok) process.exit(1);
+    const result = await commandLint(config, { format: parseLintFormat(opts.format) });
+    if (!result.ok) process.exit(10);
   }),
 
   dump: async () => run(async () => {

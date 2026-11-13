@@ -42,7 +42,7 @@ describe('commands/squash', () => {
     // no error
   });
 
-  it('does nothing when only one new file', async () => {
+  it('records a single new file as-is', async () => {
     await setupFiles({
       '20260301_120000__create_users.sql': 'CREATE TABLE users;',
     });
@@ -53,8 +53,81 @@ describe('commands/squash', () => {
 
     const migDir = join(tempDir, 'db', 'migrations');
     const files = await readdir(migDir);
-    expect(files).toHaveLength(1);
-    expect(files[0]).toBe('20260301_120000__create_users.sql');
+    expect(files).toEqual(['20260301_120000__create_users.sql']);
+    const meta = await loadMetadata(config);
+    expect(meta.migrations.map((m) => m.file)).toEqual(['20260301_120000__create_users.sql']);
+  });
+
+  it('never merges a file recorded by an earlier squash', async () => {
+    const config = makeConfig();
+    await setupFiles({ '20260301_120000__a.sql': 'CREATE TABLE a (id INT);' });
+    await commandSquash(config);
+    await setupFiles({
+      '20260302_120000__b.sql': 'CREATE TABLE b (id INT);',
+      '20260303_120000__c.sql': 'CREATE TABLE c (id INT);',
+    });
+
+    await commandSquash(config);
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    expect((await readdir(migDir)).sort()).toEqual([
+      '20260301_120000__a.sql',
+      '20260303_120000__b_and_c.sql',
+    ]);
+    const meta = await loadMetadata(config);
+    expect(meta.migrations.map((m) => m.file)).toEqual([
+      '20260301_120000__a.sql',
+      '20260303_120000__b_and_c.sql',
+    ]);
+  });
+
+  it('records expand/contract phase files as-is instead of merging them', async () => {
+    const config = makeConfig();
+    await setupFiles({ '20260301_120000__a.sql': 'CREATE TABLE a (id INT);' });
+    const groupDir = join(tempDir, 'db', 'migrations', '20260302_120000__rename_x');
+    await mkdir(groupDir, { recursive: true });
+    for (const phase of ['1_expand', '2_backfill', '3_switch', '4_contract']) {
+      await writeFile(join(groupDir, `${phase}.sql`), `SELECT '${phase}';`);
+    }
+
+    await commandSquash(config);
+
+    expect((await readdir(groupDir)).sort()).toEqual([
+      '1_expand.sql', '2_backfill.sql', '3_switch.sql', '4_contract.sql',
+    ]);
+    const meta = await loadMetadata(config);
+    expect(meta.migrations.map((m) => m.file)).toEqual([
+      '20260301_120000__a.sql',
+      '20260302_120000__rename_x/1_expand.sql',
+      '20260302_120000__rename_x/2_backfill.sql',
+      '20260302_120000__rename_x/3_switch.sql',
+      '20260302_120000__rename_x/4_contract.sql',
+    ]);
+  });
+
+  it('--record-only records a dependency chain without merging it', async () => {
+    await setupFiles({
+      '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+      '20260302_100000__create_posts.sql': 'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));',
+    });
+    const config = buildConfig({
+      model: 'dag',
+      migrationsDir: 'db/migrations',
+      metadataFile: 'db/.migraguard/metadata.json',
+    }, tempDir);
+
+    await commandSquash(config, { recordOnly: true });
+
+    const migDir = join(tempDir, 'db', 'migrations');
+    expect((await readdir(migDir)).sort()).toEqual([
+      '20260301_100000__create_users.sql',
+      '20260302_100000__create_posts.sql',
+    ]);
+    const meta = await loadMetadata(config);
+    expect(meta.migrations.map((m) => m.file)).toEqual([
+      '20260301_100000__create_users.sql',
+      '20260302_100000__create_posts.sql',
+    ]);
   });
 
   it('squashes multiple new files into one', async () => {
@@ -165,7 +238,7 @@ describe('commands/squash', () => {
     expect(files).toHaveLength(1);
   });
 
-  it('DAG: independent files are left as-is (not squashed)', async () => {
+  it('DAG: independent files are recorded as-is (not merged)', async () => {
     await setupFiles({
       '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
       '20260302_100000__create_orders.sql': 'CREATE TABLE IF NOT EXISTS orders (id INT PRIMARY KEY);',
@@ -185,6 +258,8 @@ describe('commands/squash', () => {
     expect(files).toHaveLength(2);
     expect(files).toContain('20260301_100000__create_users.sql');
     expect(files).toContain('20260302_100000__create_orders.sql');
+    const meta = await loadMetadata(config);
+    expect(meta.migrations.map((m) => m.file)).toEqual(files);
   });
 
   it('DAG: groups by dependency chain — squash chain, leave independent', async () => {

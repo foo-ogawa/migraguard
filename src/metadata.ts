@@ -3,7 +3,9 @@ import { dirname } from 'node:path';
 import { existsSync } from 'node:fs';
 import type { MigraguardConfig } from './config.js';
 import { resolveFromConfig } from './config.js';
-import type { MigrationClass } from './scanner.js';
+import type { MigrationClass, MigrationFile } from './scanner.js';
+import { buildDependencyGraphFromFiles, findLeafNodes } from './deps.js';
+import type { DependencyGraph } from './deps.js';
 
 export interface MigrationEntry {
   file: string;
@@ -95,9 +97,52 @@ export function isDagMode(metadata: MetadataJson, config?: MigraguardConfig): bo
   return config?.model === 'dag' || metadata.model === 'dag';
 }
 
-export function isPreModelSince(metadata: MetadataJson, fileName: string): boolean {
-  if (!metadata.model || !metadata.modelSince) return true;
-  return fileName < metadata.modelSince;
+export interface Editability {
+  /** Files forward-only allows to change: the tail file (linear) or the leaf nodes (DAG). */
+  editable: Set<string>;
+  /** Files recorded in metadata.json that are not editable — their content is fixed. */
+  frozen: Set<string>;
+}
+
+/**
+ * Classifies migration files by whether they may still change.
+ *
+ * `graph` is the dependency graph in DAG mode and `null` in linear mode.
+ * Files before `modelSince` belong to the linear era that the first DAG file
+ * builds on, so they are never editable leaves.
+ */
+export function classifyEditability(
+  files: MigrationFile[],
+  metadata: MetadataJson,
+  graph: DependencyGraph | null,
+): Editability {
+  const editable = new Set<string>();
+  if (graph) {
+    const { modelSince } = metadata;
+    for (const leaf of findLeafNodes(graph)) {
+      if (modelSince && leaf < modelSince) continue;
+      editable.add(leaf);
+    }
+  } else if (files.length > 0) {
+    editable.add(files[files.length - 1].fileName);
+  }
+
+  const recorded = new Set(metadata.migrations.map((m) => m.file));
+  const frozen = new Set(
+    files.map((f) => f.fileName).filter((name) => recorded.has(name) && !editable.has(name)),
+  );
+  return { editable, frozen };
+}
+
+export async function resolveEditability(
+  config: MigraguardConfig,
+  metadata: MetadataJson,
+  files: MigrationFile[],
+): Promise<Editability> {
+  const graph = isDagMode(metadata, config)
+    ? await buildDependencyGraphFromFiles(files, config)
+    : null;
+  return classifyEditability(files, metadata, graph);
 }
 
 export function isBaselinedFile(metadata: MetadataJson, fileName: string): boolean {

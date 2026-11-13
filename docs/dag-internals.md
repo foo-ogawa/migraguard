@@ -126,7 +126,7 @@ D's failure does not block E's release
 
 ## Squash in DAG Mode
 
-New files are automatically split into connected components (groups) based on dependencies. Squash is performed per group; independent DDL remains as individual files.
+New files are automatically split into connected components (groups) based on dependencies. Squash is performed per group; independent DDL remains as individual files. Every resulting file is recorded in `metadata.json`.
 
 ```
 Before squash:

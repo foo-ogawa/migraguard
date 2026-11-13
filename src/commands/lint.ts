@@ -5,16 +5,37 @@ import chalk from 'chalk';
 import type { MigraguardConfig, RuleSeverity } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
+import { loadMetadata, resolveEditability } from '../metadata.js';
+import type { Phase } from '../naming.js';
 import { ALL_RULES, runRules } from '../rules/index.js';
-import type { LintRule, LintViolation } from '../rules/index.js';
+import type { LintRule, LintViolation, RawViolation } from '../rules/index.js';
 import { ALL_GENERIC_RULES, runGenericRules } from '../generic/rules/index.js';
-import type { GenericLintRule, GenericDialect } from '../generic/rules/index.js';
+import type { GenericDialect } from '../generic/rules/index.js';
+
+export type LintFormat = 'text' | 'json';
+
+export interface LintOptions {
+  format?: LintFormat;
+}
+
+export interface LintFileViolation extends LintViolation {
+  file: string;
+}
 
 export interface LintResult {
   ok: boolean;
+  /** Files checked: those not yet recorded in metadata.json and the editable ones. */
   filesLinted: number;
+  /** Recorded files that can no longer change; their content was judged when they were added. */
+  filesSkipped: number;
   errors: number;
   warnings: number;
+  violations: LintFileViolation[];
+}
+
+interface LintEngine {
+  ruleCount: number;
+  run(sql: string, phase: Phase | undefined): Promise<RawViolation[]>;
 }
 
 async function loadCustomRules(config: MigraguardConfig): Promise<LintRule[]> {
@@ -50,135 +71,101 @@ function getSeverity(config: MigraguardConfig, ruleId: string): RuleSeverity {
   return config.lint.rules[ruleId] ?? 'error';
 }
 
-export async function commandLint(config: MigraguardConfig): Promise<LintResult> {
-  if (config.dialect !== 'postgresql') {
-    return commandLintGeneric(config);
-  }
-  return commandLintPg(config);
+function rulesForPhase<R extends { applicablePhases?: Phase[] }>(rules: R[], phase: Phase | undefined): R[] {
+  return rules.filter((r) => {
+    if (!r.applicablePhases) return true;
+    if (!phase) return false;
+    return r.applicablePhases.includes(phase);
+  });
 }
 
-async function commandLintPg(config: MigraguardConfig): Promise<LintResult> {
-  const files = await scanMigrations(config);
-  if (files.length === 0) {
-    console.log(chalk.yellow('No migration files to lint.'));
-    return { ok: true, filesLinted: 0, errors: 0, warnings: 0 };
+async function createEngine(config: MigraguardConfig): Promise<LintEngine> {
+  if (config.dialect === 'postgresql') {
+    const rules = [...ALL_RULES, ...await loadCustomRules(config)]
+      .filter((r) => getSeverity(config, r.id) !== 'off');
+    return {
+      ruleCount: rules.length,
+      run: (sql, phase) => runRules(sql, rulesForPhase(rules, phase)),
+    };
   }
-
-  const customRules = await loadCustomRules(config);
-  const allRules = [...ALL_RULES, ...customRules];
-  const activeRules = allRules.filter((r) => getSeverity(config, r.id) !== 'off');
-
-  if (activeRules.length === 0) {
-    console.log(chalk.yellow('All lint rules are disabled.'));
-    return { ok: true, filesLinted: files.length, errors: 0, warnings: 0 };
-  }
-
-  let totalErrors = 0;
-  let totalWarnings = 0;
-
-  for (const f of files) {
-    const sql = await readFile(f.filePath, 'utf-8');
-
-    const fileRules = activeRules.filter((r) => {
-      if (!r.applicablePhases) return true;
-      if (!f.phase) return false;
-      return r.applicablePhases.includes(f.phase);
-    });
-
-    const raw = await runRules(sql, fileRules);
-    if (raw.length === 0) continue;
-
-    const violations: LintViolation[] = raw.map((v) => ({
-      ...v,
-      severity: getSeverity(config, v.rule) === 'warn' ? 'warn' : 'error',
-    }));
-
-    const fileErrors = violations.filter((v) => v.severity === 'error').length;
-    const fileWarnings = violations.filter((v) => v.severity === 'warn').length;
-    totalErrors += fileErrors;
-    totalWarnings += fileWarnings;
-
-    printViolations(f.fileName, violations);
-  }
-
-  printSummary(files.length, totalErrors, totalWarnings);
-
-  return {
-    ok: totalErrors === 0,
-    filesLinted: files.length,
-    errors: totalErrors,
-    warnings: totalWarnings,
-  };
-}
-
-async function commandLintGeneric(config: MigraguardConfig): Promise<LintResult> {
   const dialect = config.dialect as GenericDialect;
-  const files = await scanMigrations(config);
-  if (files.length === 0) {
-    console.log(chalk.yellow('No migration files to lint.'));
-    return { ok: true, filesLinted: 0, errors: 0, warnings: 0 };
-  }
-
-  const activeRules: GenericLintRule[] = ALL_GENERIC_RULES.filter(
-    (r) => getSeverity(config, r.id) !== 'off',
-  );
-
-  if (activeRules.length === 0) {
-    console.log(chalk.yellow('All lint rules are disabled.'));
-    return { ok: true, filesLinted: files.length, errors: 0, warnings: 0 };
-  }
-
-  let totalErrors = 0;
-  let totalWarnings = 0;
-
-  for (const f of files) {
-    const sql = await readFile(f.filePath, 'utf-8');
-
-    const fileRules = activeRules.filter((r) => {
-      if (!r.applicablePhases) return true;
-      if (!f.phase) return false;
-      return r.applicablePhases.includes(f.phase);
-    });
-
-    const raw = await runGenericRules(sql, fileRules, dialect);
-    if (raw.length === 0) continue;
-
-    const violations: LintViolation[] = raw.map((v) => ({
-      ...v,
-      severity: getSeverity(config, v.rule) === 'warn' ? 'warn' : 'error',
-    }));
-
-    const fileErrors = violations.filter((v) => v.severity === 'error').length;
-    const fileWarnings = violations.filter((v) => v.severity === 'warn').length;
-    totalErrors += fileErrors;
-    totalWarnings += fileWarnings;
-
-    printViolations(f.fileName, violations);
-  }
-
-  printSummary(files.length, totalErrors, totalWarnings);
-
+  const rules = ALL_GENERIC_RULES.filter((r) => getSeverity(config, r.id) !== 'off');
   return {
-    ok: totalErrors === 0,
-    filesLinted: files.length,
-    errors: totalErrors,
-    warnings: totalWarnings,
+    ruleCount: rules.length,
+    run: (sql, phase) => runGenericRules(sql, rulesForPhase(rules, phase), dialect),
   };
 }
 
-function printSummary(filesCount: number, errors: number, warnings: number): void {
+export function parseLintFormat(value: string | undefined): LintFormat {
+  if (value === undefined || value === 'text' || value === 'json') return value ?? 'text';
+  throw new Error(`Unsupported format: ${value}. Use "text" or "json".`);
+}
+
+export async function commandLint(config: MigraguardConfig, options?: LintOptions): Promise<LintResult> {
+  const text = (options?.format ?? 'text') === 'text';
+
+  const files = await scanMigrations(config);
+  const metadata = await loadMetadata(config);
+  const { frozen } = await resolveEditability(config, metadata, files);
+  const targets = files.filter((f) => !frozen.has(f.fileName));
+
+  const result: LintResult = {
+    ok: true,
+    filesLinted: targets.length,
+    filesSkipped: files.length - targets.length,
+    errors: 0,
+    warnings: 0,
+    violations: [],
+  };
+
+  const engine = files.length > 0 ? await createEngine(config) : undefined;
+
+  if (!engine) {
+    if (text) console.log(chalk.yellow('No migration files to lint.'));
+  } else if (engine.ruleCount === 0) {
+    if (text) console.log(chalk.yellow('All lint rules are disabled.'));
+  } else {
+    for (const f of targets) {
+      const sql = await readFile(f.filePath, 'utf-8');
+      const raw = await engine.run(sql, f.phase);
+      if (raw.length === 0) continue;
+
+      const violations: LintFileViolation[] = raw.map((v) => ({
+        file: f.fileName,
+        ...v,
+        severity: getSeverity(config, v.rule) === 'warn' ? 'warn' : 'error',
+      }));
+      result.violations.push(...violations);
+      if (text) printViolations(f.fileName, violations);
+    }
+
+    result.errors = result.violations.filter((v) => v.severity === 'error').length;
+    result.warnings = result.violations.filter((v) => v.severity === 'warn').length;
+    result.ok = result.errors === 0;
+    if (text) printSummary(result);
+  }
+
+  if (!text) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  return result;
+}
+
+function printSummary(result: LintResult): void {
+  const { errors, warnings, filesLinted, filesSkipped } = result;
+  const skipped = filesSkipped > 0
+    ? ` (${filesSkipped} recorded file(s) that can no longer change were not linted)`
+    : '';
   if (errors > 0 || warnings > 0) {
     const parts: string[] = [];
     if (errors > 0) parts.push(`${errors} error(s)`);
     if (warnings > 0) parts.push(`${warnings} warning(s)`);
     const summary = parts.join(', ');
     if (errors > 0) {
-      console.error(chalk.red(`\nLint failed: ${summary}.`));
+      console.error(chalk.red(`\nLint failed: ${summary}.${skipped}`));
     } else {
-      console.log(chalk.yellow(`\nLint: ${summary}.`));
+      console.log(chalk.yellow(`\nLint: ${summary}.${skipped}`));
     }
   } else {
-    console.log(chalk.green(`✓ ${filesCount} file(s) passed lint.`));
+    console.log(chalk.green(`✓ ${filesLinted} file(s) passed lint.${skipped}`));
   }
 }
 

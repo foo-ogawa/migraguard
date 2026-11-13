@@ -1,10 +1,9 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata, isDagMode, isPreModelSince } from '../metadata.js';
+import { loadMetadata, isDagMode, resolveEditability } from '../metadata.js';
 import { createDb, safeGetAllRecords } from '../db.js';
 import type { MigrationRecord } from '../db.js';
-import { buildDependencyGraph, findLeafNodes } from '../deps.js';
 
 export interface EditableEntry {
   fileName: string;
@@ -36,24 +35,12 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
   const metadataFileSet = new Set(metadata.migrations.map((m) => m.file));
   const newFiles = files.filter((f) => !metadataFileSet.has(f.fileName));
 
-  const entries: EditableEntry[] = [];
-  const editableSet = new Set<string>();
-
-  if (dag) {
-    const graph = await buildDependencyGraph(config);
-    const leaves = findLeafNodes(graph);
-    for (const leaf of leaves) {
-      if (isPreModelSince(metadata, leaf)) continue;
-      if (!editableSet.has(leaf)) {
-        editableSet.add(leaf);
-        entries.push({ fileName: leaf, reason: 'leaf' });
-      }
-    }
-  } else {
-    const latestFile = files[files.length - 1];
-    editableSet.add(latestFile.fileName);
-    entries.push({ fileName: latestFile.fileName, reason: 'latest' });
-  }
+  const { editable } = await resolveEditability(config, metadata, files);
+  const editableSet = new Set(editable);
+  const entries: EditableEntry[] = [...editable].map((fileName) => ({
+    fileName,
+    reason: dag ? 'leaf' : 'latest',
+  }));
 
   for (const f of newFiles) {
     if (!editableSet.has(f.fileName)) {

@@ -85,6 +85,7 @@ export async function migraguardSquash(
   const cmdArgs: string[] = ["squash"];
   if (options) {
     if (options.dryRun) cmdArgs.push("--dry-run");
+    if (options.recordOnly) cmdArgs.push("--record-only");
   }
 
   try {

@@ -6,6 +6,7 @@ import { buildConfig } from '../../src/config.js';
 import { saveMetadata } from '../../src/metadata.js';
 import { checksumString } from '../../src/checksum.js';
 import { commandCheck } from '../../src/commands/check.js';
+import { commandSquash } from '../../src/commands/squash.js';
 import type { MetadataJson } from '../../src/metadata.js';
 
 describe('commands/check', () => {
@@ -261,5 +262,50 @@ describe('commands/check', () => {
     const result = await commandCheck(config);
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes('Checksum mismatch'))).toBe(true);
+  });
+
+  // --- State built through the release flow (squash), not written by hand ---
+
+  describe('after each release is recorded by squash', () => {
+    async function release(config: ReturnType<typeof makeConfig>, fileName: string, content: string) {
+      await setupMigration(fileName, content);
+      await commandSquash(config);
+    }
+
+    async function edit(fileName: string, content: string) {
+      await writeFile(join(tempDir, 'db', 'migrations', fileName), content);
+    }
+
+    it('linear: rejects a change to a released file once a newer file exists', async () => {
+      const config = makeConfig();
+      await release(config, '20260301_120000__a.sql', 'CREATE TABLE IF NOT EXISTS a (id INT);');
+      await release(config, '20260302_120000__b.sql', 'CREATE TABLE IF NOT EXISTS b (id INT);');
+
+      await edit('20260302_120000__b.sql', 'CREATE TABLE IF NOT EXISTS b (id INT, x INT);');
+      expect((await commandCheck(config)).ok).toBe(true);
+
+      await edit('20260301_120000__a.sql', 'CREATE TABLE IF NOT EXISTS a (id INT, x INT);');
+      const result = await commandCheck(config);
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.includes('Checksum mismatch for "20260301_120000__a.sql"'))).toBe(true);
+    });
+
+    it('DAG via config: a leaf may change, a file another file depends on may not', async () => {
+      const config = buildConfig({
+        model: 'dag',
+        migrationsDir: 'db/migrations',
+        metadataFile: 'db/.migraguard/metadata.json',
+      }, tempDir);
+      await release(config, '20260301_120000__users.sql', 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);');
+      await release(config, '20260302_120000__posts.sql', 'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));');
+
+      await edit('20260302_120000__posts.sql', 'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id), x INT);');
+      expect((await commandCheck(config)).ok).toBe(true);
+
+      await edit('20260301_120000__users.sql', 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, x INT);');
+      const result = await commandCheck(config);
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.includes('Checksum mismatch for "20260301_120000__users.sql"'))).toBe(true);
+    });
   });
 });

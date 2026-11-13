@@ -219,7 +219,7 @@ x-agent:
 
 Squash multiple new migration files into one.
 
-Merges pending (unapplied) migration files into a single file for release. Ensures one release = one file, simplifying error recovery and hotfix workflows. Original migration files are deleted.
+Records the new migration files (those not yet in metadata.json) for release. Files of one release are merged into a single file first — all new files in the linear model, each dependency-connected set in the DAG model — and the merged originals are deleted. Ensures one release = one file, simplifying error recovery and hotfix workflows. A file with nothing to merge with, and every expand/contract phase file, is recorded as-is. With --record-only, every new file is recorded as-is without merging.
 
 **Usage:**
 
@@ -229,12 +229,16 @@ migraguard squash
 ```
 migraguard squash --dry-run
 ```
+```
+migraguard squash --record-only
+```
 
 #### Options
 
 | Option | Aliases | Required | Default | Description |
 |---|---|---|---|---|
 | `--dry-run` | -n | No | `false` | Show what would be squashed without writing files. |
+| `--record-only` |  | No | `false` | Record every new file in metadata.json as-is without merging. Use once to record existing migrations that were applied without being recorded. |
 
 #### Exit Codes
 
@@ -277,7 +281,7 @@ x-agent:
 
 Run built-in safety rules on migration files.
 
-Performs AST-based lint analysis on migration SQL files using libpg-query (39 rules for PostgreSQL) or node-sql-parser (17 generic rules for MySQL/SQLite). Detects unsafe DDL patterns such as missing IF NOT EXISTS, non-concurrent index creation, missing lock timeouts, and prohibited operations.
+Performs AST-based lint analysis on migration SQL files using libpg-query (39 rules for PostgreSQL) or node-sql-parser (17 generic rules for MySQL/SQLite). Detects unsafe DDL patterns such as missing IF NOT EXISTS, non-concurrent index creation, missing lock timeouts, and prohibited operations. Only files that can still change are linted — files not yet recorded in metadata.json and the editable files (the tail file in the linear model, the leaf nodes in the DAG model); recorded files that can no longer change are not linted.
 
 **Usage:**
 

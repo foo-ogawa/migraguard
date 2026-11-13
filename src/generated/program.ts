@@ -22,7 +22,7 @@ export interface CommandHandlers {
   new: (name: string | undefined, options: { expandContract?: boolean; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   apply: (options: { withDriftCheck?: boolean; fromBaseline?: boolean; tag?: string; dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   check: (options: Record<string, never>, parentOpts: Record<string, unknown>) => Promise<void>;
-  squash: (options: { dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
+  squash: (options: { dryRun?: boolean; recordOnly?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   lint: (options: { format?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
   dump: (options: { dryRun?: boolean }, parentOpts: Record<string, unknown>) => Promise<void>;
   diff: (options: { format?: string }, parentOpts: Record<string, unknown>) => Promise<void>;
@@ -91,6 +91,7 @@ export function createProgram(
     .command("squash")
     .description("Squash multiple new migration files into one.")
     .option("-n, --dry-run", "Show what would be squashed without writing files.", false)
+    .option("--record-only", "Record every new file in metadata.json as-is without merging. Use once to record existing migrations that were applied without being recorded.", false)
     .action(async (opts, cmd) => {
       await handlers.squash(opts, cmd.optsWithGlobals());
     });

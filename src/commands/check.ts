@@ -1,9 +1,8 @@
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata, isDagMode, isPreModelSince } from '../metadata.js';
+import { loadMetadata, isDagMode, resolveEditability } from '../metadata.js';
 import { checksumFile } from '../checksum.js';
-import { buildDependencyGraph, findLeafNodes } from '../deps.js';
 
 export interface CheckResult {
   ok: boolean;
@@ -21,20 +20,7 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
   const recordedFiles = files.filter((f) => metadataMap.has(f.fileName));
   const newFiles = files.filter((f) => !metadataMap.has(f.fileName));
 
-  let editableSet: Set<string>;
-
-  if (dag) {
-    const graph = await buildDependencyGraph(config);
-    const leaves = findLeafNodes(graph);
-    editableSet = new Set(
-      leaves.filter((f) => !isPreModelSince(metadata, f)),
-    );
-  } else {
-    editableSet = new Set<string>();
-    if (files.length > 0) {
-      editableSet.add(files[files.length - 1].fileName);
-    }
-  }
+  const { frozen } = await resolveEditability(config, metadata, files);
 
   // 1. Multiple new files check (linear mode only, exclude Class B phase files)
   const newSafeFiles = newFiles.filter((f) => f.migrationClass === 'safe');
@@ -61,16 +47,14 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
     }
   }
 
-  // 3. Checksum verification — editable files may change, others must not
+  // 3. Checksum verification — frozen files must not change
   for (const f of recordedFiles) {
+    if (!frozen.has(f.fileName)) continue;
     const expectedChecksum = metadataMap.get(f.fileName);
     if (!expectedChecksum) continue;
 
     const actualChecksum = await checksumFile(f.filePath);
     if (actualChecksum !== expectedChecksum) {
-      if (editableSet.has(f.fileName)) {
-        continue;
-      }
       errors.push(
         `Checksum mismatch for "${f.fileName}": ` +
         `expected ${expectedChecksum.slice(0, 12)}..., got ${actualChecksum.slice(0, 12)}...`,

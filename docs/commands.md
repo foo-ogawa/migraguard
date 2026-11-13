@@ -22,7 +22,7 @@ migraguard new --expand-contract rename_username_to_handle
 
 ### `migraguard squash`
 
-Squash multiple new (unrecorded in metadata.json) migration files into a single file. Run before merging to a release branch.
+Squash multiple new (unrecorded in metadata.json) migration files into a single file and record it in metadata.json; a single new file and each expand/contract phase file are recorded as-is. `--record-only` records every new file as-is without merging. Run before merging to a release branch.
 
 ```bash
 migraguard squash
@@ -74,7 +74,7 @@ migraguard check
 
 ### `migraguard lint`
 
-Run built-in safety rules on all migration files. PostgreSQL uses libpg-query AST analysis (39 rules); MySQL/SQLite use node-sql-parser (17 generic rules). No external tools required.
+Run built-in safety rules on the migration files that can still change: files not yet recorded in metadata.json and the editable files (tail / leaves). Recorded files that can no longer change are not linted. PostgreSQL uses libpg-query AST analysis (39 rules); MySQL/SQLite use node-sql-parser (17 generic rules). No external tools required.
 
 19 rules (all enabled by default). See README for the full table. Key categories:
 

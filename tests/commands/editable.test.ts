@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { buildConfig } from '../../src/config.js';
 import { saveMetadata } from '../../src/metadata.js';
 import { commandEditable } from '../../src/commands/editable.js';
+import { commandSquash } from '../../src/commands/squash.js';
 
 describe('commands/editable', () => {
   let tempDir: string;
@@ -169,5 +170,28 @@ describe('commands/editable', () => {
 
     const result = await commandEditable(config);
     expect(result.editableFiles).toContain('20260303_100000__new_file.sql');
+  });
+
+  it('DAG via config (metadata.json without model): recorded leaf nodes are editable', async () => {
+    const migDir = join(tempDir, 'db', 'migrations');
+    await mkdir(migDir, { recursive: true });
+    await writeFile(
+      join(migDir, '20260301_100000__create_users.sql'),
+      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+    );
+    await writeFile(
+      join(migDir, '20260302_100000__create_posts.sql'),
+      'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));',
+    );
+    const config = buildConfig({
+      model: 'dag',
+      migrationsDir: 'db/migrations',
+      metadataFile: 'db/.migraguard/metadata.json',
+    }, tempDir);
+    await commandSquash(config, { recordOnly: true });
+
+    const result = await commandEditable(config);
+    expect(result.editableFiles).toEqual(['20260302_100000__create_posts.sql']);
+    expect(result.entries).toEqual([{ fileName: '20260302_100000__create_posts.sql', reason: 'leaf' }]);
   });
 });
