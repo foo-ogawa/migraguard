@@ -68,34 +68,34 @@
   "license": "MIT",
   "dependencies": {
     "chalk": "^5.6.2",
-    "libpg-query": "^18.1.5",
+    "libpg-query": "^18.2.4",
     "node-sql-parser": "^5.4.0",
-    "pg": "^8.19.0",
-    "zod": "^4.4.3"
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/diff": "^7.0.2",
-    "@types/node": "^20.11.0",
-    "@types/pg": "^8.18.0",
-    "@typescript-eslint/eslint-plugin": "^8.54.0",
-    "@typescript-eslint/parser": "^8.54.0",
-    "agent-contracts": "^0.34.11",
-    "agent-contracts-runtime": "^0.36.4",
-    "cli-contracts": "^0.34.6",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.2",
+    "@typescript-eslint/parser": "^8.72.2",
+    "agent-contracts": "^0.34.14",
+    "agent-contracts-runtime": "^0.36.15",
+    "cli-contracts": "^0.34.12",
     "commander": "^14.0.3",
     "diff": "^8.0.3",
-    "esbuild": "^0.28.0",
-    "eslint": "^10.8.0",
-    "glob": "^11.0.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.54.0",
-    "vitest": "^4.1.8"
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "tsup": {
       "esbuild": "$esbuild"
-    }
+    },
+    "minimatch": "^11.0.8"
   }
 }

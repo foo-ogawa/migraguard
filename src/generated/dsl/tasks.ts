@@ -4,8 +4,8 @@
  * Regenerate via: npx agent-runtime generate
  */
 
-import type { AgentId } from "./agents";
-import type { HandoffTypeId } from "./handoffs";
+import type { AgentId } from "./agents.js";
+import type { HandoffTypeId } from "./handoffs.js";
 
 export type ModelClass = "fast" | "standard" | "thinking";
 

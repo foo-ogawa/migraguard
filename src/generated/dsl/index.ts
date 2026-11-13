@@ -4,11 +4,11 @@
  * Regenerate via: npx agent-runtime generate
  */
 
-export { agentRegistry } from "./agents";
-export type { AgentContract, AgentId } from "./agents";
-export { taskRegistry } from "./tasks";
-export type { TaskContract } from "./tasks";
-export { handoffSchemas, handoffs } from "./handoffs";
-export type { HandoffTypeId, HandoffEnvelope } from "./handoffs";
-export { workflowRegistry } from "./workflows";
-export { resolvedDsl } from "./dsl-data";
+export { agentRegistry } from "./agents.js";
+export type { AgentContract, AgentId } from "./agents.js";
+export { taskRegistry } from "./tasks.js";
+export type { TaskContract } from "./tasks.js";
+export { handoffSchemas, handoffs } from "./handoffs.js";
+export type { HandoffTypeId, HandoffEnvelope } from "./handoffs.js";
+export { workflowRegistry } from "./workflows.js";
+export { resolvedDsl } from "./dsl-data.js";
