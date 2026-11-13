@@ -105,6 +105,30 @@ describe('commands/squash', () => {
     ]);
   });
 
+  it('--record-only moves modelSince past the recorded files', async () => {
+    await setupFiles({
+      '20260301_100000__a.sql': 'CREATE TABLE a (id INT);',
+      '20260302_100000__b.sql': 'CREATE TABLE b (id INT);',
+    });
+    const config = makeConfig();
+
+    await commandSquash(config, { recordOnly: true });
+
+    const { modelSince } = await loadMetadata(config);
+    expect(modelSince! > '20260302_100000__b.sql').toBe(true);
+    expect(modelSince! < '20260302_100001__c.sql').toBe(true);
+  });
+
+  it('--record-only keeps a modelSince that is already later', async () => {
+    await setupFiles({ '20260301_100000__a.sql': 'CREATE TABLE a (id INT);' });
+    const config = makeConfig();
+    await saveMetadata(config, { model: 'dag', modelSince: '20260401_000000__first_dag.sql', migrations: [] });
+
+    await commandSquash(config, { recordOnly: true });
+
+    expect((await loadMetadata(config)).modelSince).toBe('20260401_000000__first_dag.sql');
+  });
+
   it('--record-only records a dependency chain without merging it', async () => {
     await setupFiles({
       '20260301_100000__create_users.sql': 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',

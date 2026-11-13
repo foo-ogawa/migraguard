@@ -267,9 +267,10 @@ command_sets:
 
           - name: record-only
             description: >-
-              Record every new file in metadata.json as-is without merging.
-              Use once to record existing migrations that were applied
-              without being recorded.
+              Record every new file in metadata.json as-is without merging,
+              as released: modelSince moves past the recorded files so none
+              of them stays editable. Use once to record existing migrations
+              that were applied without being recorded.
             schema:
               type: boolean
               default: false
@@ -910,34 +911,38 @@ command_sets:
           Checks whether the current migration group states satisfy
           the specified deployment gate conditions. Used in CI/CD pipelines
           to gate deployments on schema state. Conditions use the syntax
-          "group:<name>.<condition>" where condition is one of:
-          expand_applied, backfill_applied, switch_applied, contract_applied,
-          expand_pending, backfill_pending, switch_pending, contract_pending.
+          "group:<name>.<state>", where name is the group directory name or
+          its description part and state is one of: not_applied,
+          expand_applied, backfill_running, backfill_failed,
+          backfill_completed, switch_applied, contract_ready,
+          contract_completed. A condition holds when the group is in that
+          state or a later one (backfill_failed only matches itself).
+          An invalid condition is an error (exit 1).
         usage:
           - 'migraguard gate --require "group:rename_username_to_handle.expand_applied"'
-          - 'migraguard gate --forbid "group:rename_username_to_handle.contract_pending"'
+          - 'migraguard gate --forbid "group:rename_username_to_handle.contract_completed"'
           - migraguard gate --contract-file deploy-gates.json
 
         options:
           - name: require
             description: >-
               Required schema state conditions.
-              Syntax: group:<name>.<condition>
+              Syntax: group:<name>.<state>
             value_name: condition
             repeatable: true
             schema:
               type: string
-              pattern: '^group:[a-z_]+\.(expand|backfill|switch|contract)_(applied|pending)$'
+              pattern: '^group:[^.]+\.(not_applied|expand_applied|backfill_running|backfill_failed|backfill_completed|switch_applied|contract_ready|contract_completed)$'
 
           - name: forbid
             description: >-
               Forbidden schema state conditions.
-              Syntax: group:<name>.<condition>
+              Syntax: group:<name>.<state>
             value_name: condition
             repeatable: true
             schema:
               type: string
-              pattern: '^group:[a-z_]+\.(expand|backfill|switch|contract)_(applied|pending)$'
+              pattern: '^group:[^.]+\.(not_applied|expand_applied|backfill_running|backfill_failed|backfill_completed|switch_applied|contract_ready|contract_completed)$'
 
           - name: contract-file
             description: JSON file with schema requirements.

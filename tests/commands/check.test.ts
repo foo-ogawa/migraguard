@@ -290,6 +290,25 @@ describe('commands/check', () => {
       expect(result.errors.some((e) => e.includes('Checksum mismatch for "20260301_120000__a.sql"'))).toBe(true);
     });
 
+    it('DAG via config: a leaf recorded by --record-only may not change; a later leaf may', async () => {
+      const config = buildConfig({
+        model: 'dag',
+        migrationsDir: 'db/migrations',
+        metadataFile: 'db/.migraguard/metadata.json',
+      }, tempDir);
+      await setupMigration('20260301_120000__a.sql', 'CREATE TABLE IF NOT EXISTS a (id INT);');
+      await commandSquash(config, { recordOnly: true });
+      await release(config, '20260401_120000__b.sql', 'CREATE TABLE IF NOT EXISTS b (id INT);');
+
+      await edit('20260401_120000__b.sql', 'CREATE TABLE IF NOT EXISTS b (id INT, x INT);');
+      expect((await commandCheck(config)).ok).toBe(true);
+
+      await edit('20260301_120000__a.sql', 'CREATE TABLE IF NOT EXISTS a (id INT, x INT);');
+      const result = await commandCheck(config);
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.includes('Checksum mismatch for "20260301_120000__a.sql"'))).toBe(true);
+    });
+
     it('DAG via config: a leaf may change, a file another file depends on may not', async () => {
       const config = buildConfig({
         model: 'dag',

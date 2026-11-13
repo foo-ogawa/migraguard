@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata, saveMetadata, addEntry, isDagMode } from '../metadata.js';
+import { loadMetadata, saveMetadata, addEntry, isDagMode, settleFiles } from '../metadata.js';
 import { checksumString, checksumFile } from '../checksum.js';
 import { compareSortKeys } from '../naming.js';
 import type { MigrationFile } from '../scanner.js';
@@ -62,7 +62,10 @@ async function squashGroup(
 
 export interface SquashOptions {
   dryRun?: boolean;
-  /** Record every new file in metadata.json as-is, without merging any of them. */
+  /**
+   * Record every new file in metadata.json as-is, without merging any of them,
+   * as released: `modelSince` moves past them so none stays editable.
+   */
   recordOnly?: boolean;
 }
 
@@ -89,6 +92,10 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
     ? newFiles.map((f) => [f])
     : await releaseGroups(config, metadata, newFiles);
 
+  const settled = options?.recordOnly
+    ? settleFiles(metadata, newFiles.map((f) => f.fileName))
+    : metadata;
+
   if (options?.dryRun) {
     for (const group of groups) {
       if (group.length >= 2) {
@@ -98,14 +105,20 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
         console.log(chalk.cyan(`[dry-run] Would record: ${group[0].fileName}`));
       }
     }
+    if (settled.modelSince !== metadata.modelSince) {
+      console.log(chalk.cyan(`[dry-run] Would set modelSince: ${settled.modelSince}`));
+    }
     return;
   }
 
-  let currentMeta = metadata;
+  let currentMeta = settled;
   for (const group of groups) {
     currentMeta = group.length >= 2
       ? await squashGroup(config, group, currentMeta)
       : await recordFile(group[0], currentMeta);
+  }
+  if (settled.modelSince !== metadata.modelSince) {
+    console.log(chalk.green(`Set modelSince: ${settled.modelSince}`));
   }
   await saveMetadata(config, currentMeta);
 }

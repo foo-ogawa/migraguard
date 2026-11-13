@@ -5,7 +5,8 @@ import { createProgram, type CommandHandlers } from '../generated/program.js';
 import { commandNew } from '../commands/new.js';
 import { commandCheck } from '../commands/check.js';
 import { commandSquash } from '../commands/squash.js';
-import { commandLint, parseLintFormat } from '../commands/lint.js';
+import { commandLint } from '../commands/lint.js';
+import { parseOutputFormat } from '../output.js';
 import { commandEditable } from '../commands/editable.js';
 import { commandApply } from '../commands/apply.js';
 import { commandStatus } from '../commands/status.js';
@@ -58,7 +59,7 @@ const handlers: CommandHandlers = {
   check: async () => run(async () => {
     const config = await loadConfig();
     const result = await commandCheck(config);
-    if (!result.ok) process.exit(1);
+    if (!result.ok) process.exit(10);
   }),
 
   squash: async (opts) => run(async () => {
@@ -68,7 +69,7 @@ const handlers: CommandHandlers = {
 
   lint: async (opts) => run(async () => {
     const config = await loadConfig();
-    const result = await commandLint(config, { format: parseLintFormat(opts.format) });
+    const result = await commandLint(config, { format: parseOutputFormat(opts.format) });
     if (!result.ok) process.exit(10);
   }),
 
@@ -77,15 +78,15 @@ const handlers: CommandHandlers = {
     await commandDump(config);
   }),
 
-  diff: async () => run(async () => {
+  diff: async (opts) => run(async () => {
     const config = await loadConfig();
-    const result = await commandDiff(config);
-    if (!result.identical) process.exit(1);
+    const result = await commandDiff(config, { format: parseOutputFormat(opts.format) });
+    if (!result.identical) process.exit(10);
   }),
 
-  status: async () => run(async () => {
+  status: async (opts) => run(async () => {
     const config = await loadConfig();
-    await commandStatus(config);
+    await commandStatus(config, { format: parseOutputFormat(opts.format) });
   }),
 
   resolve: async (file, opts) => run(async () => {
@@ -100,8 +101,8 @@ const handlers: CommandHandlers = {
 
   verify: async (opts) => run(async () => {
     const config = await loadConfig();
-    const result = await commandVerify(config, { all: opts.all });
-    if (result.failed > 0) process.exit(1);
+    const result = await commandVerify(config, { all: opts.all, format: parseOutputFormat(opts.format) });
+    if (result.failed > 0) process.exit(10);
   }),
 
   groupStatus: async (group) => run(async () => {
@@ -154,7 +155,7 @@ const handlers: CommandHandlers = {
       forbidden: opts.forbid,
       contractFile: opts.contractFile,
     });
-    if (!result.pass) process.exit(1);
+    if (!result.pass) process.exit(10);
   }),
 
   deps: async (opts) => run(async () => {

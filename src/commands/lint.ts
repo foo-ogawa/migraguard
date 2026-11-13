@@ -11,11 +11,11 @@ import { ALL_RULES, runRules } from '../rules/index.js';
 import type { LintRule, LintViolation, RawViolation } from '../rules/index.js';
 import { ALL_GENERIC_RULES, runGenericRules } from '../generic/rules/index.js';
 import type { GenericDialect } from '../generic/rules/index.js';
-
-export type LintFormat = 'text' | 'json';
+import { writeJson } from '../output.js';
+import type { OutputFormat } from '../output.js';
 
 export interface LintOptions {
-  format?: LintFormat;
+  format?: OutputFormat;
 }
 
 export interface LintFileViolation extends LintViolation {
@@ -96,11 +96,6 @@ async function createEngine(config: MigraguardConfig): Promise<LintEngine> {
   };
 }
 
-export function parseLintFormat(value: string | undefined): LintFormat {
-  if (value === undefined || value === 'text' || value === 'json') return value ?? 'text';
-  throw new Error(`Unsupported format: ${value}. Use "text" or "json".`);
-}
-
 export async function commandLint(config: MigraguardConfig, options?: LintOptions): Promise<LintResult> {
   const text = (options?.format ?? 'text') === 'text';
 
@@ -145,7 +140,7 @@ export async function commandLint(config: MigraguardConfig, options?: LintOption
     if (text) printSummary(result);
   }
 
-  if (!text) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (!text) writeJson(result);
   return result;
 }
 

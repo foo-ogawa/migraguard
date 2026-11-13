@@ -238,7 +238,7 @@ migraguard squash --record-only
 | Option | Aliases | Required | Default | Description |
 |---|---|---|---|---|
 | `--dry-run` | -n | No | `false` | Show what would be squashed without writing files. |
-| `--record-only` |  | No | `false` | Record every new file in metadata.json as-is without merging. Use once to record existing migrations that were applied without being recorded. |
+| `--record-only` |  | No | `false` | Record every new file in metadata.json as-is without merging, as released: modelSince moves past the recorded files so none of them stays editable. Use once to record existing migrations that were applied without being recorded. |
 
 #### Exit Codes
 
@@ -884,7 +884,7 @@ x-agent:
 
 Evaluate deployment gate conditions against migration group states.
 
-Checks whether the current migration group states satisfy the specified deployment gate conditions. Used in CI/CD pipelines to gate deployments on schema state. Conditions use the syntax "group:<name>.<condition>" where condition is one of: expand_applied, backfill_applied, switch_applied, contract_applied, expand_pending, backfill_pending, switch_pending, contract_pending.
+Checks whether the current migration group states satisfy the specified deployment gate conditions. Used in CI/CD pipelines to gate deployments on schema state. Conditions use the syntax "group:<name>.<state>", where name is the group directory name or its description part and state is one of: not_applied, expand_applied, backfill_running, backfill_failed, backfill_completed, switch_applied, contract_ready, contract_completed. A condition holds when the group is in that state or a later one (backfill_failed only matches itself). An invalid condition is an error (exit 1).
 
 **Usage:**
 
@@ -892,7 +892,7 @@ Checks whether the current migration group states satisfy the specified deployme
 migraguard gate --require "group:rename_username_to_handle.expand_applied"
 ```
 ```
-migraguard gate --forbid "group:rename_username_to_handle.contract_pending"
+migraguard gate --forbid "group:rename_username_to_handle.contract_completed"
 ```
 ```
 migraguard gate --contract-file deploy-gates.json
@@ -902,8 +902,8 @@ migraguard gate --contract-file deploy-gates.json
 
 | Option | Aliases | Required | Default | Description |
 |---|---|---|---|---|
-| `--require` |  | No |  | Required schema state conditions. Syntax: group:<name>.<condition> |
-| `--forbid` |  | No |  | Forbidden schema state conditions. Syntax: group:<name>.<condition> |
+| `--require` |  | No |  | Required schema state conditions. Syntax: group:<name>.<state> |
+| `--forbid` |  | No |  | Forbidden schema state conditions. Syntax: group:<name>.<state> |
 | `--contract-file` |  | No |  | JSON file with schema requirements. |
 
 #### Exit Codes

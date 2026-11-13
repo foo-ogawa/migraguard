@@ -108,30 +108,42 @@ export interface Editability {
  * Classifies migration files by whether they may still change.
  *
  * `graph` is the dependency graph in DAG mode and `null` in linear mode.
- * Files before `modelSince` belong to the linear era that the first DAG file
- * builds on, so they are never editable leaves.
+ * Files whose names sort before `modelSince` are settled — the linear era the
+ * first DAG file builds on, or migrations recorded by `squash --record-only` —
+ * so they are never the editable tail file or leaf.
  */
 export function classifyEditability(
   files: MigrationFile[],
   metadata: MetadataJson,
   graph: DependencyGraph | null,
 ): Editability {
-  const editable = new Set<string>();
-  if (graph) {
-    const { modelSince } = metadata;
-    for (const leaf of findLeafNodes(graph)) {
-      if (modelSince && leaf < modelSince) continue;
-      editable.add(leaf);
-    }
-  } else if (files.length > 0) {
-    editable.add(files[files.length - 1].fileName);
-  }
+  const { modelSince } = metadata;
+  const candidates = graph
+    ? findLeafNodes(graph)
+    : files.slice(-1).map((f) => f.fileName);
+  const editable = new Set(
+    candidates.filter((name) => !(modelSince && name < modelSince)),
+  );
 
   const recorded = new Set(metadata.migrations.map((m) => m.file));
   const frozen = new Set(
     files.map((f) => f.fileName).filter((name) => recorded.has(name) && !editable.has(name)),
   );
   return { editable, frozen };
+}
+
+/**
+ * Returns metadata whose `modelSince` sorts after every given file, so that
+ * `classifyEditability` treats them as settled; a later `modelSince` is kept.
+ * Appending a character to the greatest name yields a name after it and
+ * before any file named with a later timestamp.
+ */
+export function settleFiles(metadata: MetadataJson, fileNames: string[]): MetadataJson {
+  if (fileNames.length === 0) return metadata;
+  const greatest = fileNames.reduce((a, b) => (b > a ? b : a));
+  const boundary = `${greatest}~`;
+  if (metadata.modelSince && metadata.modelSince >= boundary) return metadata;
+  return { ...metadata, modelSince: boundary };
 }
 
 export async function resolveEditability(

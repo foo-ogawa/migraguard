@@ -190,6 +190,35 @@ describe('commands/lint', () => {
       expect(unstableListFiles(result)).toEqual(['20260301_120000__a.sql']);
     });
 
+    it('DAG via config: files recorded by --record-only are not linted, files added afterwards are', async () => {
+      const config = buildConfig({ model: 'dag', migrationsDir: 'db/migrations' }, tempDir);
+      // Two independent leaves, both released before migraguard recorded them.
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await addFile('20260302_120000__b.sql', unstableList('b'));
+      await commandSquash(config, { recordOnly: true });
+
+      const recorded = await commandLint(config);
+      expect(recorded.ok).toBe(true);
+      expect(recorded.filesSkipped).toBe(2);
+
+      await addFile('20260401_120000__c.sql', unstableList('c'));
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__c.sql']);
+
+      await commandSquash(config);
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__c.sql']);
+    });
+
+    it('linear: the tail file recorded by --record-only is not linted, a file added afterwards is', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config, { recordOnly: true });
+
+      expect((await commandLint(config)).ok).toBe(true);
+
+      await addFile('20260401_120000__b.sql', unstableList('b'));
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__b.sql']);
+    });
+
     it('generic dialect: a released file is not linted once a newer file exists', async () => {
       const config = buildConfig({ dialect: 'sqlite', migrationsDir: 'db/migrations' }, tempDir);
       await addFile('20260301_120000__a.sql', 'DROP TABLE IF EXISTS legacy;');

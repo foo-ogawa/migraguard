@@ -91,7 +91,7 @@ export function createProgram(
     .command("squash")
     .description("Squash multiple new migration files into one.")
     .option("-n, --dry-run", "Show what would be squashed without writing files.", false)
-    .option("--record-only", "Record every new file in metadata.json as-is without merging. Use once to record existing migrations that were applied without being recorded.", false)
+    .option("--record-only", "Record every new file in metadata.json as-is without merging, as released: modelSince moves past the recorded files so none of them stays editable. Use once to record existing migrations that were applied without being recorded.", false)
     .action(async (opts, cmd) => {
       await handlers.squash(opts, cmd.optsWithGlobals());
     });
@@ -196,8 +196,8 @@ export function createProgram(
   program
     .command("gate")
     .description("Evaluate deployment gate conditions against migration group states.")
-    .option("--require <condition...>", "Required schema state conditions. Syntax: group:<name>.<condition>")
-    .option("--forbid <condition...>", "Forbidden schema state conditions. Syntax: group:<name>.<condition>")
+    .option("--require <condition...>", "Required schema state conditions. Syntax: group:<name>.<state>")
+    .option("--forbid <condition...>", "Forbidden schema state conditions. Syntax: group:<name>.<state>")
     .option("--contract-file <path>", "JSON file with schema requirements.")
     .action(async (opts, cmd) => {
       await handlers.gate(opts, cmd.optsWithGlobals());

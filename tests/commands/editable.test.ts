@@ -175,23 +175,33 @@ describe('commands/editable', () => {
   it('DAG via config (metadata.json without model): recorded leaf nodes are editable', async () => {
     const migDir = join(tempDir, 'db', 'migrations');
     await mkdir(migDir, { recursive: true });
-    await writeFile(
-      join(migDir, '20260301_100000__create_users.sql'),
-      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
-    );
-    await writeFile(
-      join(migDir, '20260302_100000__create_posts.sql'),
-      'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));',
-    );
     const config = buildConfig({
       model: 'dag',
       migrationsDir: 'db/migrations',
       metadataFile: 'db/.migraguard/metadata.json',
     }, tempDir);
-    await commandSquash(config, { recordOnly: true });
+    await writeFile(
+      join(migDir, '20260301_100000__create_users.sql'),
+      'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);',
+    );
+    await commandSquash(config);
+    await writeFile(
+      join(migDir, '20260302_100000__create_posts.sql'),
+      'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));',
+    );
+    await commandSquash(config);
 
     const result = await commandEditable(config);
     expect(result.editableFiles).toEqual(['20260302_100000__create_posts.sql']);
     expect(result.entries).toEqual([{ fileName: '20260302_100000__create_posts.sql', reason: 'leaf' }]);
+  });
+
+  it('files recorded by squash --record-only are not editable', async () => {
+    await setupFiles(['20260301_120000__a.sql', '20260302_120000__b.sql']);
+    const config = makeConfig();
+    await commandSquash(config, { recordOnly: true });
+
+    const result = await commandEditable(config);
+    expect(result.editableFiles).toEqual([]);
   });
 });
