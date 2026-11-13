@@ -28,11 +28,6 @@ import { commandAuditWorkflow } from '../commands/audit-workflow.js';
 import { resolvedDsl } from '../generated/dsl/index.js';
 import type { Phase } from '../naming.js';
 
-function asArray(value: string | string[] | undefined): string[] | undefined {
-  if (value === undefined) return undefined;
-  return Array.isArray(value) ? value : [value];
-}
-
 async function run(fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
@@ -117,7 +112,7 @@ const handlers: CommandHandlers = {
   baseline: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandBaseline(config, {
-      keepSince: asArray(opts.keepSince),
+      keepSince: opts.keepSince,
       dryRun: opts.dryRun,
     });
     if (!result.success) process.exit(1);
@@ -155,8 +150,8 @@ const handlers: CommandHandlers = {
   gate: async (opts) => run(async () => {
     const config = await loadConfig();
     const result = await commandGate(config, {
-      required: asArray(opts.require),
-      forbidden: asArray(opts.forbid),
+      required: opts.require,
+      forbidden: opts.forbid,
       contractFile: opts.contractFile,
     });
     if (!result.pass) process.exit(1);

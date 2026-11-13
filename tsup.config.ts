@@ -17,7 +17,6 @@ export default defineConfig({
   external: [
     'chalk',
     'commander',
-    'glob',
     '@anthropic-ai/claude-agent-sdk',
     '@openai/agents',
     '@google/adk',
