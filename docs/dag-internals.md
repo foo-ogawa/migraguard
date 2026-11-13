@@ -126,7 +126,7 @@ D's failure does not block E's release
 
 ## Squash in DAG Mode
 
-New files are automatically split into connected components (groups) based on dependencies. Squash is performed per group; independent DDL remains as individual files.
+New files are automatically split into connected components (groups) based on dependencies. Squash is performed per group; independent DDL remains as individual files. Every resulting file is recorded in `metadata.json`.
 
 ```
 Before squash:
@@ -176,6 +176,6 @@ metadata.json example:
 
 ### check / apply Behavior at Boundary
 
-- Files before `modelSince`: Checked linearly by timestamp as before
+- Files before `modelSince`: Checked linearly by timestamp as before; never editable as leaves. `squash --record-only` moves `modelSince` past the files it records (in both models), so recorded files can no longer change
 - Files after `modelSince`: Leaf node determination and topological sort via DAG analysis
 - Boundary: The `modelSince` file implicitly depends on all prior files (inherits the linear model's final state)

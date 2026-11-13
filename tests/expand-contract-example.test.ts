@@ -218,7 +218,9 @@ describe('Expand/Contract example — social-app', () => {
       }, tempDir);
 
       const result = await commandLint(cfg);
-      expect(result.filesLinted).toBe(12);
+      // The 4 unrecorded phase files are linted; the 8 recorded Class A files can no longer change.
+      expect(result.filesLinted).toBe(4);
+      expect(result.filesSkipped).toBe(8);
       expect(result.ok).toBe(true);
     });
 

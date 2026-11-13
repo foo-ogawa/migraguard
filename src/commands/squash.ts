@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
-import { loadMetadata, saveMetadata, addEntry, isDagMode } from '../metadata.js';
-import { checksumString } from '../checksum.js';
+import { loadMetadata, saveMetadata, addEntry, isDagMode, settleFiles } from '../metadata.js';
+import { checksumString, checksumFile } from '../checksum.js';
 import { compareSortKeys } from '../naming.js';
 import type { MigrationFile } from '../scanner.js';
 import type { MetadataJson } from '../metadata.js';
@@ -62,8 +62,20 @@ async function squashGroup(
 
 export interface SquashOptions {
   dryRun?: boolean;
+  /**
+   * Record every new file in metadata.json as-is, without merging any of them,
+   * as released: `modelSince` moves past them so none stays editable.
+   */
+  recordOnly?: boolean;
 }
 
+/**
+ * Records new migration files in metadata.json. Files that belong to one
+ * release are merged into a single file first: all new files in the linear
+ * model, each dependency-connected set of new files in the DAG model. A file
+ * with nothing to merge with — and every expand/contract phase file, whose
+ * phases must stay separate — is recorded as-is.
+ */
 export async function commandSquash(config: MigraguardConfig, options?: SquashOptions): Promise<void> {
   const metadata = await loadMetadata(config);
   const files = await scanMigrations(config);
@@ -76,62 +88,64 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
     return;
   }
 
+  const groups = options?.recordOnly
+    ? newFiles.map((f) => [f])
+    : await releaseGroups(config, metadata, newFiles);
+
+  const settled = options?.recordOnly
+    ? settleFiles(metadata, newFiles.map((f) => f.fileName))
+    : metadata;
+
   if (options?.dryRun) {
-    console.log(chalk.cyan(`[dry-run] Would squash ${newFiles.length} file(s):`));
-    for (const f of newFiles) {
-      console.log(chalk.cyan(`  ${f.fileName}`));
+    for (const group of groups) {
+      if (group.length >= 2) {
+        console.log(chalk.cyan(`[dry-run] Would squash ${group.length} file(s) into: ${buildSquashedFileName(group)}`));
+        for (const f of group) console.log(chalk.cyan(`  ${f.fileName}`));
+      } else {
+        console.log(chalk.cyan(`[dry-run] Would record: ${group[0].fileName}`));
+      }
+    }
+    if (settled.modelSince !== metadata.modelSince) {
+      console.log(chalk.cyan(`[dry-run] Would set modelSince: ${settled.modelSince}`));
     }
     return;
   }
 
-  if (isDagMode(metadata, config)) {
-    await dagSquash(config, newFiles, metadata);
-  } else {
-    if (newFiles.length === 1) {
-      console.log(chalk.yellow('Only one new file found. Nothing to squash.'));
-      return;
-    }
-    const updated = await squashGroup(config, newFiles, metadata);
-    await saveMetadata(config, updated);
+  let currentMeta = settled;
+  for (const group of groups) {
+    currentMeta = group.length >= 2
+      ? await squashGroup(config, group, currentMeta)
+      : await recordFile(group[0], currentMeta);
   }
-}
-
-async function dagSquash(
-  config: MigraguardConfig,
-  newFiles: MigrationFile[],
-  metadata: MetadataJson,
-): Promise<void> {
-  const graph = await buildDependencyGraph(config);
-  const groups = findConnectedComponents(newFiles, graph);
-
-  const squashable = groups.filter((g) => g.length >= 2);
-  const standalone = groups.filter((g) => g.length === 1);
-
-  if (squashable.length === 0) {
-    if (standalone.length > 0) {
-      console.log(chalk.yellow(
-        `${standalone.length} independent new file(s) — nothing to squash.`,
-      ));
-    } else {
-      console.log(chalk.yellow('No new migration files to squash.'));
-    }
-    return;
-  }
-
-  let currentMeta = metadata;
-  for (const group of squashable) {
-    currentMeta = await squashGroup(config, group, currentMeta);
+  if (settled.modelSince !== metadata.modelSince) {
+    console.log(chalk.green(`Set modelSince: ${settled.modelSince}`));
   }
   await saveMetadata(config, currentMeta);
+}
 
-  if (standalone.length > 0) {
-    console.log(chalk.cyan(
-      `\n${standalone.length} independent file(s) left as-is (no squash needed):`,
-    ));
-    for (const g of standalone) {
-      console.log(chalk.gray(`  ${g[0].fileName}`));
-    }
+async function recordFile(file: MigrationFile, metadata: MetadataJson): Promise<MetadataJson> {
+  const checksum = await checksumFile(file.filePath);
+  console.log(chalk.green(`Recorded: ${file.fileName}`));
+  return addEntry(metadata, { file: file.fileName, checksum });
+}
+
+async function releaseGroups(
+  config: MigraguardConfig,
+  metadata: MetadataJson,
+  newFiles: MigrationFile[],
+): Promise<MigrationFile[][]> {
+  const phaseFiles = newFiles.filter((f) => f.migrationClass === 'expand_contract');
+  const safeFiles = newFiles.filter((f) => f.migrationClass === 'safe');
+
+  let safeGroups: MigrationFile[][];
+  if (safeFiles.length === 0) {
+    safeGroups = [];
+  } else if (isDagMode(metadata, config)) {
+    safeGroups = findConnectedComponents(safeFiles, await buildDependencyGraph(config));
+  } else {
+    safeGroups = [safeFiles];
   }
+  return [...safeGroups, ...phaseFiles.map((f) => [f])];
 }
 
 function findConnectedComponents(

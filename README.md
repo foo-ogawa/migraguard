@@ -211,7 +211,7 @@ Development (feature branch):
   (edit SQL → migraguard apply)
 
 Release preparation:
-  migraguard squash                  → merge into 1 file
+  migraguard squash                  → merge into 1 file and record it in metadata.json
   migraguard lint && check           → integrity + lint gate
   migraguard dump                    → update schema dump
   git commit
@@ -247,6 +247,19 @@ Production deploy completes → all environments have S → the next migration c
 
 See [docs/state-model.md](docs/state-model.md) for detailed apply, check, resolve, and squash flows.
 
+### Recording Existing Migrations
+
+`check` protects a file from changes once `squash` has recorded it in `metadata.json`, and `lint` stops re-checking it once it can no longer change. Migrations that were released without being recorded are treated as new files: `check` does not protect them, `lint` checks them against every current rule, and a later `squash` may merge them. Record them once, without editing the files:
+
+```bash
+npx migraguard squash --record-only --dry-run   # list the files to record and the new modelSince
+npx migraguard squash --record-only             # record each new file as-is with its current checksum
+npx migraguard check && npx migraguard lint
+git add db/.migraguard/metadata.json && git commit
+```
+
+Run it when every unrecorded file has been released. `--record-only` also sets `modelSince` in `metadata.json` to a point after the recorded files (a later existing `modelSince` is kept). Files before `modelSince` are never the editable tail file or leaf, so every recorded file can no longer change: `check` rejects changes to it and `lint` does not check it. Files added afterwards are editable and linted as usual, in both the linear and the DAG model.
+
 ## Expand/Contract Pattern (Class B Migrations)
 
 For long-running schema changes — column renames, type migrations, table splits — migraguard supports the **expand/contract pattern** as a first-class concept. A Migration Group is a directory containing phased SQL files (`expand` → `backfill` → `switch` → `contract`) with a dedicated state machine, deployment gate, and executor commands.
@@ -272,7 +285,8 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 |---------|-------------|
 | `new <name>` | Generate a new migration SQL file |
 | `new --expand-contract <name>` | Create an expand/contract migration group |
-| `squash` | Merge pending files into one for release |
+| `squash` | Merge pending files into one for release and record them in metadata.json |
+| `squash --record-only` | Record every new file in metadata.json as-is, without merging |
 | `apply` | Execute pending migrations via native CLI (`psql` / `mysql` / `sqlite3`) |
 | `apply --with-drift-check` | Local: drift check → apply → dump update |
 | `apply --from-baseline` | Apply `schema.sql` baseline, then remaining migrations |
@@ -292,6 +306,8 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 | `apply-phase <group> <phase>` | Apply a specific phase via native CLI |
 | `gate` | Evaluate deployment gate conditions |
 | `baseline` | Squash applied migrations into `schema.sql` |
+
+`check`, `lint`, `diff`, `verify`, and `gate` exit with 0 when the check passes, 10 when it finds a problem (tampered files, lint errors, schema drift, a non-idempotent migration, an unmet gate condition), and 1 on an unexpected error. `lint`, `diff`, `verify`, and `status` accept `--format json`, which prints the result as JSON on stdout.
 
 ### LLM-Powered Commands
 
@@ -576,6 +592,8 @@ UPDATE users SET status = 'active' WHERE status IS NULL;
 | `backfill-requires-where-clause` | Generic | UPDATE/DELETE without WHERE in backfill phase *(backfill only)* |
 | `backfill-ban-ddl` | Generic | DDL statements in backfill phase *(backfill only)* |
 | `contract-requires-allow-directive` | Generic | DROP without migraguard:allow in contract phase *(contract only)* |
+
+`lint` checks only the files that can still change: files not yet recorded in `metadata.json`, and the editable files — the tail file (linear) or the leaf nodes (DAG). A recorded file that can no longer change is not linted; `check` already rejects any change to it, so a rule added in a later migraguard version never fails on a migration that has been released. `lint --format json` prints the result as JSON on stdout.
 
 Each rule can be set to `"error"` (default — fail lint), `"warn"` (report but pass), or `"off"` (skip). Phase-specific rules (marked above) only activate for the corresponding expand/contract phase file. Per-file exceptions use a comment directive:
 

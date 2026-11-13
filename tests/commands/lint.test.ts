@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildConfig } from '../../src/config.js';
 import { commandLint } from '../../src/commands/lint.js';
+import { commandSquash } from '../../src/commands/squash.js';
 
 describe('commands/lint', () => {
   let tempDir: string;
@@ -106,5 +107,132 @@ describe('commands/lint', () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toBe(0);
     expect(result.warnings).toBeGreaterThan(0);
+  });
+
+  describe('files that can no longer change', () => {
+    const wrap = (ddl: string) => [
+      "SET lock_timeout = '5s';",
+      "SET statement_timeout = '30s';",
+      ddl,
+      'RESET lock_timeout;',
+      'RESET statement_timeout;',
+    ].join('\n');
+    // Violates ban-unstable-list-predicate only.
+    const unstableList = (table: string) => wrap(
+      `CREATE TABLE IF NOT EXISTS ${table} (id SERIAL PRIMARY KEY, s varchar(20), CONSTRAINT ${table}_s CHECK (s IN ('a', 'b')));`,
+    );
+    const clean = (table: string, ref?: string) => wrap(
+      `CREATE TABLE IF NOT EXISTS ${table} (id SERIAL PRIMARY KEY${ref ? `, ${ref}_id INT REFERENCES ${ref}(id)` : ''});`,
+    );
+
+    async function addFile(name: string, sql: string) {
+      const migDir = join(tempDir, 'db', 'migrations');
+      await mkdir(migDir, { recursive: true });
+      await writeFile(join(migDir, name), sql);
+    }
+
+    function unstableListFiles(result: Awaited<ReturnType<typeof commandLint>>) {
+      return result.violations
+        .filter((v) => v.rule === 'ban-unstable-list-predicate')
+        .map((v) => v.file);
+    }
+
+    it('linear: a released file is not linted once a newer file exists', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config);
+      await addFile('20260302_120000__b.sql', clean('b'));
+
+      const result = await commandLint(config);
+      expect(result.ok).toBe(true);
+      expect(result.filesLinted).toBe(1);
+      expect(result.filesSkipped).toBe(1);
+    });
+
+    it('linear: the same violation in the new file still fails', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config);
+      await addFile('20260302_120000__b.sql', unstableList('b'));
+
+      const result = await commandLint(config);
+      expect(result.ok).toBe(false);
+      expect(unstableListFiles(result)).toEqual(['20260302_120000__b.sql']);
+    });
+
+    it('linear: the recorded tail file is still linted', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config);
+
+      const result = await commandLint(config);
+      expect(unstableListFiles(result)).toEqual(['20260301_120000__a.sql']);
+    });
+
+    it('DAG via config: a recorded file another file depends on is not linted; the leaf is', async () => {
+      const config = buildConfig({ model: 'dag', migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config);
+      await addFile('20260302_120000__b.sql', unstableList('b').replace('PRIMARY KEY,', 'PRIMARY KEY, a_id INT REFERENCES a(id),'));
+      await commandSquash(config);
+
+      const result = await commandLint(config);
+      expect(unstableListFiles(result)).toEqual(['20260302_120000__b.sql']);
+      expect(result.filesSkipped).toBe(1);
+    });
+
+    it('DAG: a new file is linted even when another new file depends on it', async () => {
+      const config = buildConfig({ model: 'dag', migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await addFile('20260302_120000__b.sql', clean('b', 'a'));
+
+      const result = await commandLint(config);
+      expect(unstableListFiles(result)).toEqual(['20260301_120000__a.sql']);
+    });
+
+    it('DAG via config: files recorded by --record-only are not linted, files added afterwards are', async () => {
+      const config = buildConfig({ model: 'dag', migrationsDir: 'db/migrations' }, tempDir);
+      // Two independent leaves, both released before migraguard recorded them.
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await addFile('20260302_120000__b.sql', unstableList('b'));
+      await commandSquash(config, { recordOnly: true });
+
+      const recorded = await commandLint(config);
+      expect(recorded.ok).toBe(true);
+      expect(recorded.filesSkipped).toBe(2);
+
+      await addFile('20260401_120000__c.sql', unstableList('c'));
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__c.sql']);
+
+      await commandSquash(config);
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__c.sql']);
+    });
+
+    it('linear: the tail file recorded by --record-only is not linted, a file added afterwards is', async () => {
+      const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', unstableList('a'));
+      await commandSquash(config, { recordOnly: true });
+
+      expect((await commandLint(config)).ok).toBe(true);
+
+      await addFile('20260401_120000__b.sql', unstableList('b'));
+      expect(unstableListFiles(await commandLint(config))).toEqual(['20260401_120000__b.sql']);
+    });
+
+    it('generic dialect: a released file is not linted once a newer file exists', async () => {
+      const config = buildConfig({ dialect: 'sqlite', migrationsDir: 'db/migrations' }, tempDir);
+      await addFile('20260301_120000__a.sql', 'DROP TABLE IF EXISTS legacy;');
+      await commandSquash(config);
+      await addFile('20260302_120000__b.sql', 'CREATE TABLE IF NOT EXISTS b (id INTEGER PRIMARY KEY);');
+
+      const result = await commandLint(config);
+      expect(result.ok).toBe(true);
+      expect(result.filesSkipped).toBe(1);
+
+      await addFile('20260303_120000__c.sql', 'DROP TABLE IF EXISTS b;');
+      const failing = await commandLint(config);
+      expect(failing.ok).toBe(false);
+      expect(failing.violations.map((v) => v.file)).toEqual(['20260303_120000__c.sql']);
+    });
   });
 });

@@ -7,6 +7,9 @@ import type { MigrationRecord } from '../db.js';
 import { loadMetadata } from '../metadata.js';
 import { deriveAllGroupStates } from '../group-state.js';
 import type { GroupState } from '../group-state.js';
+import type { BaselineEntry } from '../metadata.js';
+import { writeJson } from '../output.js';
+import type { OutputFormat } from '../output.js';
 
 export type FileStatus = 'applied' | 'pending' | 'failed' | 'skipped' | 'changed';
 
@@ -20,6 +23,11 @@ export interface StatusEntry {
 export interface StatusResult {
   entries: StatusEntry[];
   groups: GroupState[];
+  baselines: BaselineEntry[];
+}
+
+export interface StatusOptions {
+  format?: OutputFormat;
 }
 
 function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefined {
@@ -29,7 +37,7 @@ function getLatestRecord(records: MigrationRecord[]): MigrationRecord | undefine
   );
 }
 
-export async function commandStatus(config: MigraguardConfig): Promise<StatusResult> {
+export async function commandStatus(config: MigraguardConfig, options?: StatusOptions): Promise<StatusResult> {
   const db = createDb(config);
   const entries: StatusEntry[] = [];
   let groups: GroupState[];
@@ -89,6 +97,13 @@ export async function commandStatus(config: MigraguardConfig): Promise<StatusRes
     await db.close();
   }
 
+  const baselines = (await loadMetadata(config)).baselines ?? [];
+  const result: StatusResult = { entries, groups, baselines };
+  if (options?.format === 'json') {
+    writeJson(result);
+    return result;
+  }
+
   const statusColors: Record<FileStatus, (s: string) => string> = {
     applied: chalk.green,
     pending: chalk.cyan,
@@ -138,18 +153,17 @@ export async function commandStatus(config: MigraguardConfig): Promise<StatusRes
     }
   }
 
-  const metadata = await loadMetadata(config);
-  if (metadata.baselines && metadata.baselines.length > 0) {
-    const totalBaselined = metadata.baselines.reduce((n, b) => n + b.includes.length, 0);
+  if (baselines.length > 0) {
+    const totalBaselined = baselines.reduce((n, b) => n + b.includes.length, 0);
     console.log(chalk.bold(`\n  Baselined (${totalBaselined} files in schema.sql):`));
-    for (const baseline of metadata.baselines) {
+    for (const baseline of baselines) {
       for (const inc of baseline.includes) {
         console.log(`    ${chalk.magenta('◆')} ${inc.file}  ${chalk.gray(`(baseline ${baseline.date.substring(0, 10)})`)}`);
       }
     }
   }
 
-  return { entries, groups };
+  return result;
 }
 
 function formatGroupState(state: string): string {

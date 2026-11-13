@@ -9,11 +9,10 @@ import { createDb } from '../db.js';
 import type { MigraguardDbAdapter, MigrationRecord, InsertRecordOptions } from '../db.js';
 import { executeSqlFile } from '../executor.js';
 import { dumpSchema } from '../dumper.js';
-import { loadMetadata, isDagMode } from '../metadata.js';
+import { loadMetadata, isDagMode, classifyEditability } from '../metadata.js';
 import type { MetadataJson } from '../metadata.js';
 import {
   buildDependencyGraph,
-  findLeafNodes,
   topologicalSort,
   findTransitiveDependents,
 } from '../deps.js';
@@ -75,11 +74,9 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
   const dag = isDagMode(metadata, config);
 
   let graph: DependencyGraph | null = null;
-  let leafSet: Set<string> | null = null;
 
   if (dag) {
     graph = await buildDependencyGraph(config);
-    leafSet = new Set(findLeafNodes(graph));
   }
 
   const db = createDb(config);
@@ -138,7 +135,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
       return result;
     }
 
-    const latestFileName = files[files.length - 1].fileName;
+    const { editable } = classifyEditability(files, metadata, graph);
     const blockedSet = new Set<string>();
 
     const groupStates = deriveAllGroupStates(allRecords);
@@ -191,11 +188,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
       const fileRecords = recordsByFile.get(file.fileName) ?? [];
       const latestRecord = getLatestRecord(fileRecords);
       const currentChecksum = await checksumFile(file.filePath);
-      const isEditable = dag && leafSet
-        ? leafSet.has(file.fileName)
-        : file.fileName === latestFileName;
-
-
+      const isEditable = editable.has(file.fileName);
 
       const insertOpts: InsertRecordOptions | undefined =
         file.migrationClass === 'expand_contract'

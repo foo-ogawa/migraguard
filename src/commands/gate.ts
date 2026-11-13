@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { MigraguardConfig } from '../config.js';
 import { createDb, safeGetAllRecords } from '../db.js';
-import { deriveAllGroupStates } from '../group-state.js';
+import { deriveAllGroupStates, GROUP_STATE_NAMES } from '../group-state.js';
 import type { GroupState, GroupStateName } from '../group-state.js';
 
 export interface GateContract {
@@ -82,10 +82,14 @@ export async function commandGate(
 
 function evaluateCondition(groupStates: GroupState[], condition: string): boolean {
   const match = condition.match(/^group:([^.]+)\.(.+)$/);
-  if (!match) return false;
+  const requiredState = GROUP_STATE_NAMES.find((name) => name === match?.[2]);
+  if (!match || !requiredState) {
+    throw new Error(
+      `Invalid gate condition: "${condition}". Use group:<name>.<state> with state one of ${GROUP_STATE_NAMES.join(', ')}.`,
+    );
+  }
 
   const groupNamePart = match[1];
-  const requiredState = match[2] as GroupStateName;
 
   const gs = groupStates.find((s) => {
     const shortName = extractShortName(s.groupName);

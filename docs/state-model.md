@@ -166,7 +166,7 @@ This is stronger than lint rules or conventions — it dynamically proves that e
 
 ## Squash Flow
 
-`migraguard squash` merges multiple migration files created during development into a single file. Run before merging to the release branch.
+`migraguard squash` merges multiple migration files created during development into a single file and records the release in metadata.json. Run before merging to the release branch.
 
 ### Linear Model Behavior
 
@@ -174,7 +174,9 @@ This is stronger than lint rules or conventions — it dynamically proves that e
 2. Identify new files not recorded in metadata.json
 3. If there are 2 or more new files, concatenate them in timestamp order into a single file
 4. The merged filename uses the latest timestamp; descriptions are combined
-5. Delete original files and update metadata.json
+5. Delete original files and record the merged file in metadata.json; a single new file is recorded as-is
+
+Expand/contract phase files are never merged; each is recorded as-is. `squash --record-only` records every new file as-is without merging.
 
 ```
 Before squash:

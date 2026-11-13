@@ -37,6 +37,7 @@ export type CheckExitResult =
 
 export interface SquashOptions {
   dryRun?: boolean;
+  recordOnly?: boolean;
 }
 
 export type SquashExitCode = 0 | 1;

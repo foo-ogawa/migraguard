@@ -10,11 +10,14 @@ import { executeSqlFile, spawnWithStdin } from '../executor.js';
 import { runCapturing } from '../exec.js';
 import { dumpSchema } from '../dumper.js';
 import { createDb, safeGetAllRecords } from '../db.js';
+import { writeJson } from '../output.js';
+import type { OutputFormat } from '../output.js';
 
 const { Client } = pg;
 
 export interface VerifyOptions {
   all?: boolean;
+  format?: OutputFormat;
 }
 
 export interface VerifyFileResult {
@@ -262,81 +265,84 @@ export async function commandVerify(
   options?: VerifyOptions,
 ): Promise<VerifyResult> {
   const allMode = options?.all ?? false;
+  const json = options?.format === 'json';
+  // Progress lines go to stderr in json format so that stdout carries the result document only.
+  const log = json ? console.error : console.log;
   const id = shadowId();
   const name = shadowName(config, id);
   const files = await scanMigrations(config);
-
-  if (files.length === 0) {
-    console.log(chalk.yellow('No migration files to verify.'));
-    return { files: [], passed: 0, failed: 0, shadowDbName: name };
-  }
-
   const results: VerifyFileResult[] = [];
 
-  console.log(chalk.bold(`\nVerifying idempotency using shadow DB: ${name}`));
-  if (allMode) {
-    console.log(chalk.gray('  Mode: --all (verify all migrations from scratch)\n'));
+  if (files.length === 0) {
+    log(chalk.yellow('No migration files to verify.'));
   } else {
-    console.log(chalk.gray('  Mode: incremental (restore current DB, verify pending)\n'));
-  }
-
-  try {
-    await createShadow(config, name);
-    const sConfig = buildShadowConfig(config, name);
-    const sDumpConfig = buildShadowDumpConfig(config, name);
-
-    const verifiableFiles = files.filter((f) => f.phase !== 'backfill');
-
+    log(chalk.bold(`\nVerifying idempotency using shadow DB: ${name}`));
     if (allMode) {
-      for (const file of verifiableFiles) {
-        const r = await verifyFile(file, sConfig, sDumpConfig);
-        results.push(r);
-        printVerifyFileResult(r);
-      }
+      log(chalk.gray('  Mode: --all (verify all migrations from scratch)\n'));
     } else {
-      console.log(chalk.blue('  Restoring current DB schema to shadow...'));
-      await cloneSourceToShadow(config, name);
-      console.log(chalk.green('  ✓ Schema restored.\n'));
+      log(chalk.gray('  Mode: incremental (restore current DB, verify pending)\n'));
+    }
 
-      const appliedFiles = await getAppliedFiles(config);
-      const pendingFiles = verifiableFiles.filter((f) => !appliedFiles.has(f.fileName));
+    try {
+      await createShadow(config, name);
+      const sConfig = buildShadowConfig(config, name);
+      const sDumpConfig = buildShadowDumpConfig(config, name);
 
-      if (pendingFiles.length === 0) {
-        console.log(chalk.green('  All migrations already applied. Nothing to verify.'));
-      } else {
-        console.log(chalk.gray(`  ${appliedFiles.size} applied, ${pendingFiles.length} pending to verify\n`));
-        for (const file of pendingFiles) {
+      const verifiableFiles = files.filter((f) => f.phase !== 'backfill');
+
+      if (allMode) {
+        for (const file of verifiableFiles) {
           const r = await verifyFile(file, sConfig, sDumpConfig);
           results.push(r);
-          printVerifyFileResult(r);
+          printVerifyFileResult(log, r);
+        }
+      } else {
+        log(chalk.blue('  Restoring current DB schema to shadow...'));
+        await cloneSourceToShadow(config, name);
+        log(chalk.green('  ✓ Schema restored.\n'));
+
+        const appliedFiles = await getAppliedFiles(config);
+        const pendingFiles = verifiableFiles.filter((f) => !appliedFiles.has(f.fileName));
+
+        if (pendingFiles.length === 0) {
+          log(chalk.green('  All migrations already applied. Nothing to verify.'));
+        } else {
+          log(chalk.gray(`  ${appliedFiles.size} applied, ${pendingFiles.length} pending to verify\n`));
+          for (const file of pendingFiles) {
+            const r = await verifyFile(file, sConfig, sDumpConfig);
+            results.push(r);
+            printVerifyFileResult(log, r);
+          }
         }
       }
+    } finally {
+      await dropShadow(config, name);
+      log(chalk.gray(`\n  Shadow DB "${name}" dropped.`));
     }
-  } finally {
-    await dropShadow(config, name);
-    console.log(chalk.gray(`\n  Shadow DB "${name}" dropped.`));
   }
 
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
 
-  console.log('');
+  log('');
   if (failed === 0 && results.length > 0) {
-    console.log(chalk.green(`✓ All ${passed} migration(s) are idempotent.`));
+    log(chalk.green(`✓ All ${passed} migration(s) are idempotent.`));
   } else if (failed > 0) {
-    console.log(chalk.red(`✗ ${failed}/${results.length} migration(s) failed idempotency check.`));
+    log(chalk.red(`✗ ${failed}/${results.length} migration(s) failed idempotency check.`));
   }
 
-  return { files: results, passed, failed, shadowDbName: name };
+  const result: VerifyResult = { files: results, passed, failed, shadowDbName: name };
+  if (json) writeJson(result);
+  return result;
 }
 
-function printVerifyFileResult(r: VerifyFileResult): void {
+function printVerifyFileResult(log: (message: string) => void, r: VerifyFileResult): void {
   if (r.passed) {
-    console.log(chalk.green(`  ✓ ${r.fileName}`));
+    log(chalk.green(`  ✓ ${r.fileName}`));
   } else {
-    console.log(chalk.red(`  ✗ ${r.fileName}`));
-    if (r.firstApplyError) console.log(chalk.red(`      1st apply error: ${r.firstApplyError}`));
-    if (r.secondApplyError) console.log(chalk.red(`      2nd apply error: ${r.secondApplyError}`));
-    if (r.schemaDrift) console.log(chalk.red(`      Schema changed between 1st and 2nd apply`));
+    log(chalk.red(`  ✗ ${r.fileName}`));
+    if (r.firstApplyError) log(chalk.red(`      1st apply error: ${r.firstApplyError}`));
+    if (r.secondApplyError) log(chalk.red(`      2nd apply error: ${r.secondApplyError}`));
+    if (r.schemaDrift) log(chalk.red(`      Schema changed between 1st and 2nd apply`));
   }
 }

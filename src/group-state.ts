@@ -1,15 +1,18 @@
 import type { MigrationRecord } from './db.js';
 import type { Phase } from './naming.js';
 
-export type GroupStateName =
-  | 'not_applied'
-  | 'expand_applied'
-  | 'backfill_running'
-  | 'backfill_failed'
-  | 'backfill_completed'
-  | 'switch_applied'
-  | 'contract_ready'
-  | 'contract_completed';
+export const GROUP_STATE_NAMES = [
+  'not_applied',
+  'expand_applied',
+  'backfill_running',
+  'backfill_failed',
+  'backfill_completed',
+  'switch_applied',
+  'contract_ready',
+  'contract_completed',
+] as const;
+
+export type GroupStateName = typeof GROUP_STATE_NAMES[number];
 
 export interface PhaseRecord {
   fileName: string;
