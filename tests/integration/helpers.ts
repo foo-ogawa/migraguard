@@ -9,23 +9,26 @@ import type { MetadataJson } from '../../src/metadata.js';
 
 const { Client } = pg;
 
-export const TEST_CONNECTION = {
-  host: 'localhost',
-  port: 15432,
-  database: 'migraguard_test',
-  user: 'migraguard_test',
-  password: 'migraguard_test',
-};
+/**
+ * The database comes from DATABASE_URL, which the `test-integration` service in
+ * docker-compose.test.yml sets. That service is the one place the suite runs.
+ */
+function connectionFromEnv(): { host: string; port: number; database: string; user: string; password: string } {
+  const raw = process.env['DATABASE_URL'];
+  if (!raw) {
+    throw new Error('DATABASE_URL is not set. Run the suite through the test-integration service in docker-compose.test.yml.');
+  }
+  const url = new URL(raw);
+  return {
+    host: url.hostname,
+    port: Number(url.port || 5432),
+    database: decodeURIComponent(url.pathname.slice(1)),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+  };
+}
 
-export const PG_DUMP_COMMAND = [
-  'docker', 'exec',
-  '-e', `PGPASSWORD=${TEST_CONNECTION.password}`,
-  'migraguard-postgres-1',
-  'pg_dump',
-  '-h', 'localhost',
-  '-U', TEST_CONNECTION.user,
-  '-d', TEST_CONNECTION.database,
-];
+export const TEST_CONNECTION = connectionFromEnv();
 
 export async function resetTestDb(): Promise<void> {
   const client = new Client(TEST_CONNECTION);
@@ -74,7 +77,6 @@ export async function createTestProject(rawOverrides?: Partial<RawConfig>): Prom
       normalize: true,
       excludeOwners: true,
       excludePrivileges: true,
-      pgDumpCommand: PG_DUMP_COMMAND,
     },
     ...rawOverrides,
   };
