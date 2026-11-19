@@ -15,7 +15,7 @@ export interface RawStatementEntry {
   length?: number;
 }
 
-/** Returns null when the SQL does not parse; each caller reports that as a parse failure. */
+/** Returns null when the SQL does not parse, which callers report as no result. */
 export async function parseStatements(sql: string): Promise<RawStatementEntry[] | null> {
   try {
     const ast = await libpg.parse(sql);
