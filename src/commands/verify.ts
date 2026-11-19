@@ -3,14 +3,13 @@ import { writeFile, unlink, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
-import chalk from 'chalk';
 import type { MigraguardConfig, ConnectionConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { executeSqlFile, spawnWithStdin } from '../executor.js';
 import { runCapturing } from '../exec.js';
 import { dumpSchema } from '../dumper.js';
 import { createDb, safeGetAllRecords } from '../db.js';
-import { writeJson } from '../output.js';
+import { writeJson, style } from '../output.js';
 import type { OutputFormat } from '../output.js';
 
 const { Client } = pg;
@@ -274,13 +273,13 @@ export async function commandVerify(
   const results: VerifyFileResult[] = [];
 
   if (files.length === 0) {
-    log(chalk.yellow('No migration files to verify.'));
+    log(style.yellow('No migration files to verify.'));
   } else {
-    log(chalk.bold(`\nVerifying idempotency using shadow DB: ${name}`));
+    log(style.bold(`\nVerifying idempotency using shadow DB: ${name}`));
     if (allMode) {
-      log(chalk.gray('  Mode: --all (verify all migrations from scratch)\n'));
+      log(style.gray('  Mode: --all (verify all migrations from scratch)\n'));
     } else {
-      log(chalk.gray('  Mode: incremental (restore current DB, verify pending)\n'));
+      log(style.gray('  Mode: incremental (restore current DB, verify pending)\n'));
     }
 
     try {
@@ -297,17 +296,17 @@ export async function commandVerify(
           printVerifyFileResult(log, r);
         }
       } else {
-        log(chalk.blue('  Restoring current DB schema to shadow...'));
+        log(style.blue('  Restoring current DB schema to shadow...'));
         await cloneSourceToShadow(config, name);
-        log(chalk.green('  ✓ Schema restored.\n'));
+        log(style.green('  ✓ Schema restored.\n'));
 
         const appliedFiles = await getAppliedFiles(config);
         const pendingFiles = verifiableFiles.filter((f) => !appliedFiles.has(f.fileName));
 
         if (pendingFiles.length === 0) {
-          log(chalk.green('  All migrations already applied. Nothing to verify.'));
+          log(style.green('  All migrations already applied. Nothing to verify.'));
         } else {
-          log(chalk.gray(`  ${appliedFiles.size} applied, ${pendingFiles.length} pending to verify\n`));
+          log(style.gray(`  ${appliedFiles.size} applied, ${pendingFiles.length} pending to verify\n`));
           for (const file of pendingFiles) {
             const r = await verifyFile(file, sConfig, sDumpConfig);
             results.push(r);
@@ -317,7 +316,7 @@ export async function commandVerify(
       }
     } finally {
       await dropShadow(config, name);
-      log(chalk.gray(`\n  Shadow DB "${name}" dropped.`));
+      log(style.gray(`\n  Shadow DB "${name}" dropped.`));
     }
   }
 
@@ -326,9 +325,9 @@ export async function commandVerify(
 
   log('');
   if (failed === 0 && results.length > 0) {
-    log(chalk.green(`✓ All ${passed} migration(s) are idempotent.`));
+    log(style.green(`✓ All ${passed} migration(s) are idempotent.`));
   } else if (failed > 0) {
-    log(chalk.red(`✗ ${failed}/${results.length} migration(s) failed idempotency check.`));
+    log(style.red(`✗ ${failed}/${results.length} migration(s) failed idempotency check.`));
   }
 
   const result: VerifyResult = { files: results, passed, failed, shadowDbName: name };
@@ -338,11 +337,11 @@ export async function commandVerify(
 
 function printVerifyFileResult(log: (message: string) => void, r: VerifyFileResult): void {
   if (r.passed) {
-    log(chalk.green(`  ✓ ${r.fileName}`));
+    log(style.green(`  ✓ ${r.fileName}`));
   } else {
-    log(chalk.red(`  ✗ ${r.fileName}`));
-    if (r.firstApplyError) log(chalk.red(`      1st apply error: ${r.firstApplyError}`));
-    if (r.secondApplyError) log(chalk.red(`      2nd apply error: ${r.secondApplyError}`));
-    if (r.schemaDrift) log(chalk.red(`      Schema changed between 1st and 2nd apply`));
+    log(style.red(`  ✗ ${r.fileName}`));
+    if (r.firstApplyError) log(style.red(`      1st apply error: ${r.firstApplyError}`));
+    if (r.secondApplyError) log(style.red(`      2nd apply error: ${r.secondApplyError}`));
+    if (r.schemaDrift) log(style.red(`      Schema changed between 1st and 2nd apply`));
   }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { build } from "esbuild";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, rmSync, statSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 const minify = process.argv.includes("--minify");
@@ -45,12 +45,42 @@ const inlineBuildTimeConstants = {
   },
 };
 
+const target = "node22";
+
+if (process.argv.includes("--lib")) {
+  // The library entries keep what the package declares as dependencies external, so a
+  // consumer resolves them from its own install; the rest of the source is bundled into
+  // each entry. Type declarations are written by `tsc -p tsconfig.build.json`.
+  rmSync("dist", { recursive: true, force: true });
+  const lib = await build({
+    entryPoints: {
+      index: "src/index.ts",
+      cli: "src/cli/index.ts",
+      "external/insight-provider": "src/external/insight-provider.ts",
+    },
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target,
+    outdir: "dist",
+    sourcemap: true,
+    external: [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.peerDependencies ?? {}),
+      "commander",
+      ...externalSdks,
+    ],
+    logLevel: "info",
+  });
+  process.exit(lib.errors.length > 0 ? 1 : 0);
+}
+
 const result = await build({
   entryPoints: ["src/cli/index.ts"],
   bundle: true,
   format: "esm",
   platform: "node",
-  target: "node20",
+  target,
   outfile: "dist/migraguard.bundle.mjs",
   minify,
   sourcemap: true,

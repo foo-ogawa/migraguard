@@ -1,5 +1,5 @@
 import { readFile, writeFile, unlink } from 'node:fs/promises';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
@@ -52,9 +52,9 @@ async function squashGroup(
   const checksum = checksumString(merged, config.dialect);
   const updated = addEntry(metadata, { file: squashedName, checksum });
 
-  console.log(chalk.green(`Squashed ${sorted.length} files into: ${primaryDir}/${squashedName}`));
+  console.log(style.green(`Squashed ${sorted.length} files into: ${primaryDir}/${squashedName}`));
   for (const f of sorted) {
-    console.log(chalk.gray(`  removed: ${f.fileName}`));
+    console.log(style.gray(`  removed: ${f.fileName}`));
   }
 
   return updated;
@@ -84,7 +84,7 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
   const newFiles = files.filter((f) => !metadataFileSet.has(f.fileName));
 
   if (newFiles.length === 0) {
-    console.log(chalk.yellow('No new migration files to squash.'));
+    console.log(style.yellow('No new migration files to squash.'));
     return;
   }
 
@@ -99,14 +99,14 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
   if (options?.dryRun) {
     for (const group of groups) {
       if (group.length >= 2) {
-        console.log(chalk.cyan(`[dry-run] Would squash ${group.length} file(s) into: ${buildSquashedFileName(group)}`));
-        for (const f of group) console.log(chalk.cyan(`  ${f.fileName}`));
+        console.log(style.cyan(`[dry-run] Would squash ${group.length} file(s) into: ${buildSquashedFileName(group)}`));
+        for (const f of group) console.log(style.cyan(`  ${f.fileName}`));
       } else {
-        console.log(chalk.cyan(`[dry-run] Would record: ${group[0].fileName}`));
+        console.log(style.cyan(`[dry-run] Would record: ${group[0].fileName}`));
       }
     }
     if (settled.modelSince !== metadata.modelSince) {
-      console.log(chalk.cyan(`[dry-run] Would set modelSince: ${settled.modelSince}`));
+      console.log(style.cyan(`[dry-run] Would set modelSince: ${settled.modelSince}`));
     }
     return;
   }
@@ -118,14 +118,14 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
       : await recordFile(config, group[0], currentMeta);
   }
   if (settled.modelSince !== metadata.modelSince) {
-    console.log(chalk.green(`Set modelSince: ${settled.modelSince}`));
+    console.log(style.green(`Set modelSince: ${settled.modelSince}`));
   }
   await saveMetadata(config, currentMeta);
 }
 
 async function recordFile(config: MigraguardConfig, file: MigrationFile, metadata: MetadataJson): Promise<MetadataJson> {
   const checksum = await checksumFile(file.filePath, config.dialect);
-  console.log(chalk.green(`Recorded: ${file.fileName}`));
+  console.log(style.green(`Recorded: ${file.fileName}`));
   return addEntry(metadata, { file: file.fileName, checksum });
 }
 

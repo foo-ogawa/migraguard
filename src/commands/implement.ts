@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { resolve, join, sep } from "node:path";
-import chalk from "chalk";
+import { style } from "../output.js";
 import type { MigraguardConfig } from "../config.js";
 import { resolveFromConfig } from "../config.js";
 import { buildImplementContext } from "../agents/context-builder.js";
@@ -72,7 +72,7 @@ export async function commandImplement(
           }
           const outPath = join(outDir, migration.fileName);
           await writeFile(outPath, migration.sql, { encoding: "utf-8", flag: "wx" });
-          console.log(chalk.green(`  Created: ${outPath}`));
+          console.log(style.green(`  Created: ${outPath}`));
         }
       }
     }
@@ -85,11 +85,11 @@ export async function commandImplement(
   } catch (err: unknown) {
     const exitCode = (err as { exitCode?: number }).exitCode;
     if (exitCode === EXIT_RUNTIME_MISSING) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_RUNTIME_MISSING);
     }
     if (exitCode === EXIT_ADAPTER_ERROR) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_ADAPTER_ERROR);
     }
     throw err;

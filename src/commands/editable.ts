@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { loadMetadata, isDagMode, resolveEditability } from '../metadata.js';
@@ -26,7 +26,7 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
   const files = await scanMigrations(config);
 
   if (files.length === 0) {
-    console.log(chalk.yellow('No migration files found.'));
+    console.log(style.yellow('No migration files found.'));
     return { editableFiles: [], entries: [] };
   }
 
@@ -87,22 +87,22 @@ export async function commandEditable(config: MigraguardConfig): Promise<Editabl
     .map((f) => f.fileName);
 
   const reasonLabels: Record<EditableEntry['reason'], string> = {
-    'latest': chalk.green(' (latest)'),
-    'leaf': chalk.green(' (leaf)'),
-    'new': chalk.cyan(' (new)'),
-    'failed-retryable': chalk.red(' (failed — retryable)'),
+    'latest': style.green(' (latest)'),
+    'leaf': style.green(' (leaf)'),
+    'new': style.cyan(' (new)'),
+    'failed-retryable': style.red(' (failed — retryable)'),
   };
 
-  console.log(chalk.bold('Editable migration files:'));
+  console.log(style.bold('Editable migration files:'));
   for (const entry of entries) {
     if (!editableFiles.includes(entry.fileName)) continue;
     console.log(`  ${entry.fileName}${reasonLabels[entry.reason]}`);
   }
 
   if (dbConnected) {
-    console.log(chalk.gray('\n  (DB connected — showing failed-retryable files)'));
+    console.log(style.gray('\n  (DB connected — showing failed-retryable files)'));
   } else {
-    console.log(chalk.gray('\n  (DB not connected — file-based only)'));
+    console.log(style.gray('\n  (DB not connected — file-based only)'));
   }
 
   return { editableFiles, entries };

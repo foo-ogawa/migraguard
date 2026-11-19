@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
 import { loadMetadata, isDagMode, resolveEditability } from '../metadata.js';
@@ -103,11 +103,11 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
   const ok = errors.length === 0;
 
   if (ok) {
-    console.log(chalk.green('✓ All checks passed.'));
+    console.log(style.green('✓ All checks passed.'));
   } else {
-    console.error(chalk.red('✗ Check failed:'));
+    console.error(style.red('✗ Check failed:'));
     for (const err of errors) {
-      console.error(chalk.red(`  ${err}`));
+      console.error(style.red(`  ${err}`));
     }
   }
 

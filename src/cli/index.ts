@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { pkg } from '../index.js';
 import { loadConfig } from '../config.js';
 import { createProgram, type CommandHandlers } from '../generated/program.js';
@@ -6,7 +5,7 @@ import { commandNew } from '../commands/new.js';
 import { commandCheck } from '../commands/check.js';
 import { commandSquash } from '../commands/squash.js';
 import { commandLint } from '../commands/lint.js';
-import { parseOutputFormat } from '../output.js';
+import { parseOutputFormat, style } from '../output.js';
 import { commandEditable } from '../commands/editable.js';
 import { commandApply } from '../commands/apply.js';
 import { commandStatus } from '../commands/status.js';
@@ -34,7 +33,7 @@ async function run(fn: () => Promise<void>): Promise<void> {
     await fn();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(chalk.red(`Error: ${message}`));
+    console.error(style.red(`Error: ${message}`));
     process.exit(1);
   }
 }

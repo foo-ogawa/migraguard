@@ -1,7 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import chalk from 'chalk';
 import type { MigraguardConfig, RuleSeverity } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
@@ -11,7 +10,7 @@ import { ALL_RULES, runRules } from '../rules/index.js';
 import type { LintRule, LintViolation, RawViolation } from '../rules/index.js';
 import { ALL_GENERIC_RULES, runGenericRules } from '../generic/rules/index.js';
 import type { GenericDialect } from '../generic/rules/index.js';
-import { writeJson } from '../output.js';
+import { writeJson, style } from '../output.js';
 import type { OutputFormat } from '../output.js';
 
 export interface LintOptions {
@@ -61,7 +60,7 @@ async function loadCustomRules(config: MigraguardConfig): Promise<LintRule[]> {
         rules.push(rule);
       }
     } catch (err: unknown) {
-      console.error(chalk.yellow(`Warning: failed to load custom rule from ${entry}: ${(err as Error).message}`));
+      console.error(style.yellow(`Warning: failed to load custom rule from ${entry}: ${(err as Error).message}`));
     }
   }
   return rules;
@@ -116,15 +115,13 @@ export async function commandLint(config: MigraguardConfig, options?: LintOption
   const engine = files.length > 0 ? await createEngine(config) : undefined;
 
   if (!engine) {
-    if (text) console.log(chalk.yellow('No migration files to lint.'));
+    if (text) console.log(style.yellow('No migration files to lint.'));
   } else if (engine.ruleCount === 0) {
-    if (text) console.log(chalk.yellow('All lint rules are disabled.'));
+    if (text) console.log(style.yellow('All lint rules are disabled.'));
   } else {
     for (const f of targets) {
       const sql = await readFile(f.filePath, 'utf-8');
-      const raw = await engine.run(sql, f.phase).catch((err: unknown) => {
-        throw new Error(`${f.fileName}: ${(err as Error).message}`, { cause: err });
-      });
+      const raw = await engine.run(sql, f.phase);
       if (raw.length === 0) continue;
 
       const violations: LintFileViolation[] = raw.map((v) => ({
@@ -157,22 +154,22 @@ function printSummary(result: LintResult): void {
     if (warnings > 0) parts.push(`${warnings} warning(s)`);
     const summary = parts.join(', ');
     if (errors > 0) {
-      console.error(chalk.red(`\nLint failed: ${summary}.${skipped}`));
+      console.error(style.red(`\nLint failed: ${summary}.${skipped}`));
     } else {
-      console.log(chalk.yellow(`\nLint: ${summary}.${skipped}`));
+      console.log(style.yellow(`\nLint: ${summary}.${skipped}`));
     }
   } else {
-    console.log(chalk.green(`✓ ${filesLinted} file(s) passed lint.${skipped}`));
+    console.log(style.green(`✓ ${filesLinted} file(s) passed lint.${skipped}`));
   }
 }
 
 function printViolations(fileName: string, violations: LintViolation[]): void {
-  console.error(chalk.red(`\n✗ ${fileName}:`));
+  console.error(style.red(`\n✗ ${fileName}:`));
   for (const v of violations) {
     const tag = v.severity === 'warn'
-      ? chalk.yellow('  warn ')
-      : chalk.red('  error');
+      ? style.yellow('  warn ')
+      : style.red('  error');
     console.error(`${tag}  [${v.rule}] ${v.message}`);
-    console.error(chalk.gray(`         hint: ${v.hint}`));
+    console.error(style.gray(`         hint: ${v.hint}`));
   }
 }

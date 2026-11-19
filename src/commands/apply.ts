@@ -1,6 +1,6 @@
 import { writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
@@ -58,15 +58,15 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
   if (driftCheck) {
     const schemaPath = resolveFromConfig(config, config.schemaFile);
     if (existsSync(schemaPath)) {
-      console.log(chalk.blue('Drift check: comparing DB schema with saved schema...'));
+      console.log(style.blue('Drift check: comparing DB schema with saved schema...'));
       const savedSchema = await readFile(schemaPath, 'utf-8');
       const currentSchema = await dumpSchema(config);
       if (savedSchema !== currentSchema) {
         result.errors.push('Schema drift detected: current DB schema does not match saved schema.sql. Aborting apply.');
-        console.error(chalk.red('✗ Schema drift detected. Aborting apply.'));
+        console.error(style.red('✗ Schema drift detected. Aborting apply.'));
         return result;
       }
-      console.log(chalk.green('  ✓ Schema in sync.'));
+      console.log(style.green('  ✓ Schema in sync.'));
     }
   }
 
@@ -92,7 +92,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
 
     const files = await scanMigrations(config);
     if (files.length === 0 && !options?.fromBaseline) {
-      console.log(chalk.yellow('No migration files found.'));
+      console.log(style.yellow('No migration files found.'));
       return result;
     }
     if (files.length === 0) return result;
@@ -125,11 +125,11 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
         }
       }
       if (pending.length === 0) {
-        console.log(chalk.green('All migrations are up to date.'));
+        console.log(style.green('All migrations are up to date.'));
       } else {
-        console.log(chalk.cyan(`[dry-run] ${pending.length} migration(s) would be applied:`));
+        console.log(style.cyan(`[dry-run] ${pending.length} migration(s) would be applied:`));
         for (const f of pending) {
-          console.log(chalk.cyan(`  ${f}`));
+          console.log(style.cyan(`  ${f}`));
         }
       }
       return result;
@@ -149,7 +149,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
 
       if (blockedSet.has(fileName)) {
         result.blocked.push(fileName);
-        console.log(chalk.gray(`  ⊘ blocked: ${fileName}`));
+        console.log(style.gray(`  ⊘ blocked: ${fileName}`));
         continue;
       }
 
@@ -179,7 +179,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
           });
           if (blockedByOpen) {
             result.blocked.push(fileName);
-            console.log(chalk.yellow(`  ⊘ blocked (open group): ${fileName}`));
+            console.log(style.yellow(`  ⊘ blocked (open group): ${fileName}`));
             continue;
           }
         }
@@ -216,20 +216,20 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
 
   if (result.errors.length === 0) {
     if (result.applied.length > 0) {
-      console.log(chalk.green(`\n✓ Applied ${result.applied.length} migration(s).`));
+      console.log(style.green(`\n✓ Applied ${result.applied.length} migration(s).`));
     } else {
-      console.log(chalk.green('\n✓ All migrations are up to date.'));
+      console.log(style.green('\n✓ All migrations are up to date.'));
     }
 
     if (driftCheck && result.applied.length > 0) {
-      console.log(chalk.blue('Updating schema dump after apply...'));
+      console.log(style.blue('Updating schema dump after apply...'));
       const newSchema = await dumpSchema(config);
       const schemaPath = resolveFromConfig(config, config.schemaFile);
       await writeFile(schemaPath, newSchema, 'utf-8');
-      console.log(chalk.green(`  ✓ Updated: ${config.schemaFile}`));
+      console.log(style.green(`  ✓ Updated: ${config.schemaFile}`));
     }
   } else {
-    console.error(chalk.red(`\n✗ Apply stopped due to errors.`));
+    console.error(style.red(`\n✗ Apply stopped due to errors.`));
   }
 
   return result;
@@ -254,38 +254,38 @@ async function processFile(
     if (psqlResult.success) {
       await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
-      console.log(chalk.green(`  ✓ applied: ${fileName}`));
+      console.log(style.green(`  ✓ applied: ${fileName}`));
       return 'ok';
     } else {
       await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
       result.failed = result.failed ?? fileName;
       result.errors.push(`Failed to apply ${fileName}: ${psqlResult.stderr}`);
-      console.error(chalk.red(`  ✗ failed: ${fileName}`));
-      if (psqlResult.stderr) console.error(chalk.red(`    ${psqlResult.stderr.trim()}`));
+      console.error(style.red(`  ✗ failed: ${fileName}`));
+      if (psqlResult.stderr) console.error(style.red(`    ${psqlResult.stderr.trim()}`));
       return 'error';
     }
   }
 
   if (latestRecord.status === 'skipped') {
     result.skipped.push(fileName);
-    console.log(chalk.gray(`  − skipped (resolved): ${fileName}`));
+    console.log(style.gray(`  − skipped (resolved): ${fileName}`));
     return 'ok';
   }
 
   if (latestRecord.status === 'failed') {
     if (isEditable) {
-      console.log(chalk.yellow(`  ↻ retrying failed: ${fileName}`));
+      console.log(style.yellow(`  ↻ retrying failed: ${fileName}`));
       const psqlResult = await executeSqlFile(config, filePath);
       if (psqlResult.success) {
         await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
         result.applied.push(fileName);
-        console.log(chalk.green(`  ✓ applied (retry): ${fileName}`));
+        console.log(style.green(`  ✓ applied (retry): ${fileName}`));
         return 'ok';
       } else {
         await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
         result.failed = result.failed ?? fileName;
         result.errors.push(`Retry failed for ${fileName}: ${psqlResult.stderr}`);
-        console.error(chalk.red(`  ✗ retry failed: ${fileName}`));
+        console.error(style.red(`  ✗ retry failed: ${fileName}`));
         return 'error';
       }
     } else {
@@ -294,7 +294,7 @@ async function processFile(
         `Unresolved failed migration: "${fileName}". ` +
         `Use "migraguard resolve ${fileName}" or squash to fix.`,
       );
-      console.error(chalk.red(`  ✗ unresolved: ${fileName}`));
+      console.error(style.red(`  ✗ unresolved: ${fileName}`));
       return 'error';
     }
   }
@@ -311,23 +311,23 @@ async function processFile(
       `Ancestor revert detected for "${fileName}": ` +
       `current checksum matches a past version, not the latest.`,
     );
-    console.error(chalk.red(`  ✗ ancestor revert: ${fileName}`));
+    console.error(style.red(`  ✗ ancestor revert: ${fileName}`));
     return 'error';
   }
 
   if (isEditable) {
-    console.log(chalk.yellow(`  ↻ re-applying (changed): ${fileName}`));
+    console.log(style.yellow(`  ↻ re-applying (changed): ${fileName}`));
     const psqlResult = await executeSqlFile(config, filePath);
     if (psqlResult.success) {
       await db.insertRecord(fileName, currentChecksum, 'applied', insertOpts);
       result.applied.push(fileName);
-      console.log(chalk.green(`  ✓ applied (re-apply): ${fileName}`));
+      console.log(style.green(`  ✓ applied (re-apply): ${fileName}`));
       return 'ok';
     } else {
       await db.insertRecord(fileName, currentChecksum, 'failed', insertOpts);
       result.failed = result.failed ?? fileName;
       result.errors.push(`Re-apply failed for ${fileName}: ${psqlResult.stderr}`);
-      console.error(chalk.red(`  ✗ re-apply failed: ${fileName}`));
+      console.error(style.red(`  ✗ re-apply failed: ${fileName}`));
       return 'error';
     }
   } else {
@@ -336,7 +336,7 @@ async function processFile(
       `Tampering detected: "${fileName}" has been modified ` +
       `but is not an editable migration file.`,
     );
-    console.error(chalk.red(`  ✗ tampered: ${fileName}`));
+    console.error(style.red(`  ✗ tampered: ${fileName}`));
     return 'error';
   }
 }
@@ -354,15 +354,15 @@ async function applyFromBaseline(
     return;
   }
 
-  console.log(chalk.blue('Applying baseline schema...'));
+  console.log(style.blue('Applying baseline schema...'));
   const { executeSqlFile: execSql } = await import('../executor.js');
   const psqlResult = await execSql(config, schemaPath);
   if (!psqlResult.success) {
     result.errors.push(`Failed to apply baseline schema: ${psqlResult.stderr}`);
-    console.error(chalk.red(`  ✗ baseline schema apply failed`));
+    console.error(style.red(`  ✗ baseline schema apply failed`));
     return;
   }
-  console.log(chalk.green('  ✓ baseline schema applied'));
+  console.log(style.green('  ✓ baseline schema applied'));
 
   if (metadata.baselines) {
     const insertOpts = tag ? { tag } : undefined;
@@ -372,6 +372,6 @@ async function applyFromBaseline(
         result.applied.push(inc.file);
       }
     }
-    console.log(chalk.green(`  ✓ Recorded ${metadata.baselines.reduce((n, b) => n + b.includes.length, 0)} baselined file(s)`));
+    console.log(style.green(`  ✓ Recorded ${metadata.baselines.reduce((n, b) => n + b.includes.length, 0)} baselined file(s)`));
   }
 }

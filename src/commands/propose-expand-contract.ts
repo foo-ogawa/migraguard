@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { resolve, join, basename } from "node:path";
-import chalk from "chalk";
+import { style } from "../output.js";
 import type { MigraguardConfig } from "../config.js";
 import { buildProposeExpandContractContext } from "../agents/context-builder.js";
 import {
@@ -63,7 +63,7 @@ export async function commandProposeExpandContract(
         if (action.kind === "edit_file" && target && command) {
           const outPath = join(outDir, basename(target));
           await writeFile(outPath, command, { encoding: "utf-8", flag: "wx" });
-          console.log(chalk.green(`  Created: ${outPath}`));
+          console.log(style.green(`  Created: ${outPath}`));
         }
       }
     }
@@ -76,11 +76,11 @@ export async function commandProposeExpandContract(
   } catch (err: unknown) {
     const exitCode = (err as { exitCode?: number }).exitCode;
     if (exitCode === EXIT_RUNTIME_MISSING) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_RUNTIME_MISSING);
     }
     if (exitCode === EXIT_ADAPTER_ERROR) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_ADAPTER_ERROR);
     }
     throw err;

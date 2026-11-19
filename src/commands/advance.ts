@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import type { Phase } from '../naming.js';
 import type { MigrationStatus } from '../db.js';
@@ -44,7 +44,7 @@ export async function commandAdvance(
 
     if (!canAdvanceToPhase(currentState, phase)) {
       const msg = `Cannot advance "${group}" to ${phase}:${status} — prerequisite phases not complete (current state: ${previousState})`;
-      console.error(chalk.red(msg));
+      console.error(style.red(msg));
       return { success: false, previousState, newState: previousState, error: msg };
     }
 
@@ -52,8 +52,8 @@ export async function commandAdvance(
     const fileName = findPhaseFileName(group, phase, allRecords);
 
     if (options.dryRun) {
-      console.log(chalk.cyan(`[dry-run] Would advance "${group}" ${phase} → ${status}`));
-      console.log(chalk.cyan(`  File: ${fileName}, current state: ${previousState}`));
+      console.log(style.cyan(`[dry-run] Would advance "${group}" ${phase} → ${status}`));
+      console.log(style.cyan(`  File: ${fileName}, current state: ${previousState}`));
       return { success: true, previousState, newState: `${phase}:${status}` };
     }
 
@@ -67,7 +67,7 @@ export async function commandAdvance(
     const updatedRecords = await db.getAllRecords();
     const newState = deriveGroupState(updatedRecords, group).state;
 
-    console.log(chalk.green(`Advanced "${group}" ${phase} → ${status} (state: ${previousState} → ${newState})`));
+    console.log(style.green(`Advanced "${group}" ${phase} → ${status} (state: ${previousState} → ${newState})`));
     return { success: true, previousState, newState };
   } finally {
     await db.releaseAdvisoryLock().catch(() => {});
