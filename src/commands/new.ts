@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { generateFileName, generateGroupDirName } from '../naming.js';
@@ -119,7 +119,7 @@ async function createSingleFile(
   }
 
   if (dryRun) {
-    console.log(chalk.cyan(`[dry-run] Would create: ${primaryDir}/${fileName}`));
+    console.log(style.cyan(`[dry-run] Would create: ${primaryDir}/${fileName}`));
     return;
   }
 
@@ -128,7 +128,7 @@ async function createSingleFile(
     .replace('{timestamp}', now.toISOString());
 
   await writeFile(filePath, content, 'utf-8');
-  console.log(chalk.green(`Created: ${primaryDir}/${fileName}`));
+  console.log(style.green(`Created: ${primaryDir}/${fileName}`));
 }
 
 async function createExpandContractGroup(
@@ -155,9 +155,9 @@ async function createExpandContractGroup(
   ];
 
   if (dryRun) {
-    console.log(chalk.cyan(`[dry-run] Would create migration group: ${primaryDir}/${groupDir}/`));
+    console.log(style.cyan(`[dry-run] Would create migration group: ${primaryDir}/${groupDir}/`));
     for (const pf of phaseFiles) {
-      console.log(chalk.cyan(`  ${pf.name}`));
+      console.log(style.cyan(`  ${pf.name}`));
     }
     return;
   }
@@ -172,8 +172,8 @@ async function createExpandContractGroup(
     await writeFile(`${groupPath}/${pf.name}`, content, 'utf-8');
   }
 
-  console.log(chalk.green(`Created migration group: ${primaryDir}/${groupDir}/`));
+  console.log(style.green(`Created migration group: ${primaryDir}/${groupDir}/`));
   for (const pf of phaseFiles) {
-    console.log(chalk.green(`  ${pf.name}`));
+    console.log(style.green(`  ${pf.name}`));
   }
 }

@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import { style } from "../output.js";
 import type { MigraguardConfig } from "../config.js";
 import { buildExplainContext } from "../agents/context-builder.js";
 import {
@@ -27,7 +27,7 @@ export async function commandExplain(
 ): Promise<void | string> {
   const stdin = await readStdin();
   if (!stdin.trim()) {
-    console.error(chalk.red("Error: No input received on stdin."));
+    console.error(style.red("Error: No input received on stdin."));
     console.error("Usage: migraguard lint --json | migraguard explain");
     process.exit(3);
   }
@@ -63,11 +63,11 @@ export async function commandExplain(
   } catch (err: unknown) {
     const exitCode = (err as { exitCode?: number }).exitCode;
     if (exitCode === EXIT_RUNTIME_MISSING) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_RUNTIME_MISSING);
     }
     if (exitCode === EXIT_ADAPTER_ERROR) {
-      console.error(chalk.red((err as Error).message));
+      console.error(style.red((err as Error).message));
       process.exit(EXIT_ADAPTER_ERROR);
     }
     throw err;

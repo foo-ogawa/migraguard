@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import type { Phase } from '../naming.js';
 import { PHASE_ORDER } from '../naming.js';
@@ -39,7 +39,7 @@ export async function commandApplyPhase(
 
     if (!canAdvanceToPhase(currentState, phase)) {
       const msg = `Cannot apply phase "${phase}" for "${group}" — prerequisite phases not complete (current state: ${currentState.state})`;
-      console.error(chalk.red(msg));
+      console.error(style.red(msg));
       return { success: false, group, phase, error: msg };
     }
 
@@ -50,16 +50,16 @@ export async function commandApplyPhase(
 
     if (!file) {
       const msg = `Phase file not found: ${expectedFileName}`;
-      console.error(chalk.red(msg));
+      console.error(style.red(msg));
       return { success: false, group, phase, error: msg };
     }
 
-    const checksum = await checksumFile(file.filePath);
+    const checksum = await checksumFile(file.filePath, config.dialect);
 
     if (options.dryRun) {
-      console.log(chalk.cyan(`[dry-run] Would apply phase "${phase}" for "${group}"`));
-      console.log(chalk.cyan(`  File: ${expectedFileName}`));
-      console.log(chalk.cyan(`  Checksum: ${checksum}`));
+      console.log(style.cyan(`[dry-run] Would apply phase "${phase}" for "${group}"`));
+      console.log(style.cyan(`  File: ${expectedFileName}`));
+      console.log(style.cyan(`  Checksum: ${checksum}`));
       return { success: true, group, phase };
     }
 
@@ -72,7 +72,7 @@ export async function commandApplyPhase(
         groupName: group,
         tag: options.tag,
       });
-      console.log(chalk.green(`Applied phase "${phase}" for "${group}"`));
+      console.log(style.green(`Applied phase "${phase}" for "${group}"`));
       return { success: true, group, phase };
     } else {
       await db.insertRecord(file.fileName, checksum, 'failed', {
@@ -82,7 +82,7 @@ export async function commandApplyPhase(
         tag: options.tag,
       });
       const msg = `Failed to apply phase "${phase}" for "${group}": ${psqlResult.stderr}`;
-      console.error(chalk.red(msg));
+      console.error(style.red(msg));
       return { success: false, group, phase, error: msg };
     }
   } finally {

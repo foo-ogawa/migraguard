@@ -1,11 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import chalk from 'chalk';
 import { diffLines } from 'diff';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { dumpSchema } from '../dumper.js';
-import { writeJson } from '../output.js';
+import { writeJson, style } from '../output.js';
 import type { OutputFormat } from '../output.js';
 
 export interface DiffResult {
@@ -51,11 +50,11 @@ export async function commandDiff(config: MigraguardConfig, options?: DiffOption
   if (!text) {
     writeJson(result);
   } else if (result.identical) {
-    console.log(chalk.green('✓ Schema is in sync. No drift detected.'));
+    console.log(style.green('✓ Schema is in sync. No drift detected.'));
   } else {
-    console.error(chalk.yellow('✗ Schema drift detected:\n'));
+    console.error(style.yellow('✗ Schema drift detected:\n'));
     for (const line of diff.split('\n')) {
-      console.error(line.startsWith('+') ? chalk.green(line) : chalk.red(line));
+      console.error(line.startsWith('+') ? style.green(line) : style.red(line));
     }
   }
 

@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Read package version
         id: pkg
@@ -68,10 +68,10 @@ jobs:
       - name: Build
         if: steps.tag.outcome == 'failure'
         run: npm run build
-      - name: Docker unit tests (Node 20)
+      - name: Docker unit tests (Node 24)
         if: steps.tag.outcome == 'failure'
         run: |
-          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=20 test-unit
+          docker compose -f docker-compose.test.yml build --build-arg NODE_VERSION=24 test-unit
           docker compose -f docker-compose.test.yml run --rm test-unit
       - name: Docker unit tests (Node 22)
         if: steps.tag.outcome == 'failure'

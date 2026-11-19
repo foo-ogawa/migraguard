@@ -1,6 +1,6 @@
 import { readFile, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { resolveFromConfig } from '../config.js';
 import { scanMigrations } from '../scanner.js';
@@ -46,7 +46,7 @@ export async function commandBaseline(
     const failedGroups = groupStates.filter((gs) => gs.state === 'backfill_failed');
     if (failedGroups.length > 0) {
       const msg = `Cannot baseline: ${failedGroups.length} group(s) in backfill_failed state`;
-      console.error(chalk.red(msg));
+      console.error(style.red(msg));
       return { success: false, squashedFiles: [], remainingLeaves: [], schemaFile: '', error: msg };
     }
 
@@ -89,7 +89,7 @@ export async function commandBaseline(
       );
       if (!latestRecord || latestRecord.status !== 'applied') {
         const msg = `Cannot baseline: "${file.fileName}" is not in applied state`;
-        console.error(chalk.red(msg));
+        console.error(style.red(msg));
         return { success: false, squashedFiles: [], remainingLeaves: [], schemaFile: '', error: msg };
       }
 
@@ -97,16 +97,16 @@ export async function commandBaseline(
     }
 
     if (squashTargets.length === 0) {
-      console.log(chalk.yellow('No files to baseline.'));
+      console.log(style.yellow('No files to baseline.'));
       return { success: true, squashedFiles: [], remainingLeaves: [...keepSet], schemaFile: '' };
     }
 
     if (options?.dryRun) {
-      console.log(chalk.cyan(`[dry-run] Would baseline ${squashTargets.length} file(s) into ${config.schemaFile}:`));
+      console.log(style.cyan(`[dry-run] Would baseline ${squashTargets.length} file(s) into ${config.schemaFile}:`));
       for (const f of squashTargets) {
-        console.log(chalk.cyan(`  squash: ${f}`));
+        console.log(style.cyan(`  squash: ${f}`));
       }
-      console.log(chalk.cyan(`  Remaining: ${[...keepSet].join(', ') || '(none)'}`));
+      console.log(style.cyan(`  Remaining: ${[...keepSet].join(', ') || '(none)'}`));
       return { success: true, squashedFiles: squashTargets, remainingLeaves: [...keepSet], schemaFile: config.schemaFile };
     }
 
@@ -117,12 +117,12 @@ export async function commandBaseline(
     for (const fileName of squashTargets) {
       const file = files.find((f) => f.fileName === fileName);
       if (!file) continue;
-      const checksum = await checksumFile(file.filePath);
+      const checksum = await checksumFile(file.filePath, config.dialect);
       baselineIncludes.push({ file: fileName, checksum });
     }
 
     const now = new Date().toISOString();
-    const historyComment = buildHistoryComment(schemaPath, baselineIncludes, now);
+    const historyComment = await buildHistoryComment(schemaPath, baselineIncludes, now);
     const newSchemaContent = historyComment + schemaContent;
     await writeFile(schemaPath, newSchemaContent, 'utf-8');
 
@@ -156,9 +156,9 @@ export async function commandBaseline(
 
     await rewriteDependsOnReferences(config, keepSet, squashTargets);
 
-    console.log(chalk.green(`Baseline completed: ${squashTargets.length} file(s) squashed into ${config.schemaFile}`));
+    console.log(style.green(`Baseline completed: ${squashTargets.length} file(s) squashed into ${config.schemaFile}`));
     for (const f of squashTargets) {
-      console.log(chalk.gray(`  squashed: ${f}`));
+      console.log(style.gray(`  squashed: ${f}`));
     }
 
     return {

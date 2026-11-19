@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import chalk from 'chalk';
 import { formatSchemaDiff } from '../../src/commands/diff.js';
 
 describe('commands/diff', () => {
@@ -27,11 +26,7 @@ describe('commands/diff', () => {
         '',
       ].join('\n');
 
-      formatSchemaDiff(saved, current);
-      const plain = chalk.level;
-      chalk.level = 0;
       const plainResult = formatSchemaDiff(saved, current);
-      chalk.level = plain;
 
       const lines = plainResult.split('\n');
       expect(lines).toHaveLength(2);
@@ -54,10 +49,7 @@ describe('commands/diff', () => {
         '',
       ].join('\n');
 
-      const plain = chalk.level;
-      chalk.level = 0;
       const result = formatSchemaDiff(saved, current);
-      chalk.level = plain;
 
       const lines = result.split('\n');
       expect(lines).toHaveLength(1);
@@ -74,10 +66,7 @@ describe('commands/diff', () => {
         '',
       ].join('\n');
 
-      const plain = chalk.level;
-      chalk.level = 0;
       const result = formatSchemaDiff(saved, current);
-      chalk.level = plain;
 
       const lines = result.split('\n');
       expect(lines).toContainEqual('- CREATE TABLE users (id SERIAL);');

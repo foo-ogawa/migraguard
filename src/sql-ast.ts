@@ -1,4 +1,5 @@
 import libpg from 'libpg-query';
+import { maskPlaceholders } from './placeholders.js';
 
 /**
  * AST nodes as plain records. The dependency analyzer and the lint rules both
@@ -15,10 +16,10 @@ export interface RawStatementEntry {
   length?: number;
 }
 
-/** Returns null when the SQL does not parse, which callers report as no result. */
+/** Returns null when the SQL does not parse even with its placeholders read as values; each caller reports that. */
 export async function parseStatements(sql: string): Promise<RawStatementEntry[] | null> {
   try {
-    const ast = await libpg.parse(sql);
+    const ast = await libpg.parse(maskPlaceholders(sql));
     return (ast.stmts ?? []).map((entry) => ({
       stmt: (entry.stmt ?? {}) as RawStatement,
       location: entry.stmt_location ?? 0,

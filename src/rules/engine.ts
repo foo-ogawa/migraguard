@@ -61,7 +61,7 @@ export async function runRules(
   if (activeRules.length === 0) return violations;
 
   const stmts = await parseStatements(sql);
-  if (!stmts) return violations;
+  if (!stmts) throw new Error('the SQL does not parse');
 
   const visitors: Array<{ ruleId: string; handlers: NodeVisitors }> = [];
   for (const rule of activeRules) {

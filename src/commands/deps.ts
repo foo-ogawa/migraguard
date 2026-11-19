@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import {
   buildDependencyGraph,
@@ -28,7 +28,7 @@ export async function commandDeps(
 
   if (options.html) {
     await generateHtml(graph, cycles, options.html);
-    console.log(chalk.green(`✓ HTML written to: ${options.html}`));
+    console.log(style.green(`✓ HTML written to: ${options.html}`));
   } else {
     printTree(graph, cycles);
   }
@@ -135,7 +135,7 @@ function computeDepths(graph: DependencyGraph): Map<string, number> {
 
 function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
   if (graph.files.length === 0) {
-    console.log(chalk.yellow('No migration files found.'));
+    console.log(style.yellow('No migration files found.'));
     return;
   }
 
@@ -145,8 +145,8 @@ function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
 
   function render(node: TreeNode, prefix: string, connector: string): void {
     const isLeaf = leaves.has(node.file);
-    const mark = isLeaf ? chalk.green('◆') : chalk.gray('◇');
-    const label = isLeaf ? chalk.green(node.file) : chalk.cyan(node.file);
+    const mark = isLeaf ? style.green('◆') : style.gray('◇');
+    const label = isLeaf ? style.green(node.file) : style.cyan(node.file);
     lines.push(prefix + connector + mark + ' ' + label);
 
     const childPrefix = connector === ''
@@ -170,15 +170,15 @@ function printTree(graph: DependencyGraph, cycles: CycleError[]): void {
 
   if (cycles.length > 0) {
     console.log('');
-    console.error(chalk.red.bold('Circular dependencies detected:'));
+    console.error(style.boldRed('Circular dependencies detected:'));
     for (const c of cycles) {
-      console.error(chalk.red(`  ${c.cycle.join(' → ')}`));
+      console.error(style.red(`  ${c.cycle.join(' → ')}`));
     }
   }
 
   console.log('');
-  console.log(chalk.green('◆') + chalk.gray(' = editable   ') + chalk.gray('◇ = locked'));
-  console.log(chalk.gray(
+  console.log(style.green('◆') + style.gray(' = editable   ') + style.gray('◇ = locked'));
+  console.log(style.gray(
     `${graph.files.length} files, ${graph.edges.length} deps, ${leaves.size} leaves`,
   ));
 
@@ -193,14 +193,14 @@ function printUnanalyzedBlocks(graph: DependencyGraph): void {
   if (files.length === 0) return;
 
   console.log('');
-  console.log(chalk.yellow(
+  console.log(style.yellow(
     `⚠ ${files.length} file(s) build SQL at run time inside a DO $$ ... $$ block ` +
     '— what it touches cannot be derived:',
   ));
   for (const f of files) {
-    console.log(chalk.yellow(`  ${f}`));
+    console.log(style.yellow(`  ${f}`));
   }
-  console.log(chalk.gray('  Declare those dependencies with "-- migraguard:depends-on <file>".'));
+  console.log(style.gray('  Declare those dependencies with "-- migraguard:depends-on <file>".'));
 }
 
 function printParseFailures(graph: DependencyGraph): void {
@@ -210,13 +210,13 @@ function printParseFailures(graph: DependencyGraph): void {
   if (files.length === 0) return;
 
   console.log('');
-  console.log(chalk.red(
+  console.log(style.red(
     `✗ ${files.length} file(s) carry a body the parser rejected. Their dependencies ` +
     'are missing, not absent:',
   ));
   for (const f of files) {
     for (const failure of graph.fileDeps.get(f)?.parseFailures ?? []) {
-      console.log(chalk.red(`  ${f} — ${failure}`));
+      console.log(style.red(`  ${f} — ${failure}`));
     }
   }
 }

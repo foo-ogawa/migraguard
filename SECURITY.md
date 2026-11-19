@@ -21,6 +21,14 @@ Migration files are executed directly via the database's native CLI (`psql`, `my
 - There is no sandboxing or SQL statement filtering — the file is trusted code
 - Treat migration files with the same security posture as application source code
 
+### `schema.sql` and the Database It Is Dumped From
+
+`schema.sql` is executed the same way as a migration file: `migraguard apply --from-baseline` passes it to the database CLI as it is.
+
+- `dump`, `baseline`, and `apply --with-drift-check` write `schema.sql` from the output of `pg_dump`, `mysqldump`, or `sqlite3 .schema`
+- Normalization removes the `\restrict` / `\unrestrict` lines that `pg_dump` emits, so `schema.sql` does not carry the protection `pg_dump` adds against psql meta-commands planted in a dump by the source server
+- Dump only from databases you trust as much as the code in the repository, and review `schema.sql` changes like migration files
+
 ### Custom Lint Rules (`customRulesDir`)
 
 Custom lint rules are loaded as JavaScript/TypeScript modules via dynamic `import()`. They execute with the full privileges of the current Node.js process.

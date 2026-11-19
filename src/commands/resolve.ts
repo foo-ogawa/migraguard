@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { createDb } from '../db.js';
 import type { MigrationRecord } from '../db.js';
@@ -30,14 +30,14 @@ export async function commandResolve(config: MigraguardConfig, fileName: string,
     }
 
     if (options?.dryRun) {
-      console.log(chalk.cyan(`[dry-run] Would resolve: "${fileName}" → mark as skipped`));
-      console.log(chalk.cyan(`  Current status: ${latestRecord.status}, checksum: ${latestRecord.checksum}`));
+      console.log(style.cyan(`[dry-run] Would resolve: "${fileName}" → mark as skipped`));
+      console.log(style.cyan(`  Current status: ${latestRecord.status}, checksum: ${latestRecord.checksum}`));
       return;
     }
 
     await db.insertRecord(fileName, latestRecord.checksum, 'skipped');
-    console.log(chalk.green(`✓ Resolved: "${fileName}" marked as skipped.`));
-    console.log(chalk.gray(`  Ensure a subsequent forward migration covers the intended changes.`));
+    console.log(style.green(`✓ Resolved: "${fileName}" marked as skipped.`));
+    console.log(style.gray(`  Ensure a subsequent forward migration covers the intended changes.`));
   } finally {
     await db.close();
   }

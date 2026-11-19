@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import chalk from 'chalk';
+import { style } from '../output.js';
 import type { MigraguardConfig } from '../config.js';
 import { createDb, safeGetAllRecords } from '../db.js';
 import { deriveAllGroupStates, GROUP_STATE_NAMES } from '../group-state.js';
@@ -66,11 +66,11 @@ export async function commandGate(
     const pass = reasons.length === 0;
 
     if (pass) {
-      console.log(chalk.green('Gate: PASS'));
+      console.log(style.green('Gate: PASS'));
     } else {
-      console.error(chalk.red('Gate: FAIL'));
+      console.error(style.red('Gate: FAIL'));
       for (const reason of reasons) {
-        console.error(chalk.red(`  - ${reason}`));
+        console.error(style.red(`  - ${reason}`));
       }
     }
 

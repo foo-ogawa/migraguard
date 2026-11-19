@@ -62,7 +62,7 @@ npx migraguard implement "add email verification token to users table" --adapter
 npx migraguard lint && npx migraguard apply && npx migraguard dump
 
 # Preview the prompt without calling the LLM
-npx migraguard implement "add email verification token to users table" --dry-run
+npx migraguard implement "add email verification token to users table" --show-prompt
 ```
 
 ### Traditional workflow
@@ -166,7 +166,7 @@ This design supports migraguard's incident-prevention model:
 
 ### Checksum Normalization
 
-Checksums are computed on **normalized SQL** (SHA-256): comments are stripped (`-- ...` and `/* ... */` including nested), whitespace is collapsed, string literals are preserved as-is. Adding comments, adjusting indentation, or inserting blank lines does not change the checksum; only actual SQL statement changes are detected. `-- migraguard:depends-on` directives are also comments and do not affect the checksum.
+Checksums are computed on **normalized SQL** (SHA-256): comments are stripped (`-- ...` and `/* ... */`, read with the comment rules of the configured dialect: PostgreSQL nests block comments, MySQL and SQLite do not, and a MySQL executable comment `/*! ... */` is SQL the server runs, so it is kept), whitespace is collapsed, string literals are preserved as-is. Adding comments, adjusting indentation, or inserting blank lines does not change the checksum; only actual SQL statement changes are detected. `-- migraguard:depends-on` directives are also comments and do not affect the checksum.
 
 ### schema_migrations Table
 
@@ -330,9 +330,9 @@ See [docs/expand-contract.md](docs/expand-contract.md) for the complete guide: f
 
 All LLM commands support `--log-file <path>` (`-l`) to write structured progress logs for debugging and monitoring.
 
-LLM-powered commands are read-only by default. `implement` generates SQL but writes files only when `--output-dir` is specified. All commands return structured results (`AgentAuditResult` / `AgentFinding` shape) consumable by CI systems and higher-level workflow agents.
+LLM-powered commands are read-only by default. `implement` writes the generated migration files to the first entry of `migrationsDirs`, or to `--output-dir` when it is specified; it creates new files only and stops instead of overwriting an existing file. All commands return structured results (`AgentAuditResult` / `AgentFinding` shape) consumable by CI systems and higher-level workflow agents.
 
-All LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key, and support `--dry-run` to inspect the prompt without calling the LLM.
+All LLM commands require `agent-contracts-runtime` (optional peer dependency) and an adapter key, and support `--show-prompt` to inspect the prompt without calling the LLM.
 
 ```bash
 # Generate migration SQL from natural language
@@ -753,7 +753,7 @@ npx migraguard propose-expand-contract migration.sql --adapter claude
 npx migraguard lint --format json | npx migraguard explain --adapter openai
 
 # Inspect the prompt without calling the LLM
-npx migraguard implement "add status column" --dry-run
+npx migraguard implement "add status column" --show-prompt
 ```
 
 Install the runtime dependency to enable LLM features:

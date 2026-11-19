@@ -109,6 +109,7 @@ export async function analyzeSql(sql: string): Promise<SqlAnalysis> {
 
   const stmts = await parseStatements(sql);
   if (!stmts) {
+    parseFailures.push('the SQL does not parse');
     return { creates, references, unanalyzedBlocks, parseFailures };
   }
 
