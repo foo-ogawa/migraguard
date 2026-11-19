@@ -1,6 +1,7 @@
 import nodeSqlParser from 'node-sql-parser';
 const { Parser } = nodeSqlParser;
 import type { Phase } from '../naming.js';
+import { maskPlaceholders } from '../placeholders.js';
 
 export interface GenericRuleReport {
   message: string;
@@ -63,6 +64,16 @@ function toParserDatabase(dialect: GenericDialect): string {
   return dialect === 'mysql' ? 'MySQL' : 'SQLite';
 }
 
+/** The statements of a MySQL or SQLite file, or null when they do not parse even with their placeholders read as values. */
+export function parseGenericStatements(sql: string, dialect: GenericDialect): Array<Record<string, unknown>> | null {
+  try {
+    const ast = new Parser().astify(maskPlaceholders(sql), { database: toParserDatabase(dialect) });
+    return (Array.isArray(ast) ? ast : [ast]) as unknown as Array<Record<string, unknown>>;
+  } catch {
+    return null;
+  }
+}
+
 function stmtKey(stmt: Record<string, unknown>): GenericStmtKey | null {
   const type = stmt.type as string;
   if (type === 'create') {
@@ -100,14 +111,8 @@ export async function runGenericRules(
   const createdTables = new Set<string>();
   let inTransaction = false;
 
-  const parser = new Parser();
-  let stmts: Array<Record<string, unknown>> = [];
-  try {
-    const ast = parser.astify(sql, { database: toParserDatabase(dialect) });
-    stmts = (Array.isArray(ast) ? ast : [ast]) as unknown as Array<Record<string, unknown>>;
-  } catch {
-    // parse failure — skip AST walk but still run _End handlers below
-  }
+  const stmts = parseGenericStatements(sql, dialect);
+  if (!stmts) throw new Error('the SQL does not parse');
 
   for (const stmt of stmts) {
     const type = stmt.type as string;

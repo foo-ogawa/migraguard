@@ -17,10 +17,16 @@ describe('generic engine', () => {
     expect(v).toHaveLength(0);
   });
 
-  it('returns empty on parse failure', async () => {
+  it('fails on SQL that does not parse', async () => {
     const sql = `THIS IS NOT VALID SQL AT ALL;;;`;
-    const v = await runGenericRules(sql, ALL_GENERIC_RULES, 'mysql');
-    expect(v).toHaveLength(0);
+    await expect(runGenericRules(sql, ALL_GENERIC_RULES, 'mysql')).rejects.toThrow('the SQL does not parse');
+    await expect(runGenericRules(sql, ALL_GENERIC_RULES, 'sqlite')).rejects.toThrow('the SQL does not parse');
+  });
+
+  it('reads backfill placeholders as values', async () => {
+    const sql = 'UPDATE users SET handle = username WHERE handle IS NULL AND id BETWEEN :batch_start AND :batch_end;';
+    await expect(runGenericRules(sql, ALL_GENERIC_RULES, 'mysql')).resolves.toBeInstanceOf(Array);
+    await expect(runGenericRules(sql, ALL_GENERIC_RULES, 'sqlite')).resolves.toBeInstanceOf(Array);
   });
 
   it('handles multiple statements', async () => {

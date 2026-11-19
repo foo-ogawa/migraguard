@@ -180,10 +180,14 @@ describe('generic rules — MySQL', () => {
   describe('ban-drop-cascade', () => {
     const rules = pick('ban-drop-cascade');
 
-    it('flags DROP TABLE CASCADE via regex', async () => {
-      const v = await lint('DROP TABLE users CASCADE;', rules, d);
+    it('flags DROP VIEW CASCADE via regex', async () => {
+      const v = await lint('DROP VIEW v CASCADE;', rules, d);
       expect(v).toHaveLength(1);
       expect(v[0].message).toContain('CASCADE');
+    });
+
+    it('fails DROP TABLE CASCADE, which the MySQL parser does not read', async () => {
+      await expect(lint('DROP TABLE users CASCADE;', rules, d)).rejects.toThrow('the SQL does not parse');
     });
 
     it('passes DROP TABLE without CASCADE', async () => {

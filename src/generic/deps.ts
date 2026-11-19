@@ -1,11 +1,6 @@
-import nodeSqlParser from 'node-sql-parser';
-const { Parser } = nodeSqlParser;
 import type { ObjectRef } from '../deps.js';
+import { parseGenericStatements } from './engine.js';
 import type { GenericDialect } from './engine.js';
-
-function toParserDatabase(dialect: GenericDialect): string {
-  return dialect === 'mysql' ? 'MySQL' : 'SQLite';
-}
 
 export function analyzeGenericSql(
   sql: string,
@@ -15,14 +10,8 @@ export function analyzeGenericSql(
   const references: ObjectRef[] = [];
   const createdTableNames = new Set<string>();
 
-  const parser = new Parser();
-  let stmts: Array<Record<string, unknown>>;
-  try {
-    const ast = parser.astify(sql, { database: toParserDatabase(dialect) });
-    stmts = (Array.isArray(ast) ? ast : [ast]) as unknown as Array<Record<string, unknown>>;
-  } catch {
-    return { creates, references };
-  }
+  const stmts = parseGenericStatements(sql, dialect);
+  if (!stmts) return { creates, references };
 
   for (const stmt of stmts) {
     const type = stmt.type as string;

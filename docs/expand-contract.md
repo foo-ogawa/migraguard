@@ -555,6 +555,8 @@ RESET statement_timeout;
 
 The `WHERE handle IS NULL` clause ensures already-backfilled rows are skipped on re-execution.
 
+`:batch_start` and `:batch_end` are placeholders that the external executor fills in for each batch. A placeholder is a colon followed by a name of letters, digits and underscores (`:name`); `::` casts and `:=` assignments are not placeholders. `lint` reads each placeholder as a value, so the file parses and the lint rules apply to it. A file that still does not parse fails `lint` (exit 1), in every dialect.
+
 ### Switch
 
 ```sql
