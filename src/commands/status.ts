@@ -58,7 +58,7 @@ export async function commandStatus(config: MigraguardConfig, options?: StatusOp
     for (const file of files) {
       const fileRecords = recordsByFile.get(file.fileName) ?? [];
       const latestRecord = getLatestRecord(fileRecords);
-      const currentChecksum = await checksumFile(file.filePath);
+      const currentChecksum = await checksumFile(file.filePath, config.dialect);
 
       if (!latestRecord) {
         entries.push({ fileName: file.fileName, status: 'pending', checksum: currentChecksum });

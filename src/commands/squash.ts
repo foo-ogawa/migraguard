@@ -49,7 +49,7 @@ async function squashGroup(
     await unlink(f.filePath);
   }
 
-  const checksum = checksumString(merged);
+  const checksum = checksumString(merged, config.dialect);
   const updated = addEntry(metadata, { file: squashedName, checksum });
 
   console.log(chalk.green(`Squashed ${sorted.length} files into: ${primaryDir}/${squashedName}`));
@@ -115,7 +115,7 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
   for (const group of groups) {
     currentMeta = group.length >= 2
       ? await squashGroup(config, group, currentMeta)
-      : await recordFile(group[0], currentMeta);
+      : await recordFile(config, group[0], currentMeta);
   }
   if (settled.modelSince !== metadata.modelSince) {
     console.log(chalk.green(`Set modelSince: ${settled.modelSince}`));
@@ -123,8 +123,8 @@ export async function commandSquash(config: MigraguardConfig, options?: SquashOp
   await saveMetadata(config, currentMeta);
 }
 
-async function recordFile(file: MigrationFile, metadata: MetadataJson): Promise<MetadataJson> {
-  const checksum = await checksumFile(file.filePath);
+async function recordFile(config: MigraguardConfig, file: MigrationFile, metadata: MetadataJson): Promise<MetadataJson> {
+  const checksum = await checksumFile(file.filePath, config.dialect);
   console.log(chalk.green(`Recorded: ${file.fileName}`));
   return addEntry(metadata, { file: file.fileName, checksum });
 }

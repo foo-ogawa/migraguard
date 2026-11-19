@@ -144,7 +144,7 @@ export async function runAgentWorkflow(
       maxRetries: 1,
       adapterOptions: {
         cwd: auditConfig.cwd ?? process.cwd(),
-        tools: ["Read", "Glob", "Grep"],
+        tools: [],
         permissionMode: "bypassPermissions",
       },
       context: {

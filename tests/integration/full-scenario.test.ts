@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS users (
 );`;
     await writeMigration(project, '20260301_110000__sprint1.sql', s1);
     await saveMetadata(project.config, {
-      migrations: [{ file: '20260301_110000__sprint1.sql', checksum: checksumString(s1) }],
+      migrations: [{ file: '20260301_110000__sprint1.sql', checksum: checksumString(s1, 'postgresql') }],
     });
     await commandApply(project.config);
 
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS users (
 );`;
     await writeMigration(project, '20260301_100000__base.sql', base);
     await saveMetadata(project.config, {
-      migrations: [{ file: '20260301_100000__base.sql', checksum: checksumString(base) }],
+      migrations: [{ file: '20260301_100000__base.sql', checksum: checksumString(base, 'postgresql') }],
     });
     await commandApply(project.config);
 
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );`;
     await writeMigration(project, '20260315_100000__base_chat.sql', base);
     await saveMetadata(project.config, {
-      migrations: [{ file: '20260315_100000__base_chat.sql', checksum: checksumString(base) }],
+      migrations: [{ file: '20260315_100000__base_chat.sql', checksum: checksumString(base, 'postgresql') }],
     });
     await commandApply(project.config);
 
@@ -365,8 +365,8 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     await writeMigration(project, '20260401_110000__tb.sql', b);
     await saveMetadata(project.config, {
       migrations: [
-        { file: '20260401_100000__ta.sql', checksum: checksumString(a) },
-        { file: '20260401_110000__tb.sql', checksum: checksumString(b) },
+        { file: '20260401_100000__ta.sql', checksum: checksumString(a, 'postgresql') },
+        { file: '20260401_110000__tb.sql', checksum: checksumString(b, 'postgresql') },
       ],
     });
     await commandApply(project.config);
@@ -383,8 +383,8 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     await writeMigration(project, '20260401_110000__good.sql', good);
     await saveMetadata(project.config, {
       migrations: [
-        { file: '20260401_100000__bad.sql', checksum: checksumString(bad) },
-        { file: '20260401_110000__good.sql', checksum: checksumString(good) },
+        { file: '20260401_100000__bad.sql', checksum: checksumString(bad, 'postgresql') },
+        { file: '20260401_110000__good.sql', checksum: checksumString(good, 'postgresql') },
       ],
     });
 
@@ -469,9 +469,9 @@ ALTER TABLE anc ADD COLUMN IF NOT EXISTS v2 BOOLEAN;
     await writeMigration(project, '20260401_120000__ed_c.sql', next);
     await saveMetadata(project.config, {
       migrations: [
-        { file: '20260401_100000__ed_a.sql', checksum: checksumString(good) },
-        { file: '20260401_110000__ed_bad.sql', checksum: checksumString(bad) },
-        { file: '20260401_120000__ed_c.sql', checksum: checksumString(next) },
+        { file: '20260401_100000__ed_a.sql', checksum: checksumString(good, 'postgresql') },
+        { file: '20260401_110000__ed_bad.sql', checksum: checksumString(bad, 'postgresql') },
+        { file: '20260401_120000__ed_c.sql', checksum: checksumString(next, 'postgresql') },
       ],
     });
 
@@ -510,8 +510,8 @@ describe('verify', () => {
       'CREATE TABLE IF NOT EXISTS t2 (id SERIAL PRIMARY KEY, t1_id INT REFERENCES t1(id));');
     await saveMetadata(project.config, {
       migrations: [
-        { file: '20260401_100000__create_t1.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t1 (id SERIAL PRIMARY KEY);') },
-        { file: '20260401_110000__create_t2.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t2 (id SERIAL PRIMARY KEY, t1_id INT REFERENCES t1(id));') },
+        { file: '20260401_100000__create_t1.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t1 (id SERIAL PRIMARY KEY);', 'postgresql') },
+        { file: '20260401_110000__create_t2.sql', checksum: checksumString('CREATE TABLE IF NOT EXISTS t2 (id SERIAL PRIMARY KEY, t1_id INT REFERENCES t1(id));', 'postgresql') },
       ],
     });
 
@@ -525,7 +525,7 @@ describe('verify', () => {
       'CREATE TABLE t_noidem (id SERIAL PRIMARY KEY);');
     await saveMetadata(project.config, {
       migrations: [
-        { file: '20260401_100000__non_idem.sql', checksum: checksumString('CREATE TABLE t_noidem (id SERIAL PRIMARY KEY);') },
+        { file: '20260401_100000__non_idem.sql', checksum: checksumString('CREATE TABLE t_noidem (id SERIAL PRIMARY KEY);', 'postgresql') },
       ],
     });
 
@@ -538,7 +538,7 @@ describe('verify', () => {
     const sql1 = 'CREATE TABLE IF NOT EXISTS base_v (id SERIAL PRIMARY KEY);';
     await writeMigration(project, '20260401_100000__base_v.sql', sql1);
     await saveMetadata(project.config, {
-      migrations: [{ file: '20260401_100000__base_v.sql', checksum: checksumString(sql1) }],
+      migrations: [{ file: '20260401_100000__base_v.sql', checksum: checksumString(sql1, 'postgresql') }],
     });
     await commandApply(project.config);
 
@@ -554,7 +554,7 @@ describe('verify', () => {
     const sql1 = 'CREATE TABLE IF NOT EXISTS base_v2 (id SERIAL PRIMARY KEY);';
     await writeMigration(project, '20260401_100000__base_v2.sql', sql1);
     await saveMetadata(project.config, {
-      migrations: [{ file: '20260401_100000__base_v2.sql', checksum: checksumString(sql1) }],
+      migrations: [{ file: '20260401_100000__base_v2.sql', checksum: checksumString(sql1, 'postgresql') }],
     });
     await commandApply(project.config);
 
@@ -626,7 +626,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, cre
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
       ],
     });
     await commandApply(project.config);
@@ -702,9 +702,9 @@ CREATE TABLE follows (
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(BAD_FOLLOWS) },
-        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(BAD_FOLLOWS, 'postgresql') },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL, 'postgresql') },
       ],
     });
 
@@ -743,10 +743,10 @@ COMMIT;
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
-        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(BAD_CHAT) },
-        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL, 'postgresql') },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(BAD_CHAT, 'postgresql') },
+        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL, 'postgresql') },
       ],
     });
 
@@ -773,9 +773,9 @@ COMMIT;
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
-        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL, 'postgresql') },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL, 'postgresql') },
       ],
     });
     await commandApply(project.config);
@@ -804,9 +804,9 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
-        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL, 'postgresql') },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL, 'postgresql') },
       ],
     });
     await commandApply(project.config);
@@ -829,10 +829,10 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
-        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL) },
-        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL, 'postgresql') },
+        { file: '20260308_110000__create_chat_rooms.sql', checksum: checksumString(CHAT_ROOMS_SQL, 'postgresql') },
+        { file: '20260315_100000__create_chat_messages.sql', checksum: checksumString(CHAT_MESSAGES_SQL, 'postgresql') },
       ],
     });
 
@@ -854,8 +854,8 @@ ALTER TABLE follows ADD COLUMN IF NOT EXISTS note TEXT;
       model: 'dag',
       modelSince: '20260308_100000__create_follows.sql',
       migrations: [
-        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL) },
-        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL) },
+        { file: '20260301_100000__create_users.sql', checksum: checksumString(USERS_SQL, 'postgresql') },
+        { file: '20260308_100000__create_follows.sql', checksum: checksumString(FOLLOWS_SQL, 'postgresql') },
       ],
     });
     await commandApply(project.config);

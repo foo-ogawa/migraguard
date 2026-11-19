@@ -117,12 +117,12 @@ export async function commandBaseline(
     for (const fileName of squashTargets) {
       const file = files.find((f) => f.fileName === fileName);
       if (!file) continue;
-      const checksum = await checksumFile(file.filePath);
+      const checksum = await checksumFile(file.filePath, config.dialect);
       baselineIncludes.push({ file: fileName, checksum });
     }
 
     const now = new Date().toISOString();
-    const historyComment = buildHistoryComment(schemaPath, baselineIncludes, now);
+    const historyComment = await buildHistoryComment(schemaPath, baselineIncludes, now);
     const newSchemaContent = historyComment + schemaContent;
     await writeFile(schemaPath, newSchemaContent, 'utf-8');
 

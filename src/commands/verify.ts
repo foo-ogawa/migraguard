@@ -89,7 +89,7 @@ async function dumpPgSourceToShadow(config: MigraguardConfig, shadowName: string
   }
 
   const tmpFile = join(tmpdir(), `migraguard-dump-${randomBytes(4).toString('hex')}.sql`);
-  await writeFile(tmpFile, dumpOutput, 'utf-8');
+  await writeFile(tmpFile, dumpOutput, { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
   try {
     const restoreEnv = buildPgEnv(conn);
     restoreEnv['PGDATABASE'] = shadowName;

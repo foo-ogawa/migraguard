@@ -71,7 +71,7 @@ export async function commandImplement(
             throw new Error(`Path traversal detected in migration file name: ${migration.fileName}`);
           }
           const outPath = join(outDir, migration.fileName);
-          await writeFile(outPath, migration.sql, "utf-8");
+          await writeFile(outPath, migration.sql, { encoding: "utf-8", flag: "wx" });
           console.log(chalk.green(`  Created: ${outPath}`));
         }
       }

@@ -53,7 +53,7 @@ export async function commandCheck(config: MigraguardConfig): Promise<CheckResul
     const expectedChecksum = metadataMap.get(f.fileName);
     if (!expectedChecksum) continue;
 
-    const actualChecksum = await checksumFile(f.filePath);
+    const actualChecksum = await checksumFile(f.filePath, config.dialect);
     if (actualChecksum !== expectedChecksum) {
       errors.push(
         `Checksum mismatch for "${f.fileName}": ` +

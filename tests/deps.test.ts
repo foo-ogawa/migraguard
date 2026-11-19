@@ -169,6 +169,13 @@ describe('deps — analyzeSql', () => {
     expect(references).toEqual([]);
   });
 
+  it('reports SQL that does not parse at all', async () => {
+    const { creates, references, parseFailures } = await analyzeSql('THIS IS NOT SQL AT ALL;');
+    expect(creates).toEqual([]);
+    expect(references).toEqual([]);
+    expect(parseFailures).toEqual(['the SQL does not parse']);
+  });
+
   it('reports a LANGUAGE sql body it cannot parse', async () => {
     const sql = 'CREATE FUNCTION f() RETURNS int AS $$ NOT SQL AT ALL !!! $$ LANGUAGE sql;';
     const { creates, references, unanalyzedBlocks, parseFailures } = await analyzeSql(sql);

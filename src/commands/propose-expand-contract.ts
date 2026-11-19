@@ -62,7 +62,7 @@ export async function commandProposeExpandContract(
         const command = "command" in action ? action.command : undefined;
         if (action.kind === "edit_file" && target && command) {
           const outPath = join(outDir, basename(target));
-          await writeFile(outPath, command, "utf-8");
+          await writeFile(outPath, command, { encoding: "utf-8", flag: "wx" });
           console.log(chalk.green(`  Created: ${outPath}`));
         }
       }

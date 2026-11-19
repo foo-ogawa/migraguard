@@ -39,7 +39,7 @@ describe('Expand/Contract example — social-app', () => {
     for (const entry of raw.migrations) {
       const file = files.find((f) => f.fileName === entry.file);
       if (file) {
-        entry.checksum = await checksumFile(file.filePath);
+        entry.checksum = await checksumFile(file.filePath, 'postgresql');
       }
     }
     await writeFile(metaPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
@@ -121,7 +121,7 @@ describe('Expand/Contract example — social-app', () => {
 
       const checksums = new Set<string>();
       for (const f of classBFiles) {
-        const cs = await checksumFile(f.filePath);
+        const cs = await checksumFile(f.filePath, 'postgresql');
         checksums.add(cs);
       }
       expect(checksums.size).toBe(4);
@@ -147,7 +147,7 @@ describe('Expand/Contract example — social-app', () => {
       );
 
       for (const f of classBFiles) {
-        const cs = await checksumFile(f.filePath);
+        const cs = await checksumFile(f.filePath, 'postgresql');
         metadata.migrations.push({ file: f.fileName, checksum: cs });
       }
       await saveMetadata(cfg, metadata);

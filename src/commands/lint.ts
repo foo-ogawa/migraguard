@@ -122,7 +122,9 @@ export async function commandLint(config: MigraguardConfig, options?: LintOption
   } else {
     for (const f of targets) {
       const sql = await readFile(f.filePath, 'utf-8');
-      const raw = await engine.run(sql, f.phase);
+      const raw = await engine.run(sql, f.phase).catch((err: unknown) => {
+        throw new Error(`${f.fileName}: ${(err as Error).message}`, { cause: err });
+      });
       if (raw.length === 0) continue;
 
       const violations: LintFileViolation[] = raw.map((v) => ({

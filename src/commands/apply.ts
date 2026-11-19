@@ -187,7 +187,7 @@ export async function commandApply(config: MigraguardConfig, options?: ApplyOpti
 
       const fileRecords = recordsByFile.get(file.fileName) ?? [];
       const latestRecord = getLatestRecord(fileRecords);
-      const currentChecksum = await checksumFile(file.filePath);
+      const currentChecksum = await checksumFile(file.filePath, config.dialect);
       const isEditable = editable.has(file.fileName);
 
       const insertOpts: InsertRecordOptions | undefined =

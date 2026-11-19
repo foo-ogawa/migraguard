@@ -31,7 +31,7 @@ describe('commands/check', () => {
     const migDir = join(tempDir, 'db', 'migrations');
     await mkdir(migDir, { recursive: true });
     await writeFile(join(migDir, fileName), content);
-    return checksumString(content);
+    return checksumString(content, 'postgresql');
   }
 
   async function setupMetadata(metadata: MetadataJson) {
@@ -79,7 +79,7 @@ describe('commands/check', () => {
 
   it('fails when a non-latest recorded file has checksum mismatch', async () => {
     const contentA = 'CREATE TABLE users;';
-    const checksumA = checksumString(contentA);
+    const checksumA = checksumString(contentA, 'postgresql');
     const contentB = 'CREATE TABLE orders;';
     const checksumB = await setupMigration('20260302_120000__create_orders.sql', contentB);
 
@@ -94,6 +94,27 @@ describe('commands/check', () => {
     });
 
     const config = makeConfig();
+    const result = await commandCheck(config);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes('Checksum mismatch'))).toBe(true);
+  });
+
+  it('detects a MySQL executable comment added to a recorded file', async () => {
+    const config = buildConfig({
+      dialect: 'mysql',
+      migrationsDir: 'db/migrations',
+      metadataFile: 'db/.migraguard/metadata.json',
+    }, tempDir);
+    const original = 'ALTER TABLE orders ADD COLUMN note TEXT;';
+    await setupMigration('20260301_120000__alter_orders.sql', 'ALTER TABLE orders /*!DROP COLUMN amount,*/ ADD COLUMN note TEXT;');
+    const latest = 'CREATE TABLE items (id INT);';
+    await setupMigration('20260302_120000__create_items.sql', latest);
+    await saveMetadata(config, {
+      migrations: [
+        { file: '20260301_120000__alter_orders.sql', checksum: checksumString(original, 'mysql') },
+        { file: '20260302_120000__create_items.sql', checksum: checksumString(latest, 'mysql') },
+      ],
+    });
     const result = await commandCheck(config);
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.includes('Checksum mismatch'))).toBe(true);
@@ -215,7 +236,7 @@ describe('commands/check', () => {
 
   it('DAG: allows leaf node to have checksum change', async () => {
     const usersContent = 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY);';
-    const usersChecksum = checksumString(usersContent);
+    const usersChecksum = checksumString(usersContent, 'postgresql');
     await setupMigration('20260301_100000__create_users.sql', usersContent);
 
     // posts is a leaf (depends on users) — change its checksum
@@ -246,7 +267,7 @@ describe('commands/check', () => {
     );
 
     const postsContent = 'CREATE TABLE IF NOT EXISTS posts (id INT, user_id INT REFERENCES users(id));';
-    const postsChecksum = checksumString(postsContent);
+    const postsChecksum = checksumString(postsContent, 'postgresql');
     await setupMigration('20260302_100000__create_posts.sql', postsContent);
 
     await setupMetadata({

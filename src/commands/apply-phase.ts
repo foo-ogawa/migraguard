@@ -54,7 +54,7 @@ export async function commandApplyPhase(
       return { success: false, group, phase, error: msg };
     }
 
-    const checksum = await checksumFile(file.filePath);
+    const checksum = await checksumFile(file.filePath, config.dialect);
 
     if (options.dryRun) {
       console.log(chalk.cyan(`[dry-run] Would apply phase "${phase}" for "${group}"`));

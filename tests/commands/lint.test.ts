@@ -27,6 +27,18 @@ describe('commands/lint', () => {
     expect(result.filesLinted).toBe(0);
   });
 
+  it('fails on a PostgreSQL migration that does not parse, naming the file', async () => {
+    const migDir = join(tempDir, 'db', 'migrations');
+    await mkdir(migDir, { recursive: true });
+    await writeFile(
+      join(migDir, '20260301_120000__broken.sql'),
+      'CREATE TABLE users (id SERIAL PRIMARY KEY;\nCREATE INDEX idx ON users (id);',
+    );
+
+    const config = buildConfig({ migrationsDir: 'db/migrations' }, tempDir);
+    await expect(commandLint(config)).rejects.toThrow(/20260301_120000__broken\.sql/);
+  });
+
   it('detects errors in unsafe SQL', async () => {
     const migDir = join(tempDir, 'db', 'migrations');
     await mkdir(migDir, { recursive: true });
