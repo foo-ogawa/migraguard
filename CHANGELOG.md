@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.29
+
+### 公開
+
+- npm への公開を Trusted Publishing（GitHub Actions の OIDC）に切り替えました。機能の変更はありません。
+
 ## 0.16.28
 
 ### 挙動の変更
