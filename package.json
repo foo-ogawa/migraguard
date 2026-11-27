@@ -66,6 +66,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/foo-ogawa/migraguard.git"
+  },
   "dependencies": {
     "libpg-query": "^18.2.4",
     "node-sql-parser": "^5.4.0",
